@@ -66,13 +66,13 @@ final class AppState {
     // Toast notifications
     var toasts: [ToastMessage] = []
 
-    func showToast(_ message: String) {
+    func showToast(_ message: String, duration: Double = 3) {
         let toast = ToastMessage(message: message)
         withAnimation(SnapSpring.standard) {
             toasts.append(toast)
         }
         Task { @MainActor in
-            try? await Task.sleep(for: .seconds(3))
+            try? await Task.sleep(for: .seconds(duration))
             withAnimation(SnapSpring.fast) {
                 toasts.removeAll { $0.id == toast.id }
             }
