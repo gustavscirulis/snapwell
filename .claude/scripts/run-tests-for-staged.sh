@@ -14,15 +14,15 @@ if [ -z "$STAGED" ]; then
   exit 0
 fi
 
-MAC_CHANGED=$(echo "$STAGED" | grep -c '^SnapGrid/' || true)
+MAC_CHANGED=$(echo "$STAGED" | grep -c '^macos/' || true)
 IOS_CHANGED=$(echo "$STAGED" | grep -c '^ios/' || true)
 
 FAILED=0
 
 if [ "$MAC_CHANGED" -gt 0 ]; then
   echo "Running Mac app tests..."
-  (cd SnapGrid && xcodegen generate -q 2>/dev/null && \
-    xcodebuild test -project SnapGrid.xcodeproj -scheme SnapGrid \
+  (cd macos && xcodegen generate -q 2>/dev/null && \
+    xcodebuild test -project Snapwell.xcodeproj -scheme Snapwell \
       -destination 'platform=macOS' 2>&1 | xcbeautify --quiet) || FAILED=1
 
   if [ "$FAILED" -eq 1 ]; then
@@ -34,7 +34,7 @@ fi
 
 if [ "$IOS_CHANGED" -gt 0 ]; then
   echo "Running iOS app tests..."
-  xcodebuild test -project ios/SnapGrid/SnapGrid.xcodeproj -scheme SnapGrid \
+  xcodebuild test -project ios/Snapwell.xcodeproj -scheme Snapwell \
     -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
     CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
     2>&1 | xcbeautify --quiet || FAILED=1

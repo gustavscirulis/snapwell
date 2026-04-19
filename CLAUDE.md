@@ -1,21 +1,20 @@
-# SnapGrid
+# Snapwell
 
-Visual media library app for collecting screenshots and videos, with AI-powered pattern analysis. Three platform-specific apps share the same `~/Documents/SnapGrid/` storage.
+AI-native media library for collecting, organizing, and analyzing images and videos. Two native apps share the same `~/Documents/Snapwell/` storage.
 
 | Project | Location | Stack |
 |---------|----------|-------|
-| Native Mac app (primary) | `/SnapGrid/` | SwiftUI + SwiftData, macOS 15+ |
-| iOS companion app | `/ios/SnapGrid/` | SwiftUI + SwiftData, iOS 17+ |
-| Legacy Electron app | `/electron/` + `/src/` | Electron, React, TypeScript, Vite |
+| Mac app (primary) | `/macos/` | SwiftUI + SwiftData, macOS 15+ |
+| iOS companion app | `/ios/` | SwiftUI + SwiftData, iOS 17+ |
 
-The Mac app is the reference implementation. iOS matches its patterns. The Electron app is legacy.
+The Mac app is the reference implementation. iOS matches its patterns.
 
 ## Shared file storage
 
 All apps read/write the same structure. iOS syncs via iCloud.
 
 ```
-~/Documents/SnapGrid/
+~/Documents/Snapwell/
 ├── images/     (media files: {id}.png, {id}.mp4, etc.)
 ├── metadata/   (sidecar JSON: {id}.json — same ID as media)
 ├── thumbnails/ (generated: {id}.jpg)
@@ -24,34 +23,23 @@ All apps read/write the same structure. iOS syncs via iCloud.
 └── queue/      (mobile import staging, auto-watched by Mac)
 ```
 
-## Electron app (legacy)
-
-MUST use `HashRouter` — `BrowserRouter` breaks in Electron production.
-NEVER use `require()` in renderer — all communication via IPC (`electron/preload.cjs`).
-
-```bash
-npm run electron:dev    # Development
-npm run build          # TypeScript check
-npm run lint           # Before committing
-```
-
 ## iOS app
 
 Syncs media and spaces via iCloud. Can run AI analysis and write results back to sidecars. Zero external dependencies.
 
 **iCloud handling is critical** — files may exist as `.icloud` placeholders. All loading code must detect placeholders, trigger downloads with `startDownloadingUbiquitousItem()`, and wait for completion.
 
-**Folder access** uses security-scoped URL bookmarks via `FileSystemManager`. User picks the SnapGrid folder once on first launch.
+**Folder access** uses security-scoped URL bookmarks via `FileSystemManager`. User picks the Snapwell folder once on first launch.
 
 **FullScreenImageOverlay gestures** use a mode-locking pattern (dismiss/scroll/swipe/zoom lock on first touch). Respect this when modifying gesture code.
 
-Bundle ID: `com.snapgrid.ios`.
+Bundle ID: `co.snapwell.app`.
 
 ## Mac app
 
-Uses XcodeGen — run `cd SnapGrid && xcodegen generate` after adding/removing Swift files.
+Uses XcodeGen — run `cd macos && xcodegen generate` after adding/removing Swift files.
 
-Bundle ID: `com.snapgrid.app`.
+Bundle ID: `co.snapwell.app`.
 
 ## Architecture patterns
 
@@ -73,10 +61,10 @@ Both native apps use Swift Testing (`import Testing`, `@Test`, `@Suite`, `#expec
 
 ```bash
 # Mac tests
-cd SnapGrid && xcodegen generate && xcodebuild test -project SnapGrid.xcodeproj -scheme SnapGrid -destination 'platform=macOS' 2>&1 | xcbeautify --quiet
+cd macos && xcodegen generate && xcodebuild test -project Snapwell.xcodeproj -scheme Snapwell -destination 'platform=macOS' 2>&1 | xcbeautify --quiet
 
 # iOS tests
-cd ios/SnapGrid && xcodebuild test -project SnapGrid.xcodeproj -scheme SnapGrid -destination 'platform=iOS Simulator,name=iPhone 17 Pro' 2>&1 | xcbeautify --quiet
+cd ios && xcodebuild test -project Snapwell.xcodeproj -scheme Snapwell -destination 'platform=iOS Simulator,name=iPhone 17 Pro' 2>&1 | xcbeautify --quiet
 ```
 
 ### When to add tests
@@ -95,7 +83,7 @@ cd ios/SnapGrid && xcodebuild test -project SnapGrid.xcodeproj -scheme SnapGrid 
 
 **SwiftData tests** use in-memory containers via `TestContainer.create()` — never touch the real database.
 
-**Integration tests** use temp directories via `IntegrationTestSupport.makeTempRoot()` — creates `/tmp/SnapGridTests/{UUID}/` with the full directory structure. Each test gets its own unique dir; safe for parallel runs across git worktrees.
+**Integration tests** use temp directories via `IntegrationTestSupport.makeTempRoot()` — creates `/tmp/SnapwellTests/{UUID}/` with the full directory structure. Each test gets its own unique dir; safe for parallel runs across git worktrees.
 
 **Injectable services (Mac):** `MediaStorageService(baseURL:)`, `MetadataSidecarService(storage:)`, `SyncWatcher(storage:sidecarService:)`, and `ImportService(storage:sidecarService:)` all accept injected dependencies for testing. Production code uses default `.shared` singletons.
 
@@ -103,11 +91,11 @@ cd ios/SnapGrid && xcodebuild test -project SnapGrid.xcodeproj -scheme SnapGrid 
 
 **Test tags:** `.integration`, `.sync`, `.filesystem`, `.model`, `.parsing`, `.crypto`, `.serialization`, `.search`, `.state`, `.layout`.
 
-**Access levels:** Change `private` to `internal` (Swift default) to make methods testable. Use `@testable import SnapGrid`.
+**Access levels:** Change `private` to `internal` (Swift default) to make methods testable. Use `@testable import Snapwell`.
 
 ## Common gotchas
 
 - Check `@Environment(\.accessibilityReduceMotion)` / `UIAccessibility.isReduceMotionEnabled` before spring animations or shimmer effects
 - Use `.glassEffect` on macOS 26+ / iOS 26+ with `.ultraThinMaterial` fallback for older versions
-- Menu bar commands use `NotificationCenter` to communicate with `ContentView` — add new notifications in `SnapGridApp.swift`
+- Menu bar commands use `NotificationCenter` to communicate with `ContentView` — add new notifications in `SnapwellApp.swift`
 - `NSWindow.allowsAutomaticWindowTabbing = false` — native tab bar is disabled; the app has its own Spaces tab bar

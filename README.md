@@ -1,109 +1,94 @@
-## Project info
+# Snapwell — Collect images, let AI organize them.
 
-SnapGrid is an open-source desktop app for collecting, organizing, and analyzing images and videos. It uses AI to automatically categorize your visual content, making it easy to search and manage large collections.
+A local-first image library for macOS and iOS — drop in screenshots, references, inspiration, and video. Snapwell categorizes everything, makes it searchable, and syncs across your devices.
 
-![SnapGrid Preview](assets/preview.png)
+![Snapwell Preview](assets/preview.png)
 
-It's built by [@gustavscirulis](https://github.com/gustavscirulis), and all of the code is entirely AI-generated.
+Built by [@gustavscirulis](https://github.com/gustavscirulis).
 
-### Use cases
+## Use cases
 
-- **UI/UX Design** – Collect reference screenshots, organize design inspiration, and track UI patterns across apps
-- **Mood Boarding** – Gather visual references for creative projects and organize them into themed spaces
-- **Development** – Save and categorize UI states, bugs, and visual regression captures
-- **Content Creation** – Manage image and video assets with AI-powered tagging and search
-- **Research** – Organize visual research material and let AI surface patterns across collections
+- **UI & design references** — Screenshot interfaces, collect patterns, track visual systems. AI tags and categorizes so you can search by what's in the image, not what you named the file
+- **Project inspiration** — Planning a renovation, picking furniture, collecting style references. Organize into spaces per project and let AI surface connections
+- **Mood boards & curation** — Gather visual inspiration from anywhere — drag in images, paste from the web, import from X/Twitter. AI groups and tags automatically
+- **Design systems** — Capture component states, track UI patterns across products, maintain a visual inventory
 
 ## Features
 
-- **Image & Video Management** – Collect and organize images and videos in a visual grid layout
-- **Spaces** – Organize media into collections with drag-and-drop support and per-space export
-- **Multi-Provider AI Analysis** – Automatically categorize content using OpenAI, Claude (Anthropic), Google Gemini, or OpenRouter
-- **Custom AI Instructions** – Configure custom analysis prompts per space for tailored insights
-- **Smart Organization** – Search and filter your library based on AI-detected categories and patterns
-- **iOS Shortcut Import** – Export an iOS Shortcut from settings to import media from your phone
-- **Fast Local Storage** – All media and metadata are stored locally and can be synced with iCloud
+- **Local-first storage** — All images, metadata, and preferences stay on your device
+- **AI-powered analysis** — Categorize and tag using OpenAI, Claude, Google Gemini, or OpenRouter with your own API key
+- **Custom analysis prompts** — Configure AI instructions per space for tailored categorization
+- **Spaces** — Organize images into collections with drag-and-drop and per-space export
+- **Search by content** — Find images based on what AI detected in them, not filenames
+- **iCloud sync** — Sync your library between Mac and iOS
+- **iOS Share Extension** — Send images and videos to Snapwell from any app
+- **Video support** — Import and analyze video alongside images
 
 ## Installation
 
-Download the latest release for your platform from the [releases](https://github.com/gustavscirulis/snapgrid/releases) page.
-
-### macOS Users
-- If you have an Intel Mac (2020 or earlier), download `SnapGrid.dmg`
-- If you have an Apple Silicon Mac (M1/M2/M3), download `SnapGrid-arm64.dmg`
-- Not sure? Click Apple menu () > About This Mac. Under "Chip" or "Processor", you'll see which type you have
+Download the latest release from the [Releases](https://github.com/gustavscirulis/snapwell/releases) page, or build from source.
 
 ## Requirements
 
-To use the AI analysis feature, you'll need to add an API key for at least one supported provider in the settings: OpenAI, Anthropic (Claude), Google Gemini, or OpenRouter. You can choose your preferred provider and model from the settings panel. You can still use the app without AI — it works great as a media organizer on its own.
+AI analysis requires an API key for at least one provider: OpenAI, Anthropic (Claude), Google Gemini, or OpenRouter. Add your key in Settings and pick your preferred model. The app works without AI too — you just won't get automatic tagging and search.
 
 ## Privacy
 
-SnapGrid is built with privacy in mind:
-
-- **Local-first by design**: All media, metadata, and app data are stored locally on your device. Nothing is uploaded or stored remotely.
-- **Optional AI analysis**: If enabled, images are temporarily sent to your chosen AI provider (OpenAI, Anthropic, Google Gemini, or OpenRouter) for categorization. This feature is optional and can be turned off at any time in the settings.
-- **Anonymous usage analytics**: SnapGrid collects basic, anonymous usage stats and crash reports to help improve the app. No personal data or media are ever collected. You can opt out of tracking in the settings.
+Snapwell has no servers and collects no data. If you enable AI analysis, images are sent directly from your device to the provider you chose. See [PRIVACY.md](PRIVACY.md) for details.
 
 ## File storage
 
-SnapGrid stores files in the following locations:
+Snapwell stores files in `~/Documents/Snapwell/` or iCloud Drive:
 
-- **macOS**: `~/Documents/SnapGrid/`  
-- **Other platforms**: in the app's user data directory
-
-Inside that folder:
-
-- `images/` – All media files (PNG images and MP4 videos)
-- `metadata/` – JSON metadata for each media item  
-- `.trash/` – Deleted items are moved here (same structure as above)
+- `images/` — Media files (PNG, MP4, etc.)
+- `metadata/` — JSON sidecar for each media item
+- `thumbnails/` — Generated thumbnails
+- `spaces.json` — Space definitions and AI prompt configuration
+- `.trash/` — Deleted items (auto-emptied after 30 days)
+- `queue/` — iOS import staging, auto-watched by the Mac app
 
 ## Development
 
-SnapGrid is built with:
+Snapwell is built with Swift 6, SwiftUI, and SwiftData. The Mac app uses [XcodeGen](https://github.com/yonaskolb/XcodeGen) for project generation.
 
-- Electron  
-- Vite  
-- TypeScript  
-- React  
-- shadcn-ui  
-- Tailwind CSS
-
-### Setting Up Development Environment
+### macOS
 
 ```sh
-# Clone the repository
-git clone https://github.com/snapgrid/snapgrid.git
-
-# Navigate to the project directory
-cd snapgrid
-
-# Install dependencies
-npm install
-
-# Start development server
-npm run electron:dev
+cd macos
+xcodegen generate
+open Snapwell.xcodeproj
 ```
 
-### Building for Production
+### iOS
 
 ```sh
-# Build for production
-npm run electron:build
+open ios/Snapwell.xcodeproj
+```
+
+### Running tests
+
+```sh
+# Mac
+cd macos && xcodegen generate && xcodebuild test \
+  -project Snapwell.xcodeproj -scheme Snapwell \
+  -destination 'platform=macOS' 2>&1 | xcbeautify --quiet
+
+# iOS
+cd ios && xcodebuild test \
+  -project Snapwell.xcodeproj -scheme Snapwell \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' 2>&1 | xcbeautify --quiet
 ```
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions welcome — open a Pull Request or file an issue.
 
 ## License
 
-This project is licensed under the GNU General Public License v3.0 (GPL-3.0) - see the LICENSE file for details. This license ensures that all modifications to this code remain open source.
+This project is licensed under the GNU General Public License v3.0 — see [LICENSE](LICENSE) for details. As an additional permission under GPL-3.0 section 7, this software may be distributed through the Apple App Store.
 
 ## Acknowledgments
 
-- Thanks to [Cursor](https://cursor.com) and [Loveable](https://loveable.dev) teams for building the AI code generation tools that made this project possible
-- Thanks to [Midjourney](https://www.midjourney.com/) for the app icon
-- Thanks to [OpenAI](https://openai.com/), [Anthropic](https://anthropic.com/), [Google Gemini](https://deepmind.google/technologies/gemini/), and [OpenRouter](https://openrouter.ai/) for their AI APIs that power image categorization
-- Built with [Electron](https://www.electronjs.org/) and [React](https://reactjs.org/)
-- UI components from [shadcn/ui](https://ui.shadcn.com/)
+- Built entirely with [Claude Code](https://claude.ai/code) by Anthropic
+- App icon by [Midjourney](https://www.midjourney.com/)
+- AI analysis powered by [OpenAI](https://openai.com/), [Anthropic](https://anthropic.com/), [Google Gemini](https://deepmind.google/technologies/gemini/), and [OpenRouter](https://openrouter.ai/)

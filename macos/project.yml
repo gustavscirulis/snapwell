@@ -1,0 +1,81 @@
+name: Snapwell
+options:
+  bundleIdPrefix: co.snapwell
+  deploymentTarget:
+    macOS: "15.0"
+  xcodeVersion: "16.0"
+  generateEmptyDirectories: true
+  groupSortPosition: top
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MACOSX_DEPLOYMENT_TARGET: "15.0"
+    DEVELOPMENT_TEAM: "HJ4HYUU2Y6"
+    CODE_SIGN_IDENTITY: "Apple Development"
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_HARDENED_RUNTIME: YES
+
+targets:
+  Snapwell:
+    type: application
+    platform: macOS
+    attributes:
+      DevelopmentTeam: HJ4HYUU2Y6
+      ProvisioningStyle: Automatic
+    sources:
+      - path: Snapwell
+        excludes:
+          - "**/.DS_Store"
+    info:
+      path: Snapwell/Resources/Info.plist
+      properties:
+        CFBundleDisplayName: Snapwell
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        LSApplicationCategoryType: public.app-category.photography
+        NSHumanReadableCopyright: "Copyright © 2026 Snapwell"
+        ITSAppUsesNonExemptEncryption: false
+        NSUbiquitousContainers:
+          iCloud.co.SnapWell:
+            NSUbiquitousContainerIsDocumentScopePublic: true
+            NSUbiquitousContainerSupportedFolderLevels: Any
+            NSUbiquitousContainerName: Snapwell
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: co.snapwell
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: 1
+        CODE_SIGN_ENTITLEMENTS: Snapwell/Resources/Snapwell.entitlements
+        SWIFT_STRICT_CONCURRENCY: complete
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_STANDALONE_ICON_BEHAVIOR: none
+    entitlements:
+      path: Snapwell/Resources/Snapwell.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.network.client: true
+        com.apple.security.files.user-selected.read-write: true
+        com.apple.developer.ubiquity-container-identifiers:
+          - iCloud.co.SnapWell
+        keychain-access-groups:
+          - $(TeamIdentifierPrefix)co.snapwell.shared
+
+  SnapwellTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: SnapwellTests
+        excludes:
+          - "**/.DS_Store"
+    dependencies:
+      - target: Snapwell
+    settings:
+      base:
+        SWIFT_VERSION: "6.0"
+        MACOSX_DEPLOYMENT_TARGET: "15.0"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Snapwell.app/Contents/MacOS/Snapwell"
+        PRODUCT_BUNDLE_IDENTIFIER: co.snapwell.tests
+        SWIFT_STRICT_CONCURRENCY: complete
+        GENERATE_INFOPLIST_FILE: "YES"
