@@ -226,7 +226,10 @@ struct ContentView: View {
                     }
                 }
             },
-            onPasteImages: { handlePaste() }
+            onPasteImages: { handlePaste() },
+            onShowAPIKeyToast: {
+                appState.showToast("Add an API key in Settings (\u{2318},) for AI analysis")
+            }
         ))
         .sheet(isPresented: Binding(
             get: { electronImportURL != nil },
@@ -451,6 +454,7 @@ struct ContentView: View {
             Task {
                 await importService.importFiles(urls, into: modelContext, spaceId: appState.activeSpaceId)
                 syncWatcher.endLocalChange()
+                showAPIKeyNudgeIfNeeded()
             }
         }
     }
@@ -509,6 +513,7 @@ struct ContentView: View {
         Task {
             await importService.importFiles(mediaURLs, into: modelContext, spaceId: appState.activeSpaceId)
             syncWatcher.endLocalChange()
+            showAPIKeyNudgeIfNeeded()
         }
     }
 
@@ -543,6 +548,7 @@ struct ContentView: View {
                     await importService.importImage(image, into: modelContext, spaceId: appState.activeSpaceId)
                 }
                 syncWatcher.endLocalChange()
+                showAPIKeyNudgeIfNeeded()
             }
         }
     }
@@ -573,6 +579,7 @@ struct ContentView: View {
                     await importService.importFiles(validURLs, into: modelContext, spaceId: appState.activeSpaceId)
                     syncWatcher.endLocalChange()
                     appState.showToast("Pasted \(validURLs.count) item\(validURLs.count == 1 ? "" : "s")")
+                    showAPIKeyNudgeIfNeeded()
                 }
                 return
             }
@@ -587,6 +594,7 @@ struct ContentView: View {
                 }
                 syncWatcher.endLocalChange()
                 appState.showToast("Pasted \(images.count) image\(images.count == 1 ? "" : "s")")
+                showAPIKeyNudgeIfNeeded()
             }
             return
         }
@@ -624,12 +632,20 @@ struct ContentView: View {
                     syncWatcher.endLocalChange()
                     if successCount > 0 {
                         appState.showToast("Imported \(successCount) item\(successCount == 1 ? "" : "s")")
+                        showAPIKeyNudgeIfNeeded()
                     } else if !hasTwitterURL {
                         appState.showToast("URL doesn't point to a supported image or video")
                     }
                 }
             }
         }
+    }
+
+    private func showAPIKeyNudgeIfNeeded() {
+        guard !AIProvider.hasAnyAPIKey,
+              !UserDefaults.standard.bool(forKey: "hasShownAPIKeyToast") else { return }
+        UserDefaults.standard.set(true, forKey: "hasShownAPIKeyToast")
+        appState.showToast("Add an API key in Settings (\u{2318},) for AI analysis")
     }
 
     private func deleteItems(_ ids: Set<String>) {
@@ -1095,6 +1111,7 @@ private struct NotificationModifier: ViewModifier {
     let onSelectAll: () -> Void
     let onSwitchToSpace: (Int) -> Void
     let onPasteImages: () -> Void
+    let onShowAPIKeyToast: () -> Void
 
     func body(content: Content) -> some View {
         content
@@ -1131,6 +1148,9 @@ private struct NotificationModifier: ViewModifier {
             }
             .onReceive(NotificationCenter.default.publisher(for: .pasteImages)) { _ in
                 onPasteImages()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .showAPIKeyToast)) { _ in
+                onShowAPIKeyToast()
             }
     }
 }

@@ -66,11 +66,7 @@ struct EmptyStateView: View {
                         .controlSize(.large)
                     }
 
-                    if mode == .appLevel,
-                       !KeychainService.exists(service: AIProvider.openai.keychainService),
-                       !KeychainService.exists(service: AIProvider.anthropic.keychainService),
-                       !KeychainService.exists(service: AIProvider.gemini.keychainService),
-                       !KeychainService.exists(service: AIProvider.openrouter.keychainService) {
+                    if mode == .appLevel, !AIProvider.hasAnyAPIKey {
                         VStack(spacing: 12) {
                             Divider()
                                 .frame(width: 160)

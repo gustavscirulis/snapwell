@@ -200,4 +200,5 @@ extension Notification.Name {
     static let zoomIn = Notification.Name("zoomIn")
     static let zoomOut = Notification.Name("zoomOut")
     static let closeDetail = Notification.Name("closeDetail")
+    static let showAPIKeyToast = Notification.Name("showAPIKeyToast")
 }

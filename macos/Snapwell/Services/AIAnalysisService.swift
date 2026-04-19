@@ -18,6 +18,10 @@ enum AIProvider: String, CaseIterable, Codable, Sendable {
 
     var keychainService: String { rawValue }
 
+    static var hasAnyAPIKey: Bool {
+        allCases.contains { KeychainService.exists(service: $0.keychainService) }
+    }
+
     var defaultModel: String {
         switch self {
         case .openai: return "gpt-4o"

@@ -16,6 +16,15 @@ struct DeveloperSettingsTab: View {
                 Text("Shows the empty state view without deleting any data.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                Button("Show API Key Toast") {
+                    UserDefaults.standard.removeObject(forKey: "hasShownAPIKeyToast")
+                    NotificationCenter.default.post(name: .showAPIKeyToast, object: nil)
+                }
+
+                Text("Triggers the one-time API key nudge toast.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Trash") {
