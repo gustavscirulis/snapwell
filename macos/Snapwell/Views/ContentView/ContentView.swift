@@ -228,7 +228,7 @@ struct ContentView: View {
             },
             onPasteImages: { handlePaste() },
             onShowAPIKeyToast: {
-                appState.showToast("Add an API key in Settings (\u{2318},) for AI analysis")
+                appState.showToast("To enable AI analysis, set up an API key in Settings", duration: 5)
             }
         ))
         .sheet(isPresented: Binding(
@@ -642,10 +642,10 @@ struct ContentView: View {
     }
 
     private func showAPIKeyNudgeIfNeeded() {
-        guard !AIProvider.hasAnyAPIKey,
-              !UserDefaults.standard.bool(forKey: "hasShownAPIKeyToast") else { return }
-        UserDefaults.standard.set(true, forKey: "hasShownAPIKeyToast")
-        appState.showToast("Add an API key in Settings (\u{2318},) for AI analysis")
+        let count = UserDefaults.standard.integer(forKey: "apiKeyToastCount")
+        guard !AIProvider.hasAnyAPIKey, count < 3 else { return }
+        UserDefaults.standard.set(count + 1, forKey: "apiKeyToastCount")
+        appState.showToast("To enable AI analysis, set up an API key in Settings", duration: 5)
     }
 
     private func deleteItems(_ ids: Set<String>) {

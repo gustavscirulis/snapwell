@@ -18,11 +18,11 @@ struct DeveloperSettingsTab: View {
                     .foregroundStyle(.secondary)
 
                 Button("Show API Key Toast") {
-                    UserDefaults.standard.removeObject(forKey: "hasShownAPIKeyToast")
+                    UserDefaults.standard.set(0, forKey: "apiKeyToastCount")
                     NotificationCenter.default.post(name: .showAPIKeyToast, object: nil)
                 }
 
-                Text("Triggers the one-time API key nudge toast.")
+                Text("Resets counter and triggers the API key nudge toast.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
