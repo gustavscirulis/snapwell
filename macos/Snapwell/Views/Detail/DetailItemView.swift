@@ -879,6 +879,7 @@ struct DetailMetadataSection: View {
 
 private struct SourceLinkButton: View {
     let url: URL
+    @Environment(\.openURL) private var openURL
     @State private var isHovered = false
 
     private var isXPost: Bool {
@@ -890,16 +891,16 @@ private struct SourceLinkButton: View {
     private var iconName: String { isXPost ? "arrow.up.right.square" : "link" }
 
     var body: some View {
-        Link(destination: url) {
-            HStack(spacing: 4) {
-                Image(systemName: iconName)
-                    .font(.caption2)
-                Text(label)
-                    .font(.caption)
-            }
-            .foregroundStyle(.secondary.opacity(isHovered ? 0.8 : 0.5))
-            .onHover { isHovered = $0 }
+        HStack(spacing: 4) {
+            Image(systemName: iconName)
+                .font(.caption2)
+            Text(label)
+                .font(.caption)
         }
+        .foregroundStyle(.secondary.opacity(isHovered ? 0.8 : 0.5))
+        .onHover { isHovered = $0 }
+        .contentShape(Rectangle())
+        .onTapGesture { openURL(url) }
         .accessibilityLabel("View original post on X")
         .accessibilityHint("Opens the source URL in your browser")
     }
