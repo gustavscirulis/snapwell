@@ -112,10 +112,10 @@ body {
 /* ══════════════════════════════════════════════════════════════
  * HERO REVEAL STORYBOARD
  *
- *    0ms   "Your images" at 50% brightness — sole element
+ *    0ms   "Your inspiration" at 50% brightness — sole element
  *  300ms   Shimmer sweep begins (2 × 1.5s = 3.0s)
  * 3300ms   Shimmer ends → headline lights up to full (0.5s)
- * 3400ms   Comma + "analyzed by AI" fade up (0.5s)
+ * 3400ms   "organized by AI" mask reveal (2.2s)
  * 3900ms   Tagline fades up                        ─┐
  * 3970ms   Subtitle fades up                  +70ms │ Stage 3
  * 4040ms   CTA buttons fade up               +70ms │ cascade
@@ -149,13 +149,9 @@ body {
       heroHeadlineLightUp 0.5s ease-out 3.3s 1 forwards;
   }
 
-  .hero-headline-comma {
-    opacity: 0;
-    animation: heroFadeUp 0.3s ease-out 3.4s both;
-  }
-
   .hero-tagline-reveal {
     opacity: 0;
+    padding-right: 0.15em;
     -webkit-mask-image: linear-gradient(to right, black 0%, black 40%, transparent 55%, transparent 100%);
     mask-image: linear-gradient(to right, black 0%, black 40%, transparent 55%, transparent 100%);
     -webkit-mask-size: 300% 100%;
