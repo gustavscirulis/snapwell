@@ -1,0 +1,136 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0c0b0a;
+  --foreground: #edebe8;
+  --muted: #78756e;
+  --border: #1f1e1a;
+  --surface: #16150f;
+  --accent: #c4a47a;
+  --accent-soft: #14120e;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-surface: var(--surface);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-display);
+}
+
+@property --shimmer-base {
+  syntax: "<color>";
+  initial-value: rgba(196, 164, 122, 0.3);
+  inherits: false;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+@keyframes heroFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes heroBgReveal {
+  from {
+    opacity: 0;
+    transform: scale(1.04);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes heroDeviceUp {
+  from {
+    opacity: 0;
+    transform: translateY(80px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes shimmerSweep {
+  0% {
+    background-position: 100% center;
+  }
+  100% {
+    background-position: 0% center;
+  }
+}
+
+@keyframes shimmerLightUp {
+  to {
+    --shimmer-base: #c4a47a;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .hero-text-1 {
+    animation: heroFadeUp 0.4s ease-out 0.05s both;
+  }
+  .hero-text-2 {
+    animation: heroFadeUp 0.5s ease-out 0.1s both;
+  }
+  .hero-text-3 {
+    animation: heroFadeUp 0.4s ease-out 0.2s both;
+  }
+  .hero-text-4 {
+    animation: heroFadeUp 0.4s ease-out 0.3s both;
+  }
+
+  .hero-bg-reveal {
+    animation: heroBgReveal 1.2s ease-out 0.3s both;
+  }
+
+  .hero-mac {
+    animation: heroDeviceUp 1.4s cubic-bezier(0.16, 1, 0.3, 1) 0.4s both;
+  }
+
+  .hero-iphone {
+    animation: heroDeviceUp 1.4s cubic-bezier(0.16, 1, 0.3, 1) 0.6s both;
+  }
+
+  .hero-shimmer {
+    --shimmer-base: rgba(196, 164, 122, 0.3);
+    background: linear-gradient(
+      90deg,
+      var(--shimmer-base) 0%,
+      var(--shimmer-base) 20%,
+      #c4a47a 40%,
+      #c4a47a 60%,
+      var(--shimmer-base) 80%,
+      var(--shimmer-base) 100%
+    );
+    background-size: 500% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    padding-bottom: 0.12em;
+    animation:
+      shimmerSweep 1.2s ease-in-out 0.7s 3 both,
+      shimmerLightUp 0.8s ease-out 4.3s 1 forwards;
+  }
+}

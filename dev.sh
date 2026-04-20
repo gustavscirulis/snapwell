@@ -166,15 +166,32 @@ run_ios() {
     printf "${GREEN}✓ Snapwell is running on %s${RESET}\n" "$device_name"
 }
 
+# ── Website dev server ──────────────────────────────────────────
+
+run_site() {
+    printf "\n${BOLD}Starting Snapwell website dev server...${RESET}\n\n"
+
+    cd "$SCRIPT_DIR/site"
+
+    if [[ ! -d node_modules ]]; then
+        printf "${DIM}Installing dependencies...${RESET}\n"
+        npm install
+    fi
+
+    printf "${GREEN}✓ Starting at http://localhost:3000${RESET}\n\n"
+    npm run dev
+}
+
 # ── Main ────────────────────────────────────────────────────────
 
 printf "\n${BOLD}Snapwell Dev Runner${RESET}\n\n"
 printf "Select target:\n\n"
 
-options=("Mac app     →  build & run locally" "iOS app     →  build & run on iPhone")
+options=("Mac app     →  build & run locally" "iOS app     →  build & run on iPhone" "Website     →  Next.js dev server")
 select_option "${options[@]}" && choice=$? || choice=$?
 
 case $choice in
     0) run_mac ;;
     1) run_ios ;;
+    2) run_site ;;
 esac
