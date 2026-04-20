@@ -4,7 +4,7 @@ const useCases = [
   {
     title: "UI & design references",
     description:
-      "Screenshot interfaces, collect patterns, track visual systems. Search by what's in the image, not what you named the file.",
+      "Screenshot interfaces, collect patterns, track visual systems. Search by what you see, not what you named the file.",
     illustration: (
       <svg width="56" height="44" viewBox="0 0 56 44" fill="none" className="text-accent">
         <rect x="1" y="1" width="54" height="34" rx="4" stroke="currentColor" strokeWidth="1.2" opacity="0.5" />
@@ -73,7 +73,7 @@ export default function Home() {
   return (
     <>
       {/* ── Hero ──────────────────────────────────────── */}
-      <header className="relative overflow-hidden">
+      <header className="relative">
         <div className="relative z-20 px-6 pt-32 md:pt-44">
           <div className="mx-auto max-w-6xl">
             <p className="hero-text-1 font-mono text-xs uppercase tracking-[0.3em] text-accent">
@@ -88,7 +88,7 @@ export default function Home() {
               </span>
             </h1>
             <p className="hero-text-3 mt-6 max-w-md text-lg text-muted md:text-xl">
-              Collect anything, search by what&apos;s in it.
+              Collect anything, search by what you see.
               <br />A media library for macOS and iOS.
             </p>
             <div className="hero-text-4 mt-10 flex items-center gap-4">
@@ -160,12 +160,12 @@ export default function Home() {
                 {
                   n: "02",
                   t: "AI tags everything",
-                  d: "Every image gets analyzed automatically. Want more control? Add custom guidance per space to focus on what matters.",
+                  d: "Every image gets analyzed automatically. Want more control? Add custom guidance to focus on what matters.",
                 },
                 {
                   n: "03",
-                  t: "Describe to find",
-                  d: "Search by what\u2019s in the image, not what you named the file.",
+                  t: "Search by what you see",
+                  d: "Find images by what\u2019s in them, not what you named the file.",
                 },
               ].map((step) => (
                 <div key={step.n}>
@@ -236,7 +236,7 @@ export default function Home() {
             <div className="flex flex-col items-start gap-8 md:flex-row md:items-end md:justify-between">
               <div>
                 <h2 className="font-display text-5xl md:text-6xl">
-                  Get Snapwell
+                  Snapwell
                 </h2>
                 <p className="mt-4 text-muted">
                   Free and open source under GPLv3.
@@ -250,7 +250,7 @@ export default function Home() {
                   href="https://github.com/gustavscirulis/snapwell"
                   className="rounded-full border border-border px-7 py-3 text-sm font-medium transition-colors hover:bg-surface"
                 >
-                  View source
+                  GitHub
                 </a>
               </div>
             </div>
@@ -260,10 +260,7 @@ export default function Home() {
 
       {/* ── Footer ──────────────────────────────────────── */}
       <footer className="mt-auto border-t border-border px-6 py-8">
-        <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 text-sm text-muted sm:flex-row">
-          <span className="font-display text-base text-foreground">
-            Snapwell
-          </span>
+        <div className="mx-auto flex max-w-5xl flex-col gap-4 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
           <div className="flex gap-6">
             <a
               href="mailto:privacy@snapwell.app"
@@ -278,7 +275,7 @@ export default function Home() {
               GitHub
             </a>
           </div>
-          <span className="text-xs">
+          <span>
             Built by{" "}
             <a
               href="https://x.com/gustavscirulis"
