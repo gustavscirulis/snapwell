@@ -1,5 +1,4 @@
 import Image from "next/image";
-import { DownloadButton } from "./download-button";
 
 const useCases = [
   {
@@ -92,7 +91,9 @@ export default function Home() {
               <br />A media library for macOS and iOS.
             </p>
             <div className="hero-text-4 mt-10 flex items-center gap-4">
-              <DownloadButton />
+              <span className="inline-flex items-center rounded-full border border-accent/40 px-6 py-3 text-sm font-medium text-accent">
+                Coming soon
+              </span>
               <a
                 href="https://github.com/gustavscirulis/snapwell"
                 className="rounded-full border border-border px-7 py-3 text-sm font-medium text-foreground transition-colors hover:bg-surface"
@@ -241,7 +242,9 @@ export default function Home() {
                 </p>
               </div>
               <div className="flex items-center gap-4">
-                <DownloadButton />
+                <span className="inline-flex items-center rounded-full border border-accent/40 px-6 py-3 text-sm font-medium text-accent">
+                  Coming soon
+                </span>
                 <a
                   href="https://github.com/gustavscirulis/snapwell"
                   className="rounded-full border border-border px-7 py-3 text-sm font-medium transition-colors hover:bg-surface"
