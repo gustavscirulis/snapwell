@@ -93,6 +93,10 @@ cd ios && xcodebuild test -project Snapwell.xcodeproj -scheme Snapwell -destinat
 
 **Access levels:** Change `private` to `internal` (Swift default) to make methods testable. Use `@testable import Snapwell`.
 
+## Playwright screenshots
+
+Playwright MCP saves screenshots to `.playwright-mcp/` (gitignored). Use this directory for all browser screenshots and visual testing artifacts.
+
 ## Common gotchas
 
 - Check `@Environment(\.accessibilityReduceMotion)` / `UIAccessibility.isReduceMotionEnabled` before spring animations or shimmer effects

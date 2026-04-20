@@ -21,3 +21,6 @@ macos/build/
 ios/build/
 *.xcarchive
 *.ipa
+
+# Playwright MCP
+.playwright-mcp/
