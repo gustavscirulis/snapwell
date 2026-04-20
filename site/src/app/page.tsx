@@ -80,10 +80,11 @@ export default function Home() {
             <p className="hero-text-1 font-mono text-xs uppercase tracking-[0.3em] text-accent">
               Open source · Local-first · AI-native
             </p>
-            <h1 className="hero-text-2 mt-8 pb-2 font-display text-[clamp(3rem,10vw,9rem)] leading-[0.85] tracking-tight">
-              Your images,
+            <h1 className="mt-8 pb-2 font-display text-[clamp(3rem,10vw,9rem)] leading-[0.85] tracking-tight">
+              <span className="hero-headline">Your images</span>
+              <span className="hero-headline-comma">,</span>
               <br />
-              <span className="hero-shimmer italic text-accent">
+              <span className="hero-tagline-reveal italic text-accent">
                 organized by AI
               </span>
             </h1>
