@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { ParallaxWrapper } from "./parallax-image";
 
 const useCases = [
   {
@@ -80,8 +81,7 @@ export default function Home() {
               Open source · Local-first · AI-native
             </p>
             <h1 className="mt-8 pb-2 font-display text-[clamp(3rem,10vw,9rem)] leading-[0.85] tracking-tight">
-              <span className="hero-headline">Your images</span>
-              <span className="hero-headline-comma">,</span>
+              <span className="hero-headline">Your inspiration</span>
               <br />
               <span className="hero-tagline-reveal italic text-accent">
                 organized by AI
@@ -89,7 +89,7 @@ export default function Home() {
             </h1>
             <p className="hero-text-3 mt-6 max-w-md text-lg text-muted md:text-xl">
               Collect anything, search by what you see.
-              <br />A media library for macOS and iOS.
+              <br />An inspiration library for macOS and iOS.
             </p>
             <div className="hero-text-4 mt-10 flex items-center gap-4">
               <span className="inline-flex items-center rounded-full border border-accent/40 px-6 py-3 text-sm font-medium text-accent">
@@ -120,23 +120,27 @@ export default function Home() {
           <div className="relative mx-auto max-w-5xl px-6 pt-8">
             <div className="relative">
               <div className="hero-mac relative z-10">
-                <Image
-                  src="/hero/mac.png"
-                  alt="Snapwell on Mac — a grid of collected images with AI-generated tags and search"
-                  width={1278}
-                  height={850}
-                  className="w-full drop-shadow-[0_32px_64px_rgba(0,0,0,0.4)]"
-                  priority
-                />
+                <ParallaxWrapper speed={0.5}>
+                  <Image
+                    src="/hero/mac.png"
+                    alt="Snapwell on Mac — a grid of collected images with AI-generated tags and search"
+                    width={1278}
+                    height={850}
+                    className="w-full drop-shadow-[0_32px_64px_rgba(0,0,0,0.4)]"
+                    priority
+                  />
+                </ParallaxWrapper>
               </div>
               <div className="hero-iphone absolute -bottom-[14%] right-[-6%] z-20 w-[30%] md:right-[-2%] md:w-[28%]">
-                <Image
-                  src="/hero/iphone.png"
-                  alt="Snapwell on iOS — the same library synced to your phone"
-                  width={482}
-                  height={851}
-                  className="w-full drop-shadow-[0_24px_48px_rgba(0,0,0,0.5)]"
-                />
+                <ParallaxWrapper speed={1.5}>
+                  <Image
+                    src="/hero/iphone.png"
+                    alt="Snapwell on iOS — the same library synced to your phone"
+                    width={482}
+                    height={851}
+                    className="w-full drop-shadow-[0_24px_48px_rgba(0,0,0,0.5)]"
+                  />
+                </ParallaxWrapper>
               </div>
             </div>
           </div>
@@ -215,11 +219,11 @@ export default function Home() {
         <section className="bg-accent-soft px-6 py-32 md:py-48">
           <div className="mx-auto max-w-4xl text-center">
             <h2 className="font-display text-5xl italic leading-[1.1] md:text-7xl">
-              Open source.
-              <br />
               No servers.
               <br />
               No telemetry.
+              <br />
+              Open source.
             </h2>
             <div className="mx-auto mt-8 h-px w-16 bg-accent" />
             <p className="mt-8 text-muted md:text-lg">
@@ -260,7 +264,7 @@ export default function Home() {
 
       {/* ── Footer ──────────────────────────────────────── */}
       <footer className="mt-auto border-t border-border px-6 py-8">
-        <div className="mx-auto flex max-w-5xl flex-col gap-4 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
+        <div className="mx-auto flex max-w-6xl flex-col gap-4 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
           <div className="flex gap-6">
             <a
               href="mailto:privacy@snapwell.app"
