@@ -3,7 +3,7 @@ import { ParallaxWrapper } from "./parallax-image";
 
 const useCases = [
   {
-    title: "Design references",
+    title: "UI design references",
     description:
       "Save every UI you screenshot, every pattern you bookmark. When you need that login flow you saw three weeks ago\u2009—\u2009describe it.",
     icon: (
@@ -32,6 +32,20 @@ const useCases = [
     ),
   },
   {
+    title: "Creative inspiration",
+    description:
+      "Art, typography, photography, fashion. Import from anywhere, and search by what\u2019s in the image\u2009—\u2009not what you remembered to name it.",
+    icon: (
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none" className="text-accent">
+        <path d="M4 40 Q24 -8 44 40" stroke="currentColor" strokeWidth="0.8" opacity="0.4" fill="none" />
+        <path d="M4 8 Q24 56 44 8" stroke="currentColor" strokeWidth="0.8" opacity="0.3" fill="none" />
+        <path d="M0 24 Q48 4 48 44" stroke="currentColor" strokeWidth="0.8" opacity="0.2" fill="none" />
+        <circle cx="24" cy="24" r="4" stroke="currentColor" strokeWidth="0.8" opacity="0.4" />
+        <circle cx="24" cy="24" r="1.5" fill="currentColor" opacity="0.2" />
+      </svg>
+    ),
+  },
+  {
     title: "Research & evidence",
     description:
       "Competitor pages, bug screenshots, visual audits. Everything is tagged and searchable the moment it lands\u2009—\u2009no folders, no renaming.",
@@ -43,20 +57,6 @@ const useCases = [
         <line x1="24" y1="2" x2="24" y2="46" stroke="currentColor" strokeWidth="0.5" opacity="0.15" />
         <line x1="2" y1="24" x2="46" y2="24" stroke="currentColor" strokeWidth="0.5" opacity="0.15" />
         <circle cx="24" cy="24" r="2" fill="currentColor" opacity="0.2" />
-      </svg>
-    ),
-  },
-  {
-    title: "Creative inspiration",
-    description:
-      "Art, typography, photography, fashion. Import from anywhere, and search by what\u2019s in the image\u2009—\u2009not what you remembered to name it.",
-    icon: (
-      <svg width="48" height="48" viewBox="0 0 48 48" fill="none" className="text-accent">
-        <path d="M4 40 Q24 -8 44 40" stroke="currentColor" strokeWidth="0.8" opacity="0.4" fill="none" />
-        <path d="M4 8 Q24 56 44 8" stroke="currentColor" strokeWidth="0.8" opacity="0.3" fill="none" />
-        <path d="M0 24 Q48 4 48 44" stroke="currentColor" strokeWidth="0.8" opacity="0.2" fill="none" />
-        <circle cx="24" cy="24" r="4" stroke="currentColor" strokeWidth="0.8" opacity="0.4" />
-        <circle cx="24" cy="24" r="1.5" fill="currentColor" opacity="0.2" />
       </svg>
     ),
   },
