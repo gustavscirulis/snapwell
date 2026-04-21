@@ -3,68 +3,60 @@ import { ParallaxWrapper } from "./parallax-image";
 
 const useCases = [
   {
-    title: "UI & design references",
+    title: "Design references",
     description:
-      "Screenshot interfaces, collect patterns, track visual systems. Search by what you see, not what you named the file.",
-    illustration: (
-      <svg width="56" height="44" viewBox="0 0 56 44" fill="none" className="text-accent">
-        <rect x="1" y="1" width="54" height="34" rx="4" stroke="currentColor" strokeWidth="1.2" opacity="0.5" />
-        <rect x="5" y="5" width="14" height="10" rx="2" fill="currentColor" opacity="0.2" />
-        <rect x="21" y="5" width="14" height="10" rx="2" fill="currentColor" opacity="0.12" />
-        <rect x="37" y="5" width="14" height="10" rx="2" fill="currentColor" opacity="0.08" />
-        <rect x="5" y="18" width="14" height="10" rx="2" fill="currentColor" opacity="0.12" />
-        <rect x="21" y="18" width="14" height="10" rx="2" fill="currentColor" opacity="0.08" />
-        <rect x="37" y="18" width="14" height="10" rx="2" fill="currentColor" opacity="0.05" />
-        <circle cx="12" cy="40" r="2" fill="currentColor" opacity="0.5" />
-        <line x1="18" y1="40" x2="38" y2="40" stroke="currentColor" strokeWidth="1.2" opacity="0.2" />
+      "Save every UI you screenshot, every pattern you bookmark. When you need that login flow you saw three weeks ago\u2009—\u2009describe it.",
+    icon: (
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none" className="text-accent">
+        <rect x="4" y="4" width="12" height="12" stroke="currentColor" strokeWidth="0.8" opacity="0.5" />
+        <rect x="20" y="4" width="12" height="12" stroke="currentColor" strokeWidth="0.8" opacity="0.35" />
+        <rect x="36" y="4" width="8" height="8" stroke="currentColor" strokeWidth="0.8" opacity="0.2" />
+        <rect x="4" y="20" width="12" height="12" stroke="currentColor" strokeWidth="0.8" opacity="0.35" />
+        <rect x="20" y="20" width="12" height="12" stroke="currentColor" strokeWidth="0.8" opacity="0.2" />
+        <rect x="4" y="36" width="8" height="8" stroke="currentColor" strokeWidth="0.8" opacity="0.15" />
+        <rect x="10" y="10" width="6" height="6" fill="currentColor" opacity="0.12" />
       </svg>
     ),
   },
   {
-    title: "Project inspiration",
+    title: "Home & style projects",
     description:
-      "Planning a renovation, picking furniture, collecting style references. Organize into spaces and let AI surface connections.",
-    illustration: (
-      <svg width="56" height="44" viewBox="0 0 56 44" fill="none" className="text-accent">
-        <rect x="4" y="6" width="22" height="16" rx="3" stroke="currentColor" strokeWidth="1.2" opacity="0.3" transform="rotate(-4 4 6)" />
-        <rect x="18" y="2" width="22" height="16" rx="3" stroke="currentColor" strokeWidth="1.2" opacity="0.5" transform="rotate(2 18 2)" />
-        <rect x="10" y="20" width="28" height="20" rx="3" stroke="currentColor" strokeWidth="1.2" opacity="0.7" />
-        <line x1="14" y1="34" x2="34" y2="34" stroke="currentColor" strokeWidth="1.2" opacity="0.3" />
-        <line x1="14" y1="37" x2="26" y2="37" stroke="currentColor" strokeWidth="1.2" opacity="0.15" />
+      "Renovation ideas, furniture options, paint swatches. Drop everything into a space. Find the exact tile you saved in March by describing the color.",
+    icon: (
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none" className="text-accent">
+        <rect x="8" y="14" width="20" height="26" rx="2" stroke="currentColor" strokeWidth="0.8" opacity="0.25" transform="rotate(-6 8 14)" />
+        <rect x="16" y="8" width="20" height="26" rx="2" stroke="currentColor" strokeWidth="0.8" opacity="0.4" transform="rotate(3 16 8)" />
+        <rect x="22" y="12" width="20" height="26" rx="2" stroke="currentColor" strokeWidth="0.8" opacity="0.55" transform="rotate(-2 22 12)" />
+        <circle cx="32" cy="22" r="3" fill="currentColor" opacity="0.1" />
       </svg>
     ),
   },
   {
-    title: "Mood boards & curation",
+    title: "Research & evidence",
     description:
-      "Gather visual inspiration from anywhere. Drag images, paste from the web, import from X/Twitter. AI groups and tags automatically.",
-    illustration: (
-      <svg width="56" height="44" viewBox="0 0 56 44" fill="none" className="text-accent">
-        <rect x="2" y="10" width="20" height="26" rx="2" stroke="currentColor" strokeWidth="1.2" opacity="0.25" />
-        <rect x="12" y="6" width="20" height="26" rx="2" stroke="currentColor" strokeWidth="1.2" opacity="0.4" />
-        <rect x="22" y="2" width="20" height="26" rx="2" stroke="currentColor" strokeWidth="1.2" opacity="0.6" />
-        <line x1="26" y1="8" x2="38" y2="8" stroke="currentColor" strokeWidth="1.2" opacity="0.3" />
-        <rect x="26" y="12" width="12" height="8" rx="1.5" fill="currentColor" opacity="0.1" />
-        <circle cx="48" cy="38" r="4" stroke="currentColor" strokeWidth="1.2" opacity="0.2" />
-        <circle cx="48" cy="38" r="1.5" fill="currentColor" opacity="0.3" />
+      "Competitor pages, bug screenshots, visual audits. Everything is tagged and searchable the moment it lands\u2009—\u2009no folders, no renaming.",
+    icon: (
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none" className="text-accent">
+        <circle cx="24" cy="24" r="18" stroke="currentColor" strokeWidth="0.8" opacity="0.2" />
+        <circle cx="24" cy="24" r="12" stroke="currentColor" strokeWidth="0.8" opacity="0.35" />
+        <circle cx="24" cy="24" r="6" stroke="currentColor" strokeWidth="0.8" opacity="0.5" />
+        <line x1="24" y1="2" x2="24" y2="46" stroke="currentColor" strokeWidth="0.5" opacity="0.15" />
+        <line x1="2" y1="24" x2="46" y2="24" stroke="currentColor" strokeWidth="0.5" opacity="0.15" />
+        <circle cx="24" cy="24" r="2" fill="currentColor" opacity="0.2" />
       </svg>
     ),
   },
   {
-    title: "Design systems",
+    title: "Creative inspiration",
     description:
-      "Capture component states, track UI patterns across products, maintain a visual inventory that's always searchable.",
-    illustration: (
-      <svg width="56" height="44" viewBox="0 0 56 44" fill="none" className="text-accent">
-        <rect x="18" y="2" width="20" height="12" rx="3" stroke="currentColor" strokeWidth="1.2" opacity="0.7" />
-        <line x1="24" y1="14" x2="14" y2="22" stroke="currentColor" strokeWidth="1.2" opacity="0.3" />
-        <line x1="32" y1="14" x2="42" y2="22" stroke="currentColor" strokeWidth="1.2" opacity="0.3" />
-        <rect x="4" y="22" width="18" height="10" rx="2.5" stroke="currentColor" strokeWidth="1.2" opacity="0.45" />
-        <rect x="34" y="22" width="18" height="10" rx="2.5" stroke="currentColor" strokeWidth="1.2" opacity="0.45" />
-        <line x1="13" y1="32" x2="13" y2="37" stroke="currentColor" strokeWidth="1.2" opacity="0.2" />
-        <line x1="43" y1="32" x2="43" y2="37" stroke="currentColor" strokeWidth="1.2" opacity="0.2" />
-        <rect x="6" y="37" width="14" height="5" rx="1.5" fill="currentColor" opacity="0.12" />
-        <rect x="36" y="37" width="14" height="5" rx="1.5" fill="currentColor" opacity="0.12" />
+      "Art, typography, photography, fashion. Import from anywhere, and search by what\u2019s in the image\u2009—\u2009not what you remembered to name it.",
+    icon: (
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none" className="text-accent">
+        <path d="M4 40 Q24 -8 44 40" stroke="currentColor" strokeWidth="0.8" opacity="0.4" fill="none" />
+        <path d="M4 8 Q24 56 44 8" stroke="currentColor" strokeWidth="0.8" opacity="0.3" fill="none" />
+        <path d="M0 24 Q48 4 48 44" stroke="currentColor" strokeWidth="0.8" opacity="0.2" fill="none" />
+        <circle cx="24" cy="24" r="4" stroke="currentColor" strokeWidth="0.8" opacity="0.4" />
+        <circle cx="24" cy="24" r="1.5" fill="currentColor" opacity="0.2" />
       </svg>
     ),
   },
@@ -197,16 +189,19 @@ export default function Home() {
               Built for{" "}
               <span className="italic text-accent">visual thinkers</span>
             </h2>
-            <div className="mt-16 grid gap-x-16 gap-y-14 sm:grid-cols-2">
+            <div className="mt-16 divide-y divide-border">
               {useCases.map((uc) => (
-                <div key={uc.title} className="group">
-                  <div className="mb-5 transition-transform group-hover:translate-x-1">
-                    {uc.illustration}
+                <div
+                  key={uc.title}
+                  className="group flex flex-col gap-4 py-9 first:border-t first:border-border sm:flex-row sm:items-start sm:gap-10"
+                >
+                  <div className="shrink-0 transition-transform group-hover:scale-105">
+                    {uc.icon}
                   </div>
-                  <h3 className="text-xl font-semibold transition-colors group-hover:text-accent">
+                  <h3 className="shrink-0 text-[22px] font-semibold leading-7 sm:w-[280px] sm:pt-2.5 md:w-[340px]">
                     {uc.title}
                   </h3>
-                  <p className="mt-3 text-sm leading-relaxed text-muted">
+                  <p className="text-[15px] leading-relaxed text-muted sm:pt-3">
                     {uc.description}
                   </p>
                 </div>
