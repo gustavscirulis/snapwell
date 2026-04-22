@@ -72,6 +72,7 @@
 		D493A42D60677011572E0242 /* KeySyncCryptoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6231156D1ACD8BE0A4E8BCB7 /* KeySyncCryptoTests.swift */; };
 		D58B4CBAEE46B6D94D43A1AB /* ImportServiceIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B8B132E7958F30D1D689F0D /* ImportServiceIntegrationTests.swift */; };
 		D8F641E26A9CE0EB3309A0B8 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D54F8BD9E439D16F2B4B13F /* ContentView.swift */; };
+		DC2C1510ED93D4F770C87A5B /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = C574F3DF81DD90FA6BF178BE /* AppIcon.icon */; };
 		DC2D46F1FBC0A1D809870B07 /* MasonryGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE63F766C86D6562165C6B5B /* MasonryGridView.swift */; };
 		DD910242877CD99EA317CA5B /* GuidanceFallbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2700035B780720C33939D553 /* GuidanceFallbackTests.swift */; };
 		DE7EC204E9A329E5FD5871FF /* SearchIndexServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9158618655DF9A31EC391C5 /* SearchIndexServiceTests.swift */; };
@@ -153,6 +154,7 @@
 		C34C4CFF5CECDE7C7F5C01EC /* MediaStorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaStorageService.swift; sourceTree = "<group>"; };
 		C3856EEAF89014E495066351 /* SupportedMedia.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupportedMedia.swift; sourceTree = "<group>"; };
 		C3D6DE79D650F5F2BFA047DD /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		C574F3DF81DD90FA6BF178BE /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		C7196BFF06CAD5B781D036D4 /* AppStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateTests.swift; sourceTree = "<group>"; };
 		C816703A8080B87FA1BF284B /* ElectronImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElectronImportView.swift; sourceTree = "<group>"; };
 		C83B72B2B9E131D1D8B248B8 /* ImageCacheService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageCacheService.swift; sourceTree = "<group>"; };
@@ -182,6 +184,7 @@
 		10FF77FE2D98E8D8D234EEB2 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				C574F3DF81DD90FA6BF178BE /* AppIcon.icon */,
 				FD2D1935EC4C8C9C34C1F18E /* Assets.xcassets */,
 				C3D6DE79D650F5F2BFA047DD /* Info.plist */,
 				4DA7B97F4581236A0CA4C6EA /* PrivacyInfo.xcprivacy */,
@@ -476,6 +479,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DC2C1510ED93D4F770C87A5B /* AppIcon.icon in Resources */,
 				68B06C62E84B2514535D4A60 /* Assets.xcassets in Resources */,
 				F32864B9087DF4FAB8C97AA3 /* PrivacyInfo.xcprivacy in Resources */,
 			);
@@ -587,6 +591,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				ASSETCATALOG_COMPILER_STANDALONE_ICON_BEHAVIOR = none;
 				CODE_SIGN_ENTITLEMENTS = Snapwell/Resources/Snapwell.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -607,6 +612,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				ASSETCATALOG_COMPILER_STANDALONE_ICON_BEHAVIOR = none;
 				CODE_SIGN_ENTITLEMENTS = Snapwell/Resources/Snapwell.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;

@@ -37,7 +37,7 @@ Bundle ID: `co.snapwell.app`.
 
 ## Mac app
 
-Uses XcodeGen — run `cd macos && xcodegen generate` after adding/removing Swift files.
+Uses XcodeGen — run `cd macos && xcodegen generate && scripts/post-xcodegen.sh` after adding/removing Swift files. The post-xcodegen script patches the `AppIcon.icon` file type in the generated `.pbxproj` (XcodeGen doesn't know the `folder.iconcomposer.icon` type).
 
 Bundle ID: `co.snapwell.app`.
 
@@ -61,7 +61,7 @@ Both native apps use Swift Testing (`import Testing`, `@Test`, `@Suite`, `#expec
 
 ```bash
 # Mac tests
-cd macos && xcodegen generate && xcodebuild test -project Snapwell.xcodeproj -scheme Snapwell -destination 'platform=macOS' 2>&1 | xcbeautify --quiet
+cd macos && xcodegen generate && scripts/post-xcodegen.sh && xcodebuild test -project Snapwell.xcodeproj -scheme Snapwell -destination 'platform=macOS' 2>&1 | xcbeautify --quiet
 
 # iOS tests
 cd ios && xcodebuild test -project Snapwell.xcodeproj -scheme Snapwell -destination 'platform=iOS Simulator,name=iPhone 17 Pro' 2>&1 | xcbeautify --quiet
