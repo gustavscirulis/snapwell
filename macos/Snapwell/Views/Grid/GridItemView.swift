@@ -435,6 +435,10 @@ struct GridItemView: View {
             guard thumbnail == nil else { return }
             await loadThumbnail()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .thumbnailsRegenerated)) { _ in
+            thumbnail = nil
+            Task { await loadThumbnail() }
+        }
     }
 
     // MARK: - Glass-aware sub-views

@@ -201,4 +201,5 @@ extension Notification.Name {
     static let zoomOut = Notification.Name("zoomOut")
     static let closeDetail = Notification.Name("closeDetail")
     static let showAPIKeyToast = Notification.Name("showAPIKeyToast")
+    static let thumbnailsRegenerated = Notification.Name("thumbnailsRegenerated")
 }
