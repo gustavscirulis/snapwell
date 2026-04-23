@@ -232,18 +232,22 @@ export default function Home() {
         {/* ── CTA ───────────────────────────────────────── */}
         <section className="px-6 py-32">
           <div className="mx-auto max-w-6xl">
-            <div className="flex flex-col items-center text-center">
-              <Image
-                src="/icon.png"
-                alt=""
-                width={160}
-                height={160}
-                className="w-16 h-16 md:w-20 md:h-20 drop-shadow-[0_2px_20px_rgba(196,164,122,0.15)]"
-              />
-              <h2 className="mt-6 font-display text-5xl md:text-6xl">
-                Snapwell
-              </h2>
-              <div className="mt-8 flex items-center gap-4">
+            <div className="flex flex-col items-start gap-8 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div className="flex items-center gap-6">
+                  <Image
+                    src="/icon.png"
+                    alt=""
+                    width={160}
+                    height={160}
+                    className="w-16 h-16 md:w-20 md:h-20 drop-shadow-[0_2px_20px_rgba(196,164,122,0.15)]"
+                  />
+                  <h2 className="font-display text-5xl md:text-6xl">
+                    Snapwell
+                  </h2>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
                 <span className="inline-flex items-center rounded-full border border-accent/40 px-6 py-3 text-sm font-medium text-accent">
                   Coming soon
                 </span>
