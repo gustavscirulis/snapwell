@@ -3,9 +3,13 @@ import SwiftData
 
 struct DeveloperSettingsTab: View {
     @AppStorage("debugSimulateEmptyState") private var simulateEmptyState = false
+    @Query private var allItems: [MediaItem]
     @State private var showConfirmReset = false
     @State private var trashEmptied = false
     @State private var trashCount = 0
+    @State private var isRegenerating = false
+    @State private var regeneratedCount = 0
+    @State private var regenerationTotal = 0
 
     var body: some View {
         Form {
@@ -54,6 +58,39 @@ struct DeveloperSettingsTab: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Thumbnails") {
+                HStack {
+                    Button("Regenerate Thumbnails") {
+                        Task {
+                            await regenerateAllThumbnails()
+                        }
+                    }
+                    .disabled(isRegenerating)
+
+                    if !isRegenerating && regeneratedCount > 0 {
+                        Text("Done — \(regeneratedCount) regenerated")
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                    }
+                }
+
+                if isRegenerating {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ProgressView(
+                            value: Double(regeneratedCount),
+                            total: Double(max(regenerationTotal, 1))
+                        )
+                        Text("Regenerating \(regeneratedCount) of \(regenerationTotal)…")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Text("Regenerates thumbnail images for all media. Useful if thumbnails appear corrupted or outdated.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Danger Zone") {
                 Button("Reset All Data", role: .destructive) {
                     showConfirmReset = true
@@ -76,6 +113,39 @@ struct DeveloperSettingsTab: View {
         let fm = FileManager.default
         let dir = MediaStorageService.shared.trashMediaDir
         return (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil))?.count ?? 0
+    }
+
+    private func regenerateAllThumbnails() async {
+        let items = allItems
+        regenerationTotal = items.count
+        regeneratedCount = 0
+        isRegenerating = true
+
+        let storage = MediaStorageService.shared
+
+        for item in items {
+            let sourceURL = storage.mediaURL(filename: item.filename)
+
+            do {
+                switch item.mediaType {
+                case .image:
+                    _ = try await ThumbnailService.generateThumbnail(
+                        from: sourceURL, id: item.id, storage: storage
+                    )
+                case .video:
+                    let posterFrame = try await VideoFrameExtractor.extractPosterFrame(from: sourceURL)
+                    _ = try ThumbnailService.generateThumbnail(
+                        from: posterFrame, id: item.id, storage: storage
+                    )
+                }
+            } catch {}
+
+            regeneratedCount += 1
+        }
+
+        ImageCacheService.shared.clearAll()
+        NotificationCenter.default.post(name: .thumbnailsRegenerated, object: nil)
+        isRegenerating = false
     }
 
     private func resetAllData() {
