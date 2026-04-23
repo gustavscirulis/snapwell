@@ -93,9 +93,9 @@ cd ios && xcodebuild test -project Snapwell.xcodeproj -scheme Snapwell -destinat
 
 **Access levels:** Change `private` to `internal` (Swift default) to make methods testable. Use `@testable import Snapwell`.
 
-## Playwright screenshots
+## Browser screenshots
 
-Playwright MCP saves screenshots to `.playwright-mcp/` (gitignored). Use this directory for all browser screenshots and visual testing artifacts.
+Save all browser screenshots and visual testing artifacts to `.screenshots/` (gitignored). When using Chrome DevTools MCP or Playwright MCP, always pass a `filePath` inside `.screenshots/` to avoid dumping images in the repo root. The `.playwright-mcp/` directory is also gitignored for Playwright's default output.
 
 ## Common gotchas
 

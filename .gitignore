@@ -22,5 +22,6 @@ ios/build/
 *.xcarchive
 *.ipa
 
-# Playwright MCP
+# Browser automation screenshots (Playwright MCP, Chrome DevTools MCP, etc.)
 .playwright-mcp/
+.screenshots/
