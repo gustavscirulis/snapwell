@@ -104,18 +104,22 @@ run_mac() {
 run_ios() {
     printf "\n${BOLD}Building Snapwell for iOS...${RESET}\n\n"
 
-    # Find connected iPhone
+    # Try connected iPhone first, fall back to simulator
     printf "${DIM}Looking for connected iPhone...${RESET}\n"
     local device_line
-    device_line=$(xcrun devicectl list devices 2>/dev/null | grep -i 'iphone' | grep 'connected' | head -1)
+    device_line=$(xcrun devicectl list devices 2>/dev/null | grep -i 'iphone' | grep 'available' | head -1)
 
-    if [[ -z "$device_line" ]]; then
-        printf "${RED}Error: No connected iPhone found.${RESET}\n"
-        printf "${DIM}Connect your iPhone via USB and trust this computer.${RESET}\n"
-        exit 1
+    if [[ -n "$device_line" ]]; then
+        run_ios_device "$device_line"
+    else
+        printf "${YELLOW}No connected iPhone found — using Simulator${RESET}\n"
+        run_ios_simulator
     fi
+}
 
-    # Extract device ID (UUID column)
+run_ios_device() {
+    local device_line="$1"
+
     local device_id
     device_id=$(echo "$device_line" | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}')
     local device_name
@@ -134,7 +138,6 @@ run_ios() {
         -allowProvisioningUpdates \
         2>&1 | tail -3
 
-    # Find the built .app
     local build_dir
     build_dir=$(xcodebuild -showBuildSettings \
         -project Snapwell.xcodeproj \
@@ -158,12 +161,63 @@ run_ios() {
 
     local bundle_id
     bundle_id=$(echo "$install_output" | grep 'bundleID:' | awk '{print $3}')
-    bundle_id="${bundle_id:-co.snapwell}"
+    bundle_id="${bundle_id:-co.snapwell.app}"
 
     printf "${DIM}Launching...${RESET}\n"
     xcrun devicectl device process launch --device "$device_id" "$bundle_id" 2>&1
 
     printf "${GREEN}✓ Snapwell is running on %s${RESET}\n" "$device_name"
+}
+
+run_ios_simulator() {
+    local sim_name="iPhone 17 Pro"
+    local sim_id
+    sim_id=$(xcrun simctl list devices available | grep "$sim_name" | head -1 | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}')
+
+    if [[ -z "$sim_id" ]]; then
+        printf "${RED}Error: No '$sim_name' simulator found.${RESET}\n"
+        exit 1
+    fi
+
+    printf "${GREEN}Using simulator: %s${RESET} ${DIM}(%s)${RESET}\n" "$sim_name" "$sim_id"
+
+    cd "$SCRIPT_DIR/ios"
+
+    printf "${DIM}Booting simulator...${RESET}\n"
+    xcrun simctl boot "$sim_id" 2>/dev/null || true
+    open -a Simulator
+
+    printf "${DIM}Building...${RESET}\n"
+    xcodebuild build \
+        -project Snapwell.xcodeproj \
+        -scheme Snapwell \
+        -configuration Debug \
+        -destination "platform=iOS Simulator,id=$sim_id" \
+        2>&1 | tail -3
+
+    local build_dir
+    build_dir=$(xcodebuild -showBuildSettings \
+        -project Snapwell.xcodeproj \
+        -scheme Snapwell \
+        -configuration Debug \
+        -destination "platform=iOS Simulator,id=$sim_id" \
+        2>/dev/null | grep '^\s*BUILT_PRODUCTS_DIR' | awk '{print $3}')
+
+    local app_path="$build_dir/Snapwell.app"
+    if [[ ! -d "$app_path" ]]; then
+        printf "${RED}Build failed — app not found at %s${RESET}\n" "$app_path"
+        exit 1
+    fi
+
+    printf "\n${GREEN}✓ Build succeeded${RESET}\n"
+
+    printf "${DIM}Installing on simulator...${RESET}\n"
+    xcrun simctl install "$sim_id" "$app_path"
+
+    printf "${DIM}Launching...${RESET}\n"
+    xcrun simctl launch "$sim_id" "co.snapwell.app"
+
+    printf "${GREEN}✓ Snapwell is running on %s simulator${RESET}\n" "$sim_name"
 }
 
 # ── Website dev server ──────────────────────────────────────────
