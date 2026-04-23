@@ -1011,12 +1011,17 @@ struct FullScreenImageOverlay: View {
                 }
             }
 
-            closeTargetFrame = correctedRect
+            closeTargetFrame = CGRect(
+                x: correctedRect.origin.x,
+                y: correctedRect.origin.y - dismissOffset,
+                width: correctedRect.width,
+                height: correctedRect.height
+            )
 
             withAnimation(SnapSpring.resolvedHero) {
                 isExpanded = false
-                dismissOffset = 0
             } completion: {
+                dismissOffset = 0
                 onClose()
             }
         } else {
