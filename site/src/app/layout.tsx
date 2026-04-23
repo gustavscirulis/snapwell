@@ -25,6 +25,10 @@ export const metadata: Metadata = {
   title: "Snapwell — AI-native media library",
   description:
     "Collect images and videos, let AI organize them. Local-first library for macOS and iOS with content-based search.",
+  icons: {
+    icon: "/icon.png",
+    apple: "/icon.png",
+  },
   openGraph: {
     title: "Snapwell — AI-native media library",
     description:
