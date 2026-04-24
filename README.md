@@ -1,21 +1,26 @@
-# Snapwell — Collect images, let AI organize them.
+# Snapwell — Your inspiration, organized by AI
 
-A local-first image library for macOS and iOS — drop in screenshots, references, inspiration, and video. Snapwell categorizes everything, makes it searchable, and syncs across your devices.
+Collect anything, search by what you see. An open-source inspiration library for macOS and iOS.
 
 ![Snapwell Preview](assets/preview.png)
 
 Built by [@gustavscirulis](https://github.com/gustavscirulis).
 
-## Use cases
+## How it works
 
-- **UI & design references** — Screenshot interfaces, collect patterns, track visual systems. AI tags and categorizes so you can search by what's in the image, not what you named the file
-- **Project inspiration** — Planning a renovation, picking furniture, collecting style references. Organize into spaces per project and let AI surface connections
-- **Mood boards & curation** — Gather visual inspiration from anywhere — drag in images, paste from the web, import from X/Twitter. AI groups and tags automatically
-- **Design systems** — Capture component states, track UI patterns across products, maintain a visual inventory
+1. **Import images and videos** — Screenshots, photos, video, web images. Drag in, paste, or share from any app.
+2. **AI tags everything** — Every image gets analyzed automatically. Add guidance to focus on what matters to you.
+3. **Search by what you see** — Describe an object, a layout, a mood. Snapwell finds the match — no tags or folders needed.
+
+## Built for visual thinkers
+
+- **UI design** — UI patterns, login flows, component states, animations. Build a searchable reference library of interface design.
+- **Home improvements** — Interior design ideas, furniture, paint swatches, room layouts. Organize into spaces per project.
+- **Creative inspiration** — Art, typography, photography, fashion, video references. Let AI find connections across your collection.
 
 ## Features
 
-- **Local-first storage** — All images, metadata, and preferences stay on your device
+- **Local-first storage** — All images, metadata, and preferences stay on your devices and your iCloud — not our servers
 - **AI-powered analysis** — Categorize and tag using OpenAI, Claude, Google Gemini, or OpenRouter with your own API key
 - **Custom analysis prompts** — Configure AI instructions per space for tailored categorization
 - **Spaces** — Organize images into collections with drag-and-drop and per-space export
@@ -24,17 +29,19 @@ Built by [@gustavscirulis](https://github.com/gustavscirulis).
 - **iOS Share Extension** — Send images and videos to Snapwell from any app
 - **Video support** — Import and analyze video alongside images
 
-## Installation
-
-Download the latest release from the [Releases](https://github.com/gustavscirulis/snapwell/releases) page, or build from source.
-
-## Requirements
-
-AI analysis requires an API key for at least one provider: OpenAI, Anthropic (Claude), Google Gemini, or OpenRouter. Add your key in Settings and pick your preferred model. The app works without AI too — you just won't get automatic tagging and search.
-
 ## Privacy
 
-Snapwell has no servers and collects no data. If you enable AI analysis, images are sent directly from your device to the provider you chose. See [PRIVACY.md](PRIVACY.md) for details.
+No subscription. No account. Open source.
+
+Your library lives on your devices and your iCloud — not our servers. Snapwell has zero analytics, zero telemetry, and zero tracking. AI analysis goes directly from your device to the provider you choose. You supply your own API key. See [PRIVACY.md](PRIVACY.md) for details.
+
+## Installation
+
+Download from the [Mac App Store](https://apps.apple.com/app/snapwell/id0000000000) or the [App Store on iOS](https://apps.apple.com/app/snapwell/id0000000000), or build from source.
+
+### Requirements
+
+AI analysis requires an API key for at least one provider: OpenAI, Anthropic (Claude), Google Gemini, or OpenRouter. Add your key in Settings and pick your preferred model. The app works without AI too — you just won't get automatic tagging and search.
 
 ## File storage
 

@@ -216,13 +216,13 @@ export default function Home() {
             <h2 className="font-display text-5xl italic leading-[1.1] md:text-7xl">
               No subscription.
               <br />
-              No servers.
+              No account.
               <br />
               Open source.
             </h2>
             <div className="mx-auto mt-8 h-px w-16 bg-accent" />
             <p className="mt-8 text-muted md:text-lg">
-              Every line of code is on GitHub. Everything stays on your device.
+              Your library lives on your devices and your iCloud — not our servers.
               <br />
               AI analysis goes directly to the provider you choose.
             </p>
@@ -247,7 +247,7 @@ export default function Home() {
                       Snapwell
                     </h2>
                     <p className="mt-2 text-sm text-muted">
-                      An open-source inspiration library for macOS and iOS. Local-first, no account required.
+                      An open-source inspiration library for macOS and iOS. No account, no data collection.
                     </p>
                   </div>
                 </div>
