@@ -9,13 +9,12 @@ const useCases = [
       "Save every UI you screenshot, every pattern you bookmark. When you need that login flow you saw three weeks ago\u2009—\u2009describe it.",
     icon: (
       <svg width="64" height="64" viewBox="0 0 48 48" fill="none" className="text-accent">
-        <rect x="4" y="4" width="12" height="12" stroke="currentColor" strokeWidth="0.8" opacity="0.5" />
-        <rect x="20" y="4" width="12" height="12" stroke="currentColor" strokeWidth="0.8" opacity="0.35" />
-        <rect x="36" y="4" width="8" height="8" stroke="currentColor" strokeWidth="0.8" opacity="0.2" />
-        <rect x="4" y="20" width="12" height="12" stroke="currentColor" strokeWidth="0.8" opacity="0.35" />
-        <rect x="20" y="20" width="12" height="12" stroke="currentColor" strokeWidth="0.8" opacity="0.2" />
-        <rect x="4" y="36" width="8" height="8" stroke="currentColor" strokeWidth="0.8" opacity="0.15" />
-        <rect x="10" y="10" width="6" height="6" fill="currentColor" opacity="0.12" />
+        <rect x="4" y="4" width="17" height="22" rx="2" stroke="currentColor" strokeWidth="0.8" opacity="0.5" />
+        <rect x="5" y="5" width="15" height="20" rx="1.5" fill="currentColor" opacity="0.06" />
+        <rect x="25" y="4" width="19" height="12" rx="2" stroke="currentColor" strokeWidth="0.8" opacity="0.35" />
+        <rect x="25" y="20" width="19" height="16" rx="2" stroke="currentColor" strokeWidth="0.8" opacity="0.25" />
+        <rect x="26" y="21" width="17" height="14" rx="1.5" fill="currentColor" opacity="0.04" />
+        <rect x="4" y="30" width="17" height="14" rx="2" stroke="currentColor" strokeWidth="0.8" opacity="0.35" />
       </svg>
     ),
   },
@@ -25,10 +24,24 @@ const useCases = [
       "Renovation ideas, furniture options, paint swatches. Drop everything into a space. Find the exact tile you saved in March by describing the color.",
     icon: (
       <svg width="64" height="64" viewBox="0 0 48 48" fill="none" className="text-accent">
-        <rect x="8" y="14" width="20" height="26" rx="2" stroke="currentColor" strokeWidth="0.8" opacity="0.25" transform="rotate(-6 8 14)" />
-        <rect x="16" y="8" width="20" height="26" rx="2" stroke="currentColor" strokeWidth="0.8" opacity="0.4" transform="rotate(3 16 8)" />
-        <rect x="22" y="12" width="20" height="26" rx="2" stroke="currentColor" strokeWidth="0.8" opacity="0.55" transform="rotate(-2 22 12)" />
-        <circle cx="32" cy="22" r="3" fill="currentColor" opacity="0.1" />
+        <g transform="rotate(-8 16 22)">
+          <rect x="4" y="8" width="22" height="22" rx="2" stroke="currentColor" strokeWidth="0.8" opacity="0.2" />
+          <line x1="8" y1="26" x2="22" y2="12" stroke="currentColor" strokeWidth="0.4" opacity="0.1" />
+          <line x1="8" y1="22" x2="18" y2="12" stroke="currentColor" strokeWidth="0.4" opacity="0.08" />
+          <line x1="12" y1="26" x2="22" y2="16" stroke="currentColor" strokeWidth="0.4" opacity="0.08" />
+        </g>
+        <g transform="rotate(3 24 24)">
+          <rect x="13" y="10" width="22" height="22" rx="2" stroke="currentColor" strokeWidth="0.8" opacity="0.38" />
+          <circle cx="20" cy="17" r="1.2" fill="currentColor" opacity="0.08" />
+          <circle cx="28" cy="15" r="0.8" fill="currentColor" opacity="0.1" />
+          <circle cx="24" cy="24" r="1" fill="currentColor" opacity="0.07" />
+          <circle cx="18" cy="26" r="0.7" fill="currentColor" opacity="0.1" />
+          <circle cx="30" cy="22" r="1.3" fill="currentColor" opacity="0.06" />
+        </g>
+        <g transform="rotate(-2 30 26)">
+          <rect x="22" y="16" width="22" height="22" rx="2" stroke="currentColor" strokeWidth="0.8" opacity="0.55" />
+          <rect x="25" y="19" width="16" height="10" rx="1.5" fill="currentColor" opacity="0.1" />
+        </g>
       </svg>
     ),
   },
@@ -38,11 +51,12 @@ const useCases = [
       "Art, typography, photography, fashion. Import from anywhere, and search by what\u2019s in the image\u2009—\u2009not what you remembered to name it.",
     icon: (
       <svg width="64" height="64" viewBox="0 0 48 48" fill="none" className="text-accent">
-        <path d="M4 40 Q24 -8 44 40" stroke="currentColor" strokeWidth="0.8" opacity="0.4" fill="none" />
-        <path d="M4 8 Q24 56 44 8" stroke="currentColor" strokeWidth="0.8" opacity="0.3" fill="none" />
-        <path d="M0 24 Q48 4 48 44" stroke="currentColor" strokeWidth="0.8" opacity="0.2" fill="none" />
-        <circle cx="24" cy="24" r="4" stroke="currentColor" strokeWidth="0.8" opacity="0.4" />
-        <circle cx="24" cy="24" r="1.5" fill="currentColor" opacity="0.2" />
+        <path d="M38 6C48 16 48 34 36 40C26 46 12 40 8 30C4 22 10 12 18 10C24 8 30 14 30 20C30 25 26 28 23 27" stroke="currentColor" strokeWidth="0.8" opacity="0.45" strokeLinecap="round" fill="none" />
+        <line x1="4" y1="16" x2="44" y2="16" stroke="currentColor" strokeWidth="0.5" opacity="0.2" />
+        <line x1="4" y1="32" x2="44" y2="32" stroke="currentColor" strokeWidth="0.5" opacity="0.2" />
+        <line x1="16" y1="4" x2="16" y2="44" stroke="currentColor" strokeWidth="0.5" opacity="0.2" />
+        <line x1="32" y1="4" x2="32" y2="44" stroke="currentColor" strokeWidth="0.5" opacity="0.2" />
+        <circle cx="23" cy="27" r="2" fill="currentColor" opacity="0.12" />
       </svg>
     ),
   },
@@ -52,12 +66,21 @@ const useCases = [
       "Competitor pages, bug screenshots, visual audits. Everything is tagged and searchable the moment it lands\u2009—\u2009no folders, no renaming.",
     icon: (
       <svg width="64" height="64" viewBox="0 0 48 48" fill="none" className="text-accent">
-        <circle cx="24" cy="24" r="18" stroke="currentColor" strokeWidth="0.8" opacity="0.2" />
-        <circle cx="24" cy="24" r="12" stroke="currentColor" strokeWidth="0.8" opacity="0.35" />
-        <circle cx="24" cy="24" r="6" stroke="currentColor" strokeWidth="0.8" opacity="0.5" />
-        <line x1="24" y1="2" x2="24" y2="46" stroke="currentColor" strokeWidth="0.5" opacity="0.15" />
-        <line x1="2" y1="24" x2="46" y2="24" stroke="currentColor" strokeWidth="0.5" opacity="0.15" />
-        <circle cx="24" cy="24" r="2" fill="currentColor" opacity="0.2" />
+        <line x1="10" y1="12" x2="24" y2="22" stroke="currentColor" strokeWidth="0.5" opacity="0.2" />
+        <line x1="38" y1="10" x2="24" y2="22" stroke="currentColor" strokeWidth="0.5" opacity="0.15" />
+        <line x1="24" y1="22" x2="12" y2="36" stroke="currentColor" strokeWidth="0.5" opacity="0.15" />
+        <line x1="24" y1="22" x2="38" y2="32" stroke="currentColor" strokeWidth="0.5" opacity="0.15" />
+        <line x1="38" y1="32" x2="30" y2="42" stroke="currentColor" strokeWidth="0.5" opacity="0.1" />
+        <line x1="12" y1="36" x2="30" y2="42" stroke="currentColor" strokeWidth="0.5" opacity="0.1" />
+        <line x1="10" y1="12" x2="20" y2="6" stroke="currentColor" strokeWidth="0.5" opacity="0.1" />
+        <circle cx="24" cy="22" r="3.5" stroke="currentColor" strokeWidth="0.8" opacity="0.5" />
+        <circle cx="24" cy="22" r="3.5" fill="currentColor" opacity="0.06" />
+        <circle cx="10" cy="12" r="2.5" stroke="currentColor" strokeWidth="0.7" opacity="0.35" />
+        <circle cx="38" cy="10" r="2" stroke="currentColor" strokeWidth="0.7" opacity="0.25" />
+        <circle cx="12" cy="36" r="2" stroke="currentColor" strokeWidth="0.7" opacity="0.3" />
+        <circle cx="38" cy="32" r="2.5" stroke="currentColor" strokeWidth="0.7" opacity="0.35" />
+        <circle cx="30" cy="42" r="1.5" fill="currentColor" opacity="0.2" />
+        <circle cx="20" cy="6" r="1.5" fill="currentColor" opacity="0.15" />
       </svg>
     ),
   },
