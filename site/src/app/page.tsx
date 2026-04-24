@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { ParallaxWrapper } from "./parallax-image";
 
 const useCases = [
@@ -7,7 +8,7 @@ const useCases = [
     description:
       "Save every UI you screenshot, every pattern you bookmark. When you need that login flow you saw three weeks ago\u2009—\u2009describe it.",
     icon: (
-      <svg width="48" height="48" viewBox="0 0 48 48" fill="none" className="text-accent">
+      <svg width="64" height="64" viewBox="0 0 48 48" fill="none" className="text-accent">
         <rect x="4" y="4" width="12" height="12" stroke="currentColor" strokeWidth="0.8" opacity="0.5" />
         <rect x="20" y="4" width="12" height="12" stroke="currentColor" strokeWidth="0.8" opacity="0.35" />
         <rect x="36" y="4" width="8" height="8" stroke="currentColor" strokeWidth="0.8" opacity="0.2" />
@@ -23,7 +24,7 @@ const useCases = [
     description:
       "Renovation ideas, furniture options, paint swatches. Drop everything into a space. Find the exact tile you saved in March by describing the color.",
     icon: (
-      <svg width="48" height="48" viewBox="0 0 48 48" fill="none" className="text-accent">
+      <svg width="64" height="64" viewBox="0 0 48 48" fill="none" className="text-accent">
         <rect x="8" y="14" width="20" height="26" rx="2" stroke="currentColor" strokeWidth="0.8" opacity="0.25" transform="rotate(-6 8 14)" />
         <rect x="16" y="8" width="20" height="26" rx="2" stroke="currentColor" strokeWidth="0.8" opacity="0.4" transform="rotate(3 16 8)" />
         <rect x="22" y="12" width="20" height="26" rx="2" stroke="currentColor" strokeWidth="0.8" opacity="0.55" transform="rotate(-2 22 12)" />
@@ -36,7 +37,7 @@ const useCases = [
     description:
       "Art, typography, photography, fashion. Import from anywhere, and search by what\u2019s in the image\u2009—\u2009not what you remembered to name it.",
     icon: (
-      <svg width="48" height="48" viewBox="0 0 48 48" fill="none" className="text-accent">
+      <svg width="64" height="64" viewBox="0 0 48 48" fill="none" className="text-accent">
         <path d="M4 40 Q24 -8 44 40" stroke="currentColor" strokeWidth="0.8" opacity="0.4" fill="none" />
         <path d="M4 8 Q24 56 44 8" stroke="currentColor" strokeWidth="0.8" opacity="0.3" fill="none" />
         <path d="M0 24 Q48 4 48 44" stroke="currentColor" strokeWidth="0.8" opacity="0.2" fill="none" />
@@ -50,7 +51,7 @@ const useCases = [
     description:
       "Competitor pages, bug screenshots, visual audits. Everything is tagged and searchable the moment it lands\u2009—\u2009no folders, no renaming.",
     icon: (
-      <svg width="48" height="48" viewBox="0 0 48 48" fill="none" className="text-accent">
+      <svg width="64" height="64" viewBox="0 0 48 48" fill="none" className="text-accent">
         <circle cx="24" cy="24" r="18" stroke="currentColor" strokeWidth="0.8" opacity="0.2" />
         <circle cx="24" cy="24" r="12" stroke="currentColor" strokeWidth="0.8" opacity="0.35" />
         <circle cx="24" cy="24" r="6" stroke="currentColor" strokeWidth="0.8" opacity="0.5" />
@@ -193,15 +194,15 @@ export default function Home() {
               {useCases.map((uc) => (
                 <div
                   key={uc.title}
-                  className="group flex flex-col gap-4 py-9 first:border-t first:border-border sm:flex-row sm:items-start sm:gap-10"
+                  className="group flex flex-col gap-4 py-9 first:border-t first:border-border sm:flex-row sm:items-center sm:gap-10"
                 >
                   <div className="shrink-0 transition-transform group-hover:scale-105">
                     {uc.icon}
                   </div>
-                  <h3 className="shrink-0 text-[22px] font-semibold leading-7 sm:w-[280px] sm:pt-2.5 md:w-[340px]">
+                  <h3 className="shrink-0 text-[22px] font-semibold leading-7 sm:w-[280px] md:w-[340px]">
                     {uc.title}
                   </h3>
-                  <p className="text-[15px] leading-relaxed text-muted sm:pt-3">
+                  <p className="text-[15px] leading-relaxed text-muted">
                     {uc.description}
                   </p>
                 </div>
@@ -214,17 +215,17 @@ export default function Home() {
         <section className="bg-accent-soft px-6 py-32 md:py-48">
           <div className="mx-auto max-w-4xl text-center">
             <h2 className="font-display text-5xl italic leading-[1.1] md:text-7xl">
-              No servers.
+              No subscription.
               <br />
-              No telemetry.
+              No servers.
               <br />
               Open source.
             </h2>
             <div className="mx-auto mt-8 h-px w-16 bg-accent" />
             <p className="mt-8 text-muted md:text-lg">
-              Every line of code is on GitHub under GPLv3. Everything stays on
-              your device. AI analysis goes directly to your provider — API keys
-              are AES-GCM encrypted. We never see your data.
+              Every line of code is on GitHub. Everything stays on your device.
+              <br />
+              AI analysis goes directly to provider of your choice.
             </p>
           </div>
         </section>
@@ -267,12 +268,12 @@ export default function Home() {
       <footer className="mt-auto border-t border-border px-6 py-8">
         <div className="mx-auto flex max-w-6xl flex-col gap-4 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
           <div className="flex gap-6">
-            <a
-              href="mailto:privacy@snapwell.app"
+            <Link
+              href="/privacy"
               className="transition-colors hover:text-foreground"
             >
               Privacy
-            </a>
+            </Link>
             <a
               href="https://github.com/gustavscirulis/snapwell"
               className="transition-colors hover:text-foreground"

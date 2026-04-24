@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
 import "./globals.css";
 import DevTools from "./dev-tools";
+import { HeroGate } from "./hero-gate";
+import { IntercomWidget } from "./intercom-widget";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -22,7 +24,7 @@ const instrumentSerif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "Snapwell — AI-native media library",
+  title: "Snapwell — Your inspiration, organized by AI. An inspiration library for macOS and iOS.",
   description:
     "Collect images and videos, let AI organize them. Local-first library for macOS and iOS with content-based search.",
   icons: {
@@ -30,7 +32,7 @@ export const metadata: Metadata = {
     apple: "/icon.png",
   },
   openGraph: {
-    title: "Snapwell — AI-native media library",
+    title: "Snapwell — Your inspiration, organized by AI. An inspiration library for macOS and iOS.",
     description:
       "Collect images and videos, let AI organize them. Local-first library for macOS and iOS.",
     type: "website",
@@ -48,7 +50,14 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{if(sessionStorage.getItem("hero-played"))document.documentElement.classList.add("hero-played")}catch(e){}`,
+          }}
+        />
         {children}
+        <HeroGate />
+        <IntercomWidget />
         <DevTools />
       </body>
     </html>
