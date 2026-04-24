@@ -25,3 +25,4 @@ ios/build/
 # Browser automation screenshots (Playwright MCP, Chrome DevTools MCP, etc.)
 .playwright-mcp/
 .screenshots/
+.vercel
