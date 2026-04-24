@@ -1,12 +1,12 @@
 # Snapwell Privacy Policy
 
-**Last updated:** April 11, 2026
+**Last updated:** April 24, 2026
 
 Snapwell is a local-first media library app. Your privacy is fundamental to how Snapwell is built.
 
 ## Data Storage
 
-All your media files, metadata, and thumbnails are stored locally on your device and in your personal iCloud Drive. Snapwell does not operate any servers and has no access to your data.
+All your media files, metadata, and thumbnails are stored on your devices and your personal iCloud Drive — not on our servers. Snapwell does not operate any backend infrastructure and has no access to your data.
 
 - **Media files** are stored in `~/Documents/Snapwell/` (Mac) or your iCloud Drive container (iOS).
 - **App preferences** are stored locally using UserDefaults on your device.

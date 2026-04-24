@@ -44,13 +44,13 @@ export default function PrivacyPage() {
             <p>
               Snapwell is a <strong>local-first</strong> application. Your media
               files, metadata, and organizational structure are stored on your
-              device. We do not operate servers that collect, process, or store
-              your content.
+              devices and your iCloud. We do not operate servers that collect,
+              process, or store your content.
             </p>
           </section>
 
           <section>
-            <h2>Data that stays on your device</h2>
+            <h2>Data that stays yours</h2>
             <ul>
               <li>Images and videos you import</li>
               <li>AI-generated descriptions and tags</li>
@@ -58,9 +58,10 @@ export default function PrivacyPage() {
               <li>Thumbnails and cached data</li>
             </ul>
             <p className="mt-3">
-              All of this lives in your local{" "}
-              <strong>~/Documents/Snapwell/</strong> folder (macOS) or in your
-              app container synced via iCloud (iOS). We never have access to it.
+              On Mac, this lives in your local{" "}
+              <strong>~/Documents/Snapwell/</strong> folder. On iOS, it syncs
+              through your personal iCloud Drive. Either way, we never have
+              access to it.
             </p>
           </section>
 
