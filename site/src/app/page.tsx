@@ -4,9 +4,9 @@ import { ParallaxWrapper } from "./parallax-image";
 
 const useCases = [
   {
-    title: "UI design references",
+    title: "UI design",
     description:
-      "Save every UI you screenshot, every pattern you bookmark. When you need that login flow you saw three weeks ago\u2009—\u2009describe it.",
+      "UI patterns, login flows, component states, animations.",
     icon: (
       <svg width="64" height="64" viewBox="0 0 48 48" fill="none" className="text-accent">
         <rect x="4" y="4" width="17" height="22" rx="2" stroke="currentColor" strokeWidth="0.8" opacity="0.5" />
@@ -19,9 +19,9 @@ const useCases = [
     ),
   },
   {
-    title: "Home & style projects",
+    title: "Home improvements",
     description:
-      "Renovation ideas, furniture options, paint swatches. Drop everything into a space. Find the exact tile you saved in March by describing the color.",
+      "Interior design ideas, furniture, paint swatches, room layouts.",
     icon: (
       <svg width="64" height="64" viewBox="0 0 48 48" fill="none" className="text-accent">
         <g transform="rotate(-8 16 22)">
@@ -48,7 +48,7 @@ const useCases = [
   {
     title: "Creative inspiration",
     description:
-      "Art, typography, photography, fashion. Import from anywhere, and search by what\u2019s in the image\u2009—\u2009not what you remembered to name it.",
+      "Art, typography, photography, fashion, video references.",
     icon: (
       <svg width="64" height="64" viewBox="0 0 48 48" fill="none" className="text-accent">
         <path d="M38 6C48 16 48 34 36 40C26 46 12 40 8 30C4 22 10 12 18 10C24 8 30 14 30 20C30 25 26 28 23 27" stroke="currentColor" strokeWidth="0.8" opacity="0.45" strokeLinecap="round" fill="none" />
@@ -57,30 +57,6 @@ const useCases = [
         <line x1="16" y1="4" x2="16" y2="44" stroke="currentColor" strokeWidth="0.5" opacity="0.2" />
         <line x1="32" y1="4" x2="32" y2="44" stroke="currentColor" strokeWidth="0.5" opacity="0.2" />
         <circle cx="23" cy="27" r="2" fill="currentColor" opacity="0.12" />
-      </svg>
-    ),
-  },
-  {
-    title: "Research & evidence",
-    description:
-      "Competitor pages, bug screenshots, visual audits. Everything is tagged and searchable the moment it lands\u2009—\u2009no folders, no renaming.",
-    icon: (
-      <svg width="64" height="64" viewBox="0 0 48 48" fill="none" className="text-accent">
-        <line x1="10" y1="12" x2="24" y2="22" stroke="currentColor" strokeWidth="0.5" opacity="0.2" />
-        <line x1="38" y1="10" x2="24" y2="22" stroke="currentColor" strokeWidth="0.5" opacity="0.15" />
-        <line x1="24" y1="22" x2="12" y2="36" stroke="currentColor" strokeWidth="0.5" opacity="0.15" />
-        <line x1="24" y1="22" x2="38" y2="32" stroke="currentColor" strokeWidth="0.5" opacity="0.15" />
-        <line x1="38" y1="32" x2="30" y2="42" stroke="currentColor" strokeWidth="0.5" opacity="0.1" />
-        <line x1="12" y1="36" x2="30" y2="42" stroke="currentColor" strokeWidth="0.5" opacity="0.1" />
-        <line x1="10" y1="12" x2="20" y2="6" stroke="currentColor" strokeWidth="0.5" opacity="0.1" />
-        <circle cx="24" cy="22" r="3.5" stroke="currentColor" strokeWidth="0.8" opacity="0.5" />
-        <circle cx="24" cy="22" r="3.5" fill="currentColor" opacity="0.06" />
-        <circle cx="10" cy="12" r="2.5" stroke="currentColor" strokeWidth="0.7" opacity="0.35" />
-        <circle cx="38" cy="10" r="2" stroke="currentColor" strokeWidth="0.7" opacity="0.25" />
-        <circle cx="12" cy="36" r="2" stroke="currentColor" strokeWidth="0.7" opacity="0.3" />
-        <circle cx="38" cy="32" r="2.5" stroke="currentColor" strokeWidth="0.7" opacity="0.35" />
-        <circle cx="30" cy="42" r="1.5" fill="currentColor" opacity="0.2" />
-        <circle cx="20" cy="6" r="1.5" fill="currentColor" opacity="0.15" />
       </svg>
     ),
   },
@@ -174,18 +150,18 @@ export default function Home() {
               {[
                 {
                   n: "01",
-                  t: "Import from anywhere",
-                  d: "Screenshots, photos, video, web images. Drag in, paste, or share from X.",
+                  t: "Import images and videos",
+                  d: "Screenshots, photos, video, web images. Drag in, paste, or share from any app.",
                 },
                 {
                   n: "02",
                   t: "AI tags everything",
-                  d: "Every image gets analyzed automatically. Want more control? Add custom guidance to focus on what matters.",
+                  d: "Every image gets analyzed automatically. Add guidance to focus on what matters to you.",
                 },
                 {
                   n: "03",
                   t: "Search by what you see",
-                  d: "Find images by what\u2019s in them, not what you named the file.",
+                  d: "Describe an object, a layout, a mood. Snapwell finds the match\u2009—\u2009no tags or folders needed.",
                 },
               ].map((step) => (
                 <div key={step.n}>
@@ -248,7 +224,7 @@ export default function Home() {
             <p className="mt-8 text-muted md:text-lg">
               Every line of code is on GitHub. Everything stays on your device.
               <br />
-              AI analysis goes directly to provider of your choice.
+              AI analysis goes directly to the provider you choose.
             </p>
           </div>
         </section>
@@ -258,17 +234,22 @@ export default function Home() {
           <div className="mx-auto max-w-6xl">
             <div className="flex flex-col items-start gap-8 md:flex-row md:items-center md:justify-between">
               <div>
-                <div className="flex items-center gap-6">
+                <div className="flex items-start gap-6">
                   <Image
                     src="/icon.png"
                     alt=""
                     width={160}
                     height={160}
-                    className="w-16 h-16 md:w-20 md:h-20 drop-shadow-[0_2px_20px_rgba(196,164,122,0.15)]"
+                    className="w-16 h-16 md:w-20 md:h-20 -mt-2 drop-shadow-[0_2px_20px_rgba(196,164,122,0.15)]"
                   />
-                  <h2 className="font-display text-5xl md:text-6xl">
-                    Snapwell
-                  </h2>
+                  <div>
+                    <h2 className="font-display text-5xl md:text-6xl">
+                      Snapwell
+                    </h2>
+                    <p className="mt-2 text-sm text-muted">
+                      An open-source inspiration library for macOS and iOS. Local-first, no account required.
+                    </p>
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-4">
