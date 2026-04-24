@@ -47,15 +47,9 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `try{if(sessionStorage.getItem("hero-played"))document.documentElement.classList.add("hero-played")}catch(e){}`,
-          }}
-        />
         {children}
         <HeroGate />
         <IntercomWidget />
