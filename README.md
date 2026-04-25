@@ -20,7 +20,7 @@ Built by [@gustavscirulis](https://github.com/gustavscirulis).
 
 ## Features
 
-- **Local-first storage** — All images, metadata, and preferences stay on your devices and your iCloud — not our servers
+- **On-device storage** — All images, metadata, and preferences stay on your devices and your iCloud — not our servers
 - **AI-powered analysis** — Categorize and tag using OpenAI, Claude, Google Gemini, or OpenRouter with your own API key
 - **Custom analysis prompts** — Configure AI instructions per space for tailored categorization
 - **Spaces** — Organize images into collections with drag-and-drop and per-space export

@@ -70,7 +70,7 @@ export default function Home() {
         <div className="relative z-20 px-6 pt-32 md:pt-44">
           <div className="mx-auto max-w-6xl">
             <p className="hero-text-1 font-mono text-xs uppercase tracking-[0.3em] text-accent">
-              Open source · Local-first · AI-native
+              Open source · Native · AI-powered
             </p>
             <h1 className="mt-8 pb-2 font-display text-[clamp(3rem,10vw,9rem)] leading-[0.85] tracking-tight">
               <span className="hero-headline">Your inspiration</span>
