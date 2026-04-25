@@ -31,6 +31,11 @@
       "sourceType": "github",
       "computedHash": "71dc18439662e251b24520c010e3b1075ac12089e1a5fb9701fc9856b8c26530"
     },
+    "seo-audit": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "computedHash": "ddd028951738fcbcdebf0f9bd90b708c55d1b9370a31603e0c13e5b262d8b8bb"
+    },
     "swiftui-expert-skill": {
       "source": "avdlee/swiftui-agent-skill",
       "sourceType": "github",
