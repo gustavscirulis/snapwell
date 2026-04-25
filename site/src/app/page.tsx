@@ -100,7 +100,7 @@ export default function Home() {
         <div className="relative z-10 mt-16 pb-16">
           <div className="hero-bg-reveal absolute inset-0 overflow-hidden">
             <Image
-              src="/hero/background.jpg"
+              src="/hero/background.webp"
               alt=""
               fill
               className="object-cover opacity-50"
@@ -114,10 +114,10 @@ export default function Home() {
               <div className="hero-mac relative z-10">
                 <ParallaxWrapper speed={0.5}>
                   <Image
-                    src="/hero/mac.png"
+                    src="/hero/mac.webp"
                     alt="Snapwell on Mac — a grid of collected images with AI-generated tags and search"
-                    width={2556}
-                    height={1700}
+                    width={2560}
+                    height={1703}
                     className="w-full drop-shadow-[0_32px_64px_rgba(0,0,0,0.4)]"
                     priority
                   />
@@ -126,7 +126,7 @@ export default function Home() {
               <div className="hero-iphone absolute -bottom-[14%] right-[-6%] z-20 w-[30%] md:right-[-2%] md:w-[28%]">
                 <ParallaxWrapper speed={1.5}>
                   <Image
-                    src="/hero/iphone.png"
+                    src="/hero/iphone.webp"
                     alt="Snapwell on iOS — the same library synced to your phone"
                     width={963}
                     height={1701}
