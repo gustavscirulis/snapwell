@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://snapwell.co"),
   title: "Snapwell — AI-Powered Inspiration Library for Mac & iOS",
   description:
-    "Collect images and videos, let AI organize them. Local-first library for macOS and iOS with content-based search.",
+    "Collect images and videos, let AI organize them. Native library for macOS and iOS with content-based search.",
   alternates: {
     canonical: "/",
   },
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Snapwell — AI-Powered Inspiration Library for Mac & iOS",
     description:
-      "Collect images and videos, let AI organize them. Local-first library for macOS and iOS.",
+      "Collect images and videos, let AI organize them. Native library for macOS and iOS.",
     url: "https://snapwell.co",
     siteName: "Snapwell",
     type: "website",
@@ -56,7 +56,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Snapwell — AI-Powered Inspiration Library for Mac & iOS",
     description:
-      "Collect images and videos, let AI organize them. Local-first library for macOS and iOS.",
+      "Collect images and videos, let AI organize them. Native library for macOS and iOS.",
     images: ["/preview.webp"],
   },
 };

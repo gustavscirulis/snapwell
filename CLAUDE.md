@@ -1,6 +1,6 @@
 # Snapwell
 
-AI-native media library for collecting, organizing, and analyzing images and videos. Two native apps share the same `~/Documents/Snapwell/` storage.
+Native, AI-powered media library for collecting, organizing, and analyzing images and videos. Two native apps share the same `~/Documents/Snapwell/` storage.
 
 | Project | Location | Stack |
 |---------|----------|-------|
