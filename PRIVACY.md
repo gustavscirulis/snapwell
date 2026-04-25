@@ -50,8 +50,8 @@ Snapwell is not directed at children under 13 and does not knowingly collect per
 
 ## Changes
 
-We may update this policy from time to time. The latest version will always be available at [snapwell.app/privacy](https://snapwell.app/privacy).
+We may update this policy from time to time. The latest version will always be available at [snapwell.co/privacy](https://snapwell.co/privacy).
 
 ## Contact
 
-If you have questions about this privacy policy, contact us at privacy@snapwell.app.
+If you have questions about this privacy policy, send us a message using the chat widget at [snapwell.co](https://snapwell.co).

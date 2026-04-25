@@ -101,18 +101,19 @@ export default function PrivacyPage() {
           <section>
             <h2>Analytics &amp; telemetry</h2>
             <p>
-              Snapwell does not include analytics SDKs, telemetry, or tracking
-              of any kind. We do not collect usage data, crash reports, or device
-              information.
+              The Snapwell Mac and iOS apps do not include analytics SDKs,
+              telemetry, or tracking of any kind. We do not collect usage data,
+              crash reports, or device information from the native apps.
             </p>
           </section>
 
           <section>
             <h2>Website</h2>
             <p>
-              The Snapwell website (<strong>snapwell.co</strong>) is a static
-              site. It does not use cookies or third-party trackers for
-              analytics.
+              The Snapwell website (<strong>snapwell.co</strong>) uses Vercel
+              Analytics to measure anonymous page views. No cookies are used and
+              no personal data is collected. The website does not use
+              third-party advertising trackers.
             </p>
           </section>
 
