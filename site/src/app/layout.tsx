@@ -25,7 +25,7 @@ const instrumentSerif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://www.snapwell.co"),
+  metadataBase: new URL("https://snapwell.co"),
   title: "Snapwell — AI-Powered Inspiration Library for Mac & iOS",
   description:
     "Collect images and videos, let AI organize them. Local-first library for macOS and iOS with content-based search.",
@@ -40,7 +40,7 @@ export const metadata: Metadata = {
     title: "Snapwell — AI-Powered Inspiration Library for Mac & iOS",
     description:
       "Collect images and videos, let AI organize them. Local-first library for macOS and iOS.",
-    url: "https://www.snapwell.co",
+    url: "https://snapwell.co",
     siteName: "Snapwell",
     type: "website",
     images: [

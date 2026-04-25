@@ -6,6 +6,6 @@ export default function robots(): MetadataRoute.Robots {
       userAgent: "*",
       allow: "/",
     },
-    sitemap: "https://www.snapwell.co/sitemap.xml",
+    sitemap: "https://snapwell.co/sitemap.xml",
   };
 }
