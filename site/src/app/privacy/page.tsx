@@ -5,6 +5,9 @@ export const metadata: Metadata = {
   title: "Privacy Policy — Snapwell",
   description:
     "Snapwell privacy policy. Local-first media library — your files stay on your device.",
+  alternates: {
+    canonical: "/privacy",
+  },
 };
 
 export default function PrivacyPage() {
@@ -107,7 +110,7 @@ export default function PrivacyPage() {
           <section>
             <h2>Website</h2>
             <p>
-              The Snapwell website (<strong>snapwell.app</strong>) is a static
+              The Snapwell website (<strong>snapwell.co</strong>) is a static
               site. It does not use cookies or third-party trackers for
               analytics.
             </p>
