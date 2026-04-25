@@ -26,6 +26,11 @@
       "sourceType": "github",
       "computedHash": "426dcf33f23419643f2aab71e2253e1a5b5684a808fabb8a4ad135e489ed7a0f"
     },
+    "optimize-images": {
+      "source": "forever-efficient/pitfal-solutions-website",
+      "sourceType": "github",
+      "computedHash": "71dc18439662e251b24520c010e3b1075ac12089e1a5fb9701fc9856b8c26530"
+    },
     "swiftui-expert-skill": {
       "source": "avdlee/swiftui-agent-skill",
       "sourceType": "github",
