@@ -116,8 +116,8 @@ export default function Home() {
                   <Image
                     src="/hero/mac.webp"
                     alt="Snapwell on Mac — a grid of collected images with AI-generated tags and search"
-                    width={2560}
-                    height={1703}
+                    width={2556}
+                    height={1700}
                     className="w-full drop-shadow-[0_32px_64px_rgba(0,0,0,0.4)]"
                     priority
                   />
