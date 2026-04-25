@@ -33,13 +33,13 @@ Syncs media and spaces via iCloud. Can run AI analysis and write results back to
 
 **FullScreenImageOverlay gestures** use a mode-locking pattern (dismiss/scroll/swipe/zoom lock on first touch). Respect this when modifying gesture code.
 
-Bundle ID: `co.snapwell.app`.
+Bundle ID: `co.snapwell`.
 
 ## Mac app
 
 Uses XcodeGen — run `cd macos && xcodegen generate && scripts/post-xcodegen.sh` after adding/removing Swift files. The post-xcodegen script patches the `AppIcon.icon` file type in the generated `.pbxproj` (XcodeGen doesn't know the `folder.iconcomposer.icon` type).
 
-Bundle ID: `co.snapwell.app`.
+Bundle ID: `co.snapwell`.
 
 ## Architecture patterns
 

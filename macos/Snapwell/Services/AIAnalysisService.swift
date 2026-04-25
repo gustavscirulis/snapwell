@@ -255,7 +255,7 @@ final class AIAnalysisService: Sendable {
                 url: URL(string: "https://openrouter.ai/api/v1/chat/completions")!,
                 headers: [
                     "Authorization": "Bearer \(apiKey)",
-                    "HTTP-Referer": "https://snapwell.app",
+                    "HTTP-Referer": "https://snapwell.co",
                     "X-Title": "Snapwell"
                 ],
                 body: [
