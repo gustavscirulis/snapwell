@@ -44,7 +44,7 @@ struct GuidanceFallbackTests {
     @Test("Prompt always contains master system prompt")
     func alwaysContainsMasterPrompt() {
         let prompt = service.buildPrompt(guidance: "custom", spaceContext: "context")
-        #expect(prompt.contains("expert AI in analyzing images"))
+        #expect(prompt.contains("expert image analyst"))
     }
 
     @Test("Prompt structure: master + guidance + context in order")
@@ -52,7 +52,7 @@ struct GuidanceFallbackTests {
         let prompt = service.buildPrompt(guidance: "CUSTOM_GUIDANCE", spaceContext: "SPACE_CONTEXT")
         let guidanceIndex = prompt.range(of: "CUSTOM_GUIDANCE")!.lowerBound
         let contextIndex = prompt.range(of: "SPACE_CONTEXT")!.lowerBound
-        let masterIndex = prompt.range(of: "Guidance:")!.lowerBound
+        let masterIndex = prompt.range(of: "analysis_focus")!.lowerBound
         #expect(masterIndex < guidanceIndex)
         #expect(guidanceIndex < contextIndex)
     }
