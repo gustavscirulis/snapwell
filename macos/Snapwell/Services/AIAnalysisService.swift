@@ -112,7 +112,7 @@ final class AIAnalysisService: Sendable {
             return [-1001, -1005, -1009].contains(nsError.code)
         }
         // 502/503/429 from API
-        if case AnalysisError.apiError(let code, _) = error {
+        if case AnalysisError.apiError(let code, _, _) = error {
             return [429, 502, 503].contains(code)
         }
         return false
@@ -174,6 +174,7 @@ final class AIAnalysisService: Sendable {
         let url: URL
         let headers: [String: String]
         let body: [String: Any]
+        let provider: AIProvider
         let extractText: ([String: Any]) throws -> String
     }
 
@@ -197,6 +198,7 @@ final class AIAnalysisService: Sendable {
                     ],
                     "max_completion_tokens": 800
                 ],
+                provider: provider,
                 extractText: Self.extractOpenAIText
             )
         case .anthropic:
@@ -218,6 +220,7 @@ final class AIAnalysisService: Sendable {
                         ]]
                     ]
                 ],
+                provider: provider,
                 extractText: { json in
                     let content = json["content"] as? [[String: Any]]
                     guard let text = content?.first?["text"] as? String else {
@@ -240,6 +243,7 @@ final class AIAnalysisService: Sendable {
                     "systemInstruction": ["parts": [["text": prompt]]],
                     "generationConfig": ["maxOutputTokens": 800]
                 ],
+                provider: provider,
                 extractText: { json in
                     let candidates = json["candidates"] as? [[String: Any]]
                     let content = candidates?.first?["content"] as? [String: Any]
@@ -269,6 +273,7 @@ final class AIAnalysisService: Sendable {
                     ],
                     "max_tokens": 1200
                 ],
+                provider: provider,
                 extractText: Self.extractOpenAIText
             )
         }
@@ -295,7 +300,7 @@ final class AIAnalysisService: Sendable {
         request.httpBody = try JSONSerialization.data(withJSONObject: req.body)
 
         let (data, response) = try await URLSession.shared.data(for: request)
-        try validateHTTPResponse(response, data: data)
+        try validateHTTPResponse(response, data: data, provider: req.provider)
 
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw AnalysisError.invalidResponse
@@ -360,13 +365,13 @@ final class AIAnalysisService: Sendable {
         return jpegData.base64EncodedString()
     }
 
-    private func validateHTTPResponse(_ response: URLResponse, data: Data) throws {
+    private func validateHTTPResponse(_ response: URLResponse, data: Data, provider: AIProvider) throws {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw AnalysisError.invalidResponse
         }
         guard (200...299).contains(httpResponse.statusCode) else {
             let body = String(data: data, encoding: .utf8) ?? "Unknown error"
-            throw AnalysisError.apiError(statusCode: httpResponse.statusCode, message: body)
+            throw AnalysisError.apiError(statusCode: httpResponse.statusCode, message: body, provider: provider)
         }
     }
 
@@ -421,7 +426,7 @@ final class AIAnalysisService: Sendable {
         case noAPIKey
         case imageConversionFailed
         case invalidResponse
-        case apiError(statusCode: Int, message: String)
+        case apiError(statusCode: Int, message: String, provider: AIProvider)
         case parseFailed
 
         var errorDescription: String? {
@@ -429,11 +434,15 @@ final class AIAnalysisService: Sendable {
             case .noAPIKey: return "No API key configured"
             case .imageConversionFailed: return "Failed to convert image for analysis"
             case .invalidResponse: return "Invalid response from AI provider"
-            case .apiError(let code, _):
+            case .apiError(let code, _, let provider):
                 switch code {
                 case 401, 403: return "Your API key is invalid or unauthorized. Check your key in Settings."
                 case 402: return "Insufficient credits. Check your account balance with your AI provider."
-                case 429: return "Rate limit exceeded. Wait a moment and try again."
+                case 429:
+                    if provider == .gemini {
+                        return "Rate limit exceeded. Gemini Flash models have a free tier — try switching to a Flash model in Settings."
+                    }
+                    return "Rate limit exceeded. Wait a moment and try again."
                 case 500...599: return "The AI provider is experiencing issues (HTTP \(code)). Try again later."
                 default: return "API request failed with HTTP \(code). Check your provider settings."
                 }
