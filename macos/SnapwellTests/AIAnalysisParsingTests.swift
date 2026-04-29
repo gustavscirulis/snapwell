@@ -154,14 +154,15 @@ struct AIAnalysisParsingTests {
     @Test("Retryable HTTP status codes",
           arguments: [429, 502, 503])
     func retryableStatusCodes(_ code: Int) {
-        let error = AIAnalysisService.AnalysisError.apiError(statusCode: code, message: "error")
+        // provider is arbitrary — retryability depends only on status code
+        let error = AIAnalysisService.AnalysisError.apiError(statusCode: code, message: "error", provider: .openai)
         #expect(service.isRetryable(error) == true)
     }
 
     @Test("Non-retryable HTTP status codes",
           arguments: [400, 401, 403, 404, 500])
     func nonRetryableStatusCodes(_ code: Int) {
-        let error = AIAnalysisService.AnalysisError.apiError(statusCode: code, message: "error")
+        let error = AIAnalysisService.AnalysisError.apiError(statusCode: code, message: "error", provider: .openai)
         #expect(service.isRetryable(error) == false)
     }
 

@@ -26,12 +26,19 @@ struct ErrorDescriptionTests {
         #expect(error.errorDescription != nil)
     }
 
-    @Test("AnalysisError.apiError includes status code and message")
-    func analysisApiError() {
-        let error = AIAnalysisService.AnalysisError.apiError(statusCode: 429, message: "Rate limited")
+    @Test("AnalysisError 429 shows generic rate limit message")
+    func analysisApiError429() {
+        let error = AIAnalysisService.AnalysisError.apiError(statusCode: 429, message: "Rate limited", provider: .openai)
         let desc = error.errorDescription!
-        #expect(desc.contains("429"))
-        #expect(desc.contains("Rate limited"))
+        #expect(desc.contains("Rate limit exceeded"))
+        #expect(!desc.contains("Flash"))
+    }
+
+    @Test("AnalysisError 429 from Gemini suggests Flash model")
+    func analysisApiError429Gemini() {
+        let error = AIAnalysisService.AnalysisError.apiError(statusCode: 429, message: "Rate limited", provider: .gemini)
+        let desc = error.errorDescription!
+        #expect(desc.contains("Flash"))
     }
 
     @Test("AnalysisError.parseFailed has description")
