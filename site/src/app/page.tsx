@@ -83,13 +83,20 @@ export default function Home() {
               Collect anything, search by what you see.
               <br />An inspiration library for macOS and iOS.
             </p>
-            <div className="hero-text-4 mt-10 flex items-center gap-4">
-              <span className="inline-flex items-center rounded-full border border-accent/40 px-6 py-3 text-sm font-medium text-accent">
-                Coming soon
-              </span>
+            <div className="hero-text-4 mt-10 flex items-center gap-3">
+              <a
+                href="https://apps.apple.com/us/app/snapwell/id6762541353"
+                className="inline-flex items-center gap-2 rounded-full border border-accent/50 px-6 py-3 text-sm font-medium text-accent transition-colors hover:border-accent hover:bg-accent/10"
+              >
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="opacity-60">
+                  <path d="M7 1v8.5M3.5 6L7 9.5 10.5 6" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M2 12h10" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+                </svg>
+                Download
+              </a>
               <a
                 href="https://github.com/gustavscirulis/snapwell"
-                className="rounded-full border border-border px-7 py-3 text-sm font-medium text-foreground transition-colors hover:bg-surface"
+                className="rounded-full border border-border px-6 py-3 text-sm font-medium text-foreground transition-colors hover:bg-surface"
               >
                 GitHub
               </a>
@@ -232,7 +239,7 @@ export default function Home() {
         {/* ── CTA ───────────────────────────────────────── */}
         <section className="px-6 py-32">
           <div className="mx-auto max-w-6xl">
-            <div className="flex flex-col items-start gap-8 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-col items-start gap-8 md:flex-row md:items-start md:justify-between">
               <div>
                 <div className="flex items-start gap-6">
                   <Image
@@ -252,13 +259,20 @@ export default function Home() {
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-4">
-                <span className="inline-flex items-center rounded-full border border-accent/40 px-6 py-3 text-sm font-medium text-accent">
-                  Coming soon
-                </span>
+              <div className="flex items-center gap-3 md:mt-1">
+                <a
+                  href="https://apps.apple.com/us/app/snapwell/id6762541353"
+                  className="inline-flex items-center gap-2 rounded-full border border-accent/50 px-6 py-3 text-sm font-medium text-accent transition-colors hover:border-accent hover:bg-accent/10"
+                >
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="opacity-60">
+                    <path d="M7 1v8.5M3.5 6L7 9.5 10.5 6" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M2 12h10" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+                  </svg>
+                  Download
+                </a>
                 <a
                   href="https://github.com/gustavscirulis/snapwell"
-                  className="rounded-full border border-border px-7 py-3 text-sm font-medium transition-colors hover:bg-surface"
+                  className="rounded-full border border-border px-6 py-3 text-sm font-medium transition-colors hover:bg-surface"
                 >
                   GitHub
                 </a>
@@ -288,7 +302,7 @@ export default function Home() {
           <span>
             Built by{" "}
             <a
-              href="https://x.com/gustavscirulis"
+              href="https://gustavscirulis.com"
               className="text-foreground transition-colors hover:text-accent"
             >
               Gustavs Cirulis
