@@ -109,6 +109,7 @@ struct MasonryGridView: View {
                                         GridItemView(
                                             item: item,
                                             width: columnWidth,
+                                            orderedItems: items,
                                             spaces: spaces,
                                             activeSpaceId: activeSpaceId,
                                             onSelect: { frame in onSelect(item.id, frame) },
