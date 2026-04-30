@@ -5,6 +5,7 @@ import AVFoundation
 struct GridItemView: View {
     let item: MediaItem
     let width: CGFloat
+    let orderedItems: [MediaItem]
     let spaces: [Space]
     let activeSpaceId: String?
     let onSelect: (CGRect) -> Void
@@ -41,9 +42,10 @@ struct GridItemView: View {
         isSelected && selectedCount > 1 ? appState.selectedIds : [item.id]
     }
 
-    init(item: MediaItem, width: CGFloat, spaces: [Space], activeSpaceId: String?, onSelect: @escaping (CGRect) -> Void, onToggleSelect: @escaping () -> Void, onShiftSelect: @escaping () -> Void, onDelete: @escaping (Set<String>) -> Void, onChangeSpaceMembership: @escaping (Set<String>, SpaceMembershipAction) -> Void, onRetryAnalysis: @escaping (Set<String>) -> Void, onShare: @escaping (Set<String>, CGRect) -> Void) {
+    init(item: MediaItem, width: CGFloat, orderedItems: [MediaItem], spaces: [Space], activeSpaceId: String?, onSelect: @escaping (CGRect) -> Void, onToggleSelect: @escaping () -> Void, onShiftSelect: @escaping () -> Void, onDelete: @escaping (Set<String>) -> Void, onChangeSpaceMembership: @escaping (Set<String>, SpaceMembershipAction) -> Void, onRetryAnalysis: @escaping (Set<String>) -> Void, onShare: @escaping (Set<String>, CGRect) -> Void) {
         self.item = item
         self.width = width
+        self.orderedItems = orderedItems
         self.spaces = spaces
         self.activeSpaceId = activeSpaceId
         self.onSelect = onSelect
@@ -344,27 +346,8 @@ struct GridItemView: View {
                 }
             }
         }
-        .onDrag {
-            appState.isDraggingFromApp = true
-            let url = MediaStorageService.shared.mediaURL(filename: item.filename)
-            // Build provider from scratch — NSItemProvider(contentsOf:) creates a sealed
-            // provider where additional registerObject() calls are not loadable by the
-            // drop system (the types appear in registeredTypeIdentifiers but data loading fails).
-            let provider = NSItemProvider()
-            provider.registerObject(url as NSURL, visibility: .all)
-            let idString = "snapwell:" + effectiveIds.joined(separator: ",")
-            provider.registerObject(idString as NSString, visibility: .all)
-            if let name = item.analysisResult?.patterns.first?.name {
-                let ext = url.pathExtension
-                provider.suggestedName = ext.isEmpty ? name : "\(name).\(ext)"
-            }
-            return provider
-        } preview: {
-            DragThumbnailPreview(
-                image: thumbnail,
-                aspectRatio: itemAspectRatio,
-                bulkCount: isBulk ? selectedCount : nil
-            )
+        .overlay {
+            dragSourceOverlay
         }
         .opacity(isDeleting ? 0 : gridItemOpacity)
         .onGeometryChange(for: CGRect.self) { proxy in
@@ -396,18 +379,10 @@ struct GridItemView: View {
             }
         }
         .onChange(of: item.isAnalyzing) {
-            guard videoPreview.activeItemId == item.id else { return }
-            videoPreview.updateAnalysisState(
-                isAnalyzing: item.isAnalyzing,
-                hasError: !item.isAnalyzing && item.analysisError != nil
-            )
+            updateVideoPreviewAnalysisState()
         }
         .onChange(of: item.analysisError) {
-            guard videoPreview.activeItemId == item.id else { return }
-            videoPreview.updateAnalysisState(
-                isAnalyzing: item.isAnalyzing,
-                hasError: !item.isAnalyzing && item.analysisError != nil
-            )
+            updateVideoPreviewAnalysisState()
         }
         .contextMenu {
             let removeFromActiveSpace: (() -> Void)? = {
@@ -442,6 +417,20 @@ struct GridItemView: View {
     }
 
     // MARK: - Glass-aware sub-views
+
+    private var dragSourceOverlay: some View {
+        GridDragSourceRepresentable(
+            payloadProvider: makeDragExportPayload,
+            previewImageProvider: { thumbnail },
+            onDragStarted: {
+                appState.isDraggingFromApp = true
+                videoPreview.stopPreview()
+            },
+            onDragEnded: {
+                appState.isDraggingFromApp = false
+            }
+        )
+    }
 
     /// "Analyzing..." shimmer badge with glass on macOS 26+.
     @ViewBuilder
@@ -525,6 +514,225 @@ struct GridItemView: View {
         if let loaded = await ImageCacheService.shared.loadThumbnail(id: item.id, filename: item.filename) {
             self.thumbnail = loaded
         }
+    }
+
+    private func makeDragExportPayload() -> GridDragExportPayload {
+        GridDragExportPayload(
+            draggedItem: item,
+            effectiveIds: effectiveIds,
+            orderedItems: orderedItems,
+            storage: MediaStorageService.shared
+        )
+    }
+
+    private func updateVideoPreviewAnalysisState() {
+        guard videoPreview.activeItemId == item.id else { return }
+        videoPreview.updateAnalysisState(
+            isAnalyzing: item.isAnalyzing,
+            hasError: !item.isAnalyzing && item.analysisError != nil
+        )
+    }
+}
+
+// MARK: - Grid Drag Export
+
+struct GridDragExportPayload {
+    let orderedIds: [String]
+    let fileURLs: [URL]
+    let internalString: String
+
+    init(
+        draggedItem: MediaItem,
+        effectiveIds: Set<String>,
+        orderedItems: [MediaItem],
+        storage: MediaStorageService
+    ) {
+        let selectedItems = orderedItems.filter { item in
+            effectiveIds.contains(item.id) && !item.isDeleted
+        }
+        let exportItems = selectedItems.isEmpty ? [draggedItem] : selectedItems
+
+        self.orderedIds = exportItems.map(\.id)
+        self.fileURLs = exportItems.map { storage.mediaURL(filename: $0.filename) }
+        self.internalString = "snapwell:" + orderedIds.joined(separator: ",")
+    }
+}
+
+private struct GridDragSourceRepresentable: NSViewRepresentable {
+    let payloadProvider: () -> GridDragExportPayload
+    let previewImageProvider: () -> NSImage?
+    let onDragStarted: () -> Void
+    let onDragEnded: () -> Void
+
+    func makeNSView(context: Context) -> GridDragSourceView {
+        GridDragSourceView(
+            payloadProvider: payloadProvider,
+            previewImageProvider: previewImageProvider,
+            onDragStarted: onDragStarted,
+            onDragEnded: onDragEnded
+        )
+    }
+
+    func updateNSView(_ nsView: GridDragSourceView, context: Context) {
+        nsView.payloadProvider = payloadProvider
+        nsView.previewImageProvider = previewImageProvider
+        nsView.onDragStarted = onDragStarted
+        nsView.onDragEnded = onDragEnded
+    }
+}
+
+private final class GridDragSourceView: NSView, NSDraggingSource {
+    var payloadProvider: () -> GridDragExportPayload
+    var previewImageProvider: () -> NSImage?
+    var onDragStarted: () -> Void
+    var onDragEnded: () -> Void
+
+    private var monitor: Any?
+    private var mouseDownPoint: NSPoint?
+    private var dragStarted = false
+
+    init(
+        payloadProvider: @escaping () -> GridDragExportPayload,
+        previewImageProvider: @escaping () -> NSImage?,
+        onDragStarted: @escaping () -> Void,
+        onDragEnded: @escaping () -> Void
+    ) {
+        self.payloadProvider = payloadProvider
+        self.previewImageProvider = previewImageProvider
+        self.onDragStarted = onDragStarted
+        self.onDragEnded = onDragEnded
+        super.init(frame: .zero)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window != nil {
+            installMonitor()
+        } else {
+            removeMonitor()
+        }
+    }
+
+    override func removeFromSuperview() {
+        removeMonitor()
+        super.removeFromSuperview()
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
+    }
+
+    private func installMonitor() {
+        guard monitor == nil else { return }
+        monitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .leftMouseDragged, .leftMouseUp]) { [weak self] event in
+            self?.handle(event) ?? event
+        }
+    }
+
+    private func removeMonitor() {
+        if let monitor {
+            NSEvent.removeMonitor(monitor)
+            self.monitor = nil
+        }
+        mouseDownPoint = nil
+        dragStarted = false
+    }
+
+    private func handle(_ event: NSEvent) -> NSEvent? {
+        switch event.type {
+        case .leftMouseDown:
+            guard contains(event) else { return event }
+            mouseDownPoint = event.locationInWindow
+            dragStarted = false
+            return event
+
+        case .leftMouseDragged:
+            guard let mouseDownPoint else { return event }
+            if dragStarted { return nil }
+
+            let dx = event.locationInWindow.x - mouseDownPoint.x
+            let dy = event.locationInWindow.y - mouseDownPoint.y
+            guard dx * dx + dy * dy >= 25 else { return event }
+
+            beginDrag(with: event)
+            dragStarted = true
+            return nil
+
+        case .leftMouseUp:
+            mouseDownPoint = nil
+            dragStarted = false
+            return event
+
+        default:
+            return event
+        }
+    }
+
+    private func contains(_ event: NSEvent) -> Bool {
+        guard event.window === window else { return false }
+        return bounds.contains(convert(event.locationInWindow, from: nil))
+    }
+
+    private func beginDrag(with event: NSEvent) {
+        let payload = payloadProvider()
+        guard !payload.fileURLs.isEmpty else { return }
+
+        let previewImage = previewImageProvider()
+        let draggingItems = payload.fileURLs.enumerated().map { index, url in
+            let pasteboardItem = NSPasteboardItem()
+            pasteboardItem.setString(url.absoluteString, forType: .fileURL)
+            if index == 0 {
+                pasteboardItem.setString(payload.internalString, forType: .string)
+            }
+
+            let draggingItem = NSDraggingItem(pasteboardWriter: pasteboardItem)
+            let image = previewImage ?? NSWorkspace.shared.icon(forFile: url.path)
+            draggingItem.setDraggingFrame(draggingFrame(for: image, index: index), contents: image)
+            return draggingItem
+        }
+
+        onDragStarted()
+        let session = beginDraggingSession(with: draggingItems, event: event, source: self)
+        session.animatesToStartingPositionsOnCancelOrFail = true
+    }
+
+    private func draggingFrame(for image: NSImage, index: Int) -> NSRect {
+        let maxWidth: CGFloat = 96
+        let fallbackSize = CGSize(width: maxWidth, height: 64)
+        let imageSize = image.size
+        let size: CGSize
+        if imageSize.width > 0, imageSize.height > 0 {
+            let scale = maxWidth / imageSize.width
+            size = CGSize(width: maxWidth, height: max(1, imageSize.height * scale))
+        } else {
+            size = fallbackSize
+        }
+
+        let offset = CGFloat(min(index, 4)) * 4
+        return NSRect(
+            x: bounds.midX - size.width / 2 + offset,
+            y: bounds.midY - size.height / 2 - offset,
+            width: size.width,
+            height: size.height
+        )
+    }
+
+    func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
+        .copy
+    }
+
+    func ignoreModifierKeys(for session: NSDraggingSession) -> Bool {
+        true
+    }
+
+    func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
+        mouseDownPoint = nil
+        dragStarted = false
+        onDragEnded()
     }
 }
 
