@@ -56,15 +56,6 @@ struct GeneralSettingsTab: View {
         }
     }
 
-    private var keyGenerationURL: URL {
-        switch provider {
-        case .openai: return URL(string: "https://platform.openai.com/api-keys")!
-        case .anthropic: return URL(string: "https://console.anthropic.com/settings/keys")!
-        case .gemini: return URL(string: "https://aistudio.google.com/apikey")!
-        case .openrouter: return URL(string: "https://openrouter.ai/keys")!
-        }
-    }
-
     var body: some View {
         Form {
             Section("Appearance") {
@@ -104,8 +95,9 @@ struct GeneralSettingsTab: View {
                         .disabled(apiKeyInput.isEmpty)
                     }
 
-                    Link("Get \(provider.displayName) API key", destination: keyGenerationURL)
+                    Text("Snapwell uses AI vision models to analyze and describe your images. Bring your own API key from any supported provider to enable this feature.")
                         .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
                 if let keyWarning {
@@ -148,8 +140,7 @@ struct GeneralSettingsTab: View {
         let binding = modelBinding(for: provider)
 
         if !hasKey {
-            Text("Add an API key to choose a model.")
-                .foregroundStyle(.secondary)
+            EmptyView()
         } else if isLoadingModels {
             HStack {
                 ProgressView()
