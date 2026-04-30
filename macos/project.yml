@@ -43,6 +43,8 @@ targets:
         LSApplicationCategoryType: public.app-category.photography
         NSHumanReadableCopyright: "Copyright © 2026 Snapwell"
         ITSAppUsesNonExemptEncryption: false
+        NSPhotoLibraryUsageDescription: "Snapwell accesses your photo library to import and organize your photos and videos. For example, you can select images from your library to add them to Snapwell for AI-powered analysis and categorization."
+        NSAppleMusicUsageDescription: "Snapwell accesses your media library to browse and import photos and videos you have saved. For example, you can import images from your media library to organize them into visual collections."
         NSUbiquitousContainers:
           iCloud.co.SnapWell:
             NSUbiquitousContainerIsDocumentScopePublic: true
