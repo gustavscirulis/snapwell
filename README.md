@@ -37,7 +37,7 @@ Your library lives on your devices and your iCloud — not our servers. Snapwell
 
 ## Installation
 
-Download from the [Mac App Store](https://apps.apple.com/app/snapwell/id0000000000) or the [App Store on iOS](https://apps.apple.com/app/snapwell/id0000000000), or build from source.
+Download from the [App Store](https://apps.apple.com/us/app/snapwell/id6762541353) (Mac and iOS), or build from source.
 
 ### Requirements
 
