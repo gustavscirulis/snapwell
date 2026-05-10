@@ -1,0 +1,186 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0c0b0a;
+  --foreground: #edebe8;
+  --muted: #78756e;
+  --border: #1f1e1a;
+  --surface: #16150f;
+  --accent: #c4a47a;
+  --accent-soft: #14120e;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-surface: var(--surface);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-display);
+}
+
+@property --headline-base {
+  syntax: "<color>";
+  initial-value: rgba(237, 235, 232, 0.5);
+  inherits: false;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+@keyframes heroFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes heroBgReveal {
+  from {
+    opacity: 0;
+    transform: scale(1.04);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes heroDeviceUp {
+  from {
+    opacity: 0;
+    transform: translateY(80px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes heroAnalysisSweep {
+  from {
+    background-position: 100% center;
+  }
+  to {
+    background-position: 0% center;
+  }
+}
+
+@keyframes heroHeadlineLightUp {
+  to {
+    --headline-base: #edebe8;
+  }
+}
+
+@keyframes heroUnlockScroll {
+  to {
+    overflow: auto;
+  }
+}
+
+@keyframes heroTaglineReveal {
+  from {
+    opacity: 0;
+    -webkit-mask-position: 100% center;
+    mask-position: 100% center;
+  }
+  30% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    -webkit-mask-position: 0% center;
+    mask-position: 0% center;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+ * HERO REVEAL STORYBOARD
+ *
+ *    0ms   "Your inspiration" at 50% brightness — sole element
+ *  250ms   Shimmer sweep begins (2 × 1.3s = 2.6s)
+ * 2850ms   Shimmer ends → headline lights up to full (0.4s)
+ * 2900ms   "organized by AI" mask reveal (1.8s)
+ * 3700ms   Tagline fades up                        ─┐
+ * 3770ms   Subtitle fades up                  +70ms │
+ * 3840ms   CTA buttons fade up               +70ms │ cascade
+ * 3850ms   Background begins revealing              │
+ * 3950ms   Mac screenshot slides up          +100ms │
+ * 4150ms   iPhone screenshot slides up       +200ms ─┘
+ * 4150ms   Scroll unlocks
+ * ══════════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: no-preference) {
+  html:not(.hero-played) {
+    overflow: hidden;
+    animation: heroUnlockScroll 0.01s ease-out 4.15s forwards;
+  }
+
+  html:not(.hero-played) .hero-headline {
+    --headline-base: rgba(237, 235, 232, 0.5);
+    background: linear-gradient(
+      90deg,
+      var(--headline-base) 0%,
+      var(--headline-base) 30%,
+      #edebe8 45%,
+      #edebe8 55%,
+      var(--headline-base) 70%,
+      var(--headline-base) 100%
+    );
+    background-size: 400% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation:
+      heroAnalysisSweep 1.3s ease-in-out 0.25s 2 both,
+      heroHeadlineLightUp 0.4s ease-out 2.85s 1 forwards;
+  }
+
+  html:not(.hero-played) .hero-tagline-reveal {
+    opacity: 0;
+    padding-right: 0.15em;
+    -webkit-mask-image: linear-gradient(to right, black 0%, black 40%, transparent 55%, transparent 100%);
+    mask-image: linear-gradient(to right, black 0%, black 40%, transparent 55%, transparent 100%);
+    -webkit-mask-size: 300% 100%;
+    mask-size: 300% 100%;
+    -webkit-mask-position: 100% center;
+    mask-position: 100% center;
+    animation: heroTaglineReveal 1.8s cubic-bezier(0.23, 1, 0.32, 1) 2.9s both;
+  }
+
+  html:not(.hero-played) .hero-text-1 {
+    animation: heroFadeUp 0.4s ease-out 3.7s both;
+  }
+  html:not(.hero-played) .hero-text-3 {
+    animation: heroFadeUp 0.4s ease-out 3.77s both;
+  }
+  html:not(.hero-played) .hero-text-4 {
+    animation: heroFadeUp 0.4s ease-out 3.84s both;
+  }
+
+  html:not(.hero-played) .hero-bg-reveal {
+    animation: heroBgReveal 1.2s ease-out 3.85s both;
+  }
+
+  html:not(.hero-played) .hero-mac {
+    animation: heroDeviceUp 1.4s cubic-bezier(0.16, 1, 0.3, 1) 3.95s both;
+  }
+
+  html:not(.hero-played) .hero-iphone {
+    animation: heroDeviceUp 1.4s cubic-bezier(0.16, 1, 0.3, 1) 4.15s both;
+  }
+}

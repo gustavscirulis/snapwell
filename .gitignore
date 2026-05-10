@@ -1,0 +1,28 @@
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Environment variables
+.env
+
+# Xcode user-specific files
+xcuserdata/
+*.xcuserstate
+
+# Xcode build artifacts
+macos/build/
+ios/build/
+*.xcarchive
+*.ipa
+
+# Browser automation screenshots (Playwright MCP, Chrome DevTools MCP, etc.)
+.playwright-mcp/
+.screenshots/
+.vercel
