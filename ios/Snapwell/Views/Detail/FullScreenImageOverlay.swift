@@ -232,8 +232,12 @@ struct FullScreenImageOverlay: View {
 
     /// Hard clamp — used as the snap-back target on gesture end.
     /// Overload without `finalFrame` recomputes it (convenience for gesture handlers).
+    private var currentContentFrame: CGRect {
+        heroComplete ? computeSettledFrame(for: item) : computeFinalFrame(for: item)
+    }
+
     private func clampedZoomPanOffset(_ offset: CGSize) -> CGSize {
-        clampedZoomPanOffset(offset, finalFrame: computeFinalFrame(for: item))
+        clampedZoomPanOffset(offset, finalFrame: currentContentFrame)
     }
 
     private func clampedZoomPanOffset(_ offset: CGSize, finalFrame: CGRect) -> CGSize {
@@ -250,7 +254,7 @@ struct FullScreenImageOverlay: View {
     /// Rubber-band — allows overstretch with logarithmic resistance during live gesture.
     /// Overload without `finalFrame` recomputes it (convenience for gesture handlers).
     private func rubberBandZoomPanOffset(_ offset: CGSize) -> CGSize {
-        rubberBandZoomPanOffset(offset, finalFrame: computeFinalFrame(for: item))
+        rubberBandZoomPanOffset(offset, finalFrame: currentContentFrame)
     }
 
     private func rubberBandZoomPanOffset(_ offset: CGSize, finalFrame: CGRect) -> CGSize {
@@ -310,12 +314,24 @@ struct FullScreenImageOverlay: View {
 
     private func computeFinalFrame(for mediaItem: MediaItem) -> CGRect {
         let screen = screenSize
-        let maxW = screen.width - 24  // 12pt padding on each side
+        let maxW = screen.width - 24
         let bottomReservedInset: CGFloat = 88
         let availableHeight = max(screen.height - topReservedInset - bottomReservedInset, 1)
         let maxH = min(screen.height * 0.85, availableHeight)
         let itemW = max(CGFloat(mediaItem.width), 1)
         let itemH = max(CGFloat(mediaItem.height), 1)
+
+        if !mediaItem.isVideo && mediaItem.aspectRatio < 0.5 {
+            let w = min(itemW, maxW)
+            let h = min(w / mediaItem.aspectRatio, maxH)
+            return CGRect(
+                x: (screen.width - w) / 2,
+                y: topReservedInset + ((availableHeight - h) / 2),
+                width: w,
+                height: h
+            )
+        }
+
         let widthScale = maxW / itemW
         let heightScale = maxH / itemH
         let scale = min(widthScale, heightScale)
@@ -324,6 +340,23 @@ struct FullScreenImageOverlay: View {
         return CGRect(
             x: (screen.width - w) / 2,
             y: topReservedInset + ((availableHeight - h) / 2),
+            width: w,
+            height: h
+        )
+    }
+
+    private func computeSettledFrame(for mediaItem: MediaItem) -> CGRect {
+        guard !mediaItem.isVideo && mediaItem.aspectRatio < 0.5 else {
+            return computeFinalFrame(for: mediaItem)
+        }
+        let screen = screenSize
+        let maxW = screen.width - 24
+        let itemW = max(CGFloat(mediaItem.width), 1)
+        let w = min(itemW, maxW)
+        let h = w / mediaItem.aspectRatio
+        return CGRect(
+            x: (screen.width - w) / 2,
+            y: topReservedInset,
             width: w,
             height: h
         )
@@ -343,6 +376,7 @@ struct FullScreenImageOverlay: View {
     @ViewBuilder
     private var bodyContent: some View {
         let finalFrame = computeFinalFrame(for: item)
+        let settledFrame = computeSettledFrame(for: item)
 
         ZStack {
             // 1. Backdrop — keep the underlying screen visible through blur.
@@ -368,7 +402,7 @@ struct FullScreenImageOverlay: View {
 
             // 3. Current content — hero image OR settled ScrollView
             if heroComplete && !isClosing {
-                settledContentView(finalFrame: finalFrame)
+                settledContentView(finalFrame: settledFrame, heroFrame: finalFrame)
                     .offset(x: effectiveSwipeOffset)
             } else {
                 heroImage(finalFrame: finalFrame)
@@ -413,10 +447,13 @@ struct FullScreenImageOverlay: View {
 
         Group {
             if let displayImage {
+                let imgH = displayImage.size.width > 0
+                    ? currentFrame.width * (displayImage.size.height / displayImage.size.width)
+                    : currentFrame.height
                 Image(uiImage: displayImage)
                     .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: currentFrame.width, height: currentFrame.height)
+                    .frame(width: currentFrame.width, height: imgH)
+                    .frame(width: currentFrame.width, height: currentFrame.height, alignment: .top)
                     .clipped()
             } else {
                 Rectangle()
@@ -431,12 +468,12 @@ struct FullScreenImageOverlay: View {
     // MARK: - Settled Content View (Phase B)
 
     @ViewBuilder
-    private func settledContentView(finalFrame: CGRect) -> some View {
+    private func settledContentView(finalFrame: CGRect, heroFrame: CGRect) -> some View {
         let screen = CGRect(origin: .zero, size: screenSize)
         ScrollView(.vertical) {
             VStack(spacing: 0) {
                 Spacer()
-                    .frame(height: finalFrame.minY)
+                    .frame(height: heroFrame.minY)
 
                 ZStack {
                     Group {

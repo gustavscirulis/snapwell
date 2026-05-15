@@ -88,10 +88,6 @@ struct DetailItemView: View {
         lastWindowWidth + detailColumnLeadingInset
     }
 
-    private var isTallImage: Bool {
-        !currentItem.isVideo && currentItem.aspectRatio < 0.5
-    }
-
     init(
         items: [MediaItem],
         startItemId: String,
@@ -161,7 +157,8 @@ struct DetailItemView: View {
 
                 if heroComplete && !isClosing {
                     // SETTLED PHASE: ScrollView with image + metadata, swipe navigation
-                    settledContent(imageFrame: finalFrame, windowSize: windowSize)
+                    let settledFrame = computeSettledImageFrame(windowSize: windowSize, item: currentItem)
+                    settledContent(imageFrame: settledFrame, heroFrame: finalFrame, windowSize: windowSize)
                         .offset(x: swipeOffset)
                 } else if let image {
                     // HERO PHASE: Image springs from source position to final position.
@@ -301,11 +298,11 @@ struct DetailItemView: View {
 
     /// ScrollView layout with image + metadata. Used after the hero animation completes.
     @ViewBuilder
-    private func settledContent(imageFrame: CGRect, windowSize: CGSize) -> some View {
+    private func settledContent(imageFrame: CGRect, heroFrame: CGRect, windowSize: CGSize) -> some View {
         ScrollView(.vertical) {
             VStack(spacing: 0) {
                 Spacer()
-                    .frame(height: imageFrame.minY)
+                    .frame(height: heroFrame.minY)
                     .contentShape(Rectangle())
                     .onTapGesture {
                         if isZoomed { resetZoom() } else { triggerClose() }
@@ -322,7 +319,6 @@ struct DetailItemView: View {
                             zoomScale: $zoomScale,
                             isZoomed: $isZoomed,
                             trackpadPanDelta: $zoomPanDelta,
-                            isTallImage: isTallImage,
                             reduceMotion: reduceMotion,
                             onTap: { triggerClose() }
                         )
@@ -574,7 +570,7 @@ struct DetailItemView: View {
         if let adjImage {
             Image(nsImage: adjImage)
                 .resizable()
-                .aspectRatio(contentMode: item.aspectRatio < 0.5 ? .fit : .fill)
+                .aspectRatio(contentMode: .fill)
                 .frame(width: frame.width, height: frame.height)
                 .clipped()
                 .clipShape(RoundedRectangle(cornerRadius: 16))
@@ -702,6 +698,16 @@ struct DetailItemView: View {
             width: w,
             height: h
         )
+    }
+
+    private func computeSettledImageFrame(windowSize: CGSize, item: MediaItem) -> CGRect {
+        guard !item.isVideo && item.aspectRatio < 0.5 else {
+            return computeImageFrame(windowSize: windowSize, item: item)
+        }
+        let maxW = windowSize.width * 0.95
+        let w = min(CGFloat(item.width), maxW)
+        let h = w / item.aspectRatio
+        return CGRect(x: (windowSize.width - w) / 2, y: 40, width: w, height: h)
     }
 
     // MARK: - Zoom Reset

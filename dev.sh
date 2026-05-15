@@ -107,7 +107,7 @@ run_ios() {
     # Try connected iPhone first, fall back to simulator
     printf "${DIM}Looking for connected iPhone...${RESET}\n"
     local device_line
-    device_line=$(xcrun devicectl list devices 2>/dev/null | grep -i 'iphone' | grep 'available' | head -1)
+    device_line=$(xcrun devicectl list devices 2>/dev/null | grep -i 'iphone' | grep -E 'connected|available' | head -1 || true)
 
     if [[ -n "$device_line" ]]; then
         run_ios_device "$device_line"
