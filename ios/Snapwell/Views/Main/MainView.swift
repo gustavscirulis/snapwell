@@ -345,7 +345,7 @@ struct MainView: View {
             .toolbarColorScheme(.dark, for: .navigationBar)
             .searchable(
                 text: $appState.searchText,
-                prompt: scopedSpaceName.map { "Search in \($0)..." } ?? "Search patterns, context..."
+                prompt: "Search..."
             )
         }
     }
