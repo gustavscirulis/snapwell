@@ -41,7 +41,7 @@ class ThumbnailCache {
         cache.totalCostLimit = 150 * 1024 * 1024 // 150 MB
 
         let cachesDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
-        diskCacheDir = cachesDir.appendingPathComponent("thumbnails", isDirectory: true)
+        diskCacheDir = cachesDir.appendingPathComponent("thumbnails-v2", isDirectory: true)
         try? FileManager.default.createDirectory(at: diskCacheDir, withIntermediateDirectories: true)
 
         memoryWarningObserver = NotificationCenter.default.addObserver(
@@ -187,11 +187,21 @@ class ThumbnailCache {
             return nil
         }
 
-        let maxPixelSize: Int
+        var maxPixelSize: Int
         if targetPixelWidth > 0 {
             maxPixelSize = Int(targetPixelWidth)
+
+            // kCGImageSourceThumbnailMaxPixelSize constrains the LARGEST dimension.
+            // For portrait/tall images the largest dim is height, so the width ends up
+            // much smaller than targetPixelWidth. Read actual dimensions and scale so
+            // width meets the target (capped at 4x to bound memory for extreme aspect ratios).
+            if let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+               let pw = properties[kCGImagePropertyPixelWidth] as? CGFloat,
+               let ph = properties[kCGImagePropertyPixelHeight] as? CGFloat,
+               pw > 0, ph > pw {
+                maxPixelSize = Int(targetPixelWidth * ph / pw)
+            }
         } else {
-            // Full resolution — still use ImageIO for memory-efficient decoding
             maxPixelSize = 0
         }
 

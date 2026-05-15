@@ -7,7 +7,6 @@ struct ZoomableImageView: View {
     @Binding var zoomScale: CGFloat
     @Binding var isZoomed: Bool
     @Binding var trackpadPanDelta: CGSize
-    let isTallImage: Bool
     let reduceMotion: Bool
     let onTap: () -> Void
 
@@ -35,7 +34,7 @@ struct ZoomableImageView: View {
     var body: some View {
         Image(nsImage: image)
             .resizable()
-            .aspectRatio(contentMode: isTallImage ? .fit : .fill)
+            .aspectRatio(contentMode: .fill)
             .frame(width: frameSize.width * zoomScale, height: frameSize.height * zoomScale)
             .clipped()
             .clipShape(RoundedRectangle(cornerRadius: 16))

@@ -30,18 +30,20 @@ struct GridItemView: View {
         width / item.gridAspectRatio
     }
 
-    /// Target pixel width for thumbnail downsampling (@2x for retina)
     private var targetPixelWidth: CGFloat {
-        width * 2
+        width * UIScreen.main.scale
     }
 
     var body: some View {
         ZStack(alignment: .bottom) {
             // Thumbnail image
             if let thumbnail {
+                let imageHeight = thumbnail.size.height > 0
+                    ? width * (thumbnail.size.height / thumbnail.size.width)
+                    : height
                 Image(uiImage: thumbnail)
                     .resizable()
-                    .aspectRatio(contentMode: .fill)
+                    .frame(width: width, height: imageHeight)
                     .frame(width: width, height: height, alignment: .top)
                     .clipped()
                     .transition(.opacity)
