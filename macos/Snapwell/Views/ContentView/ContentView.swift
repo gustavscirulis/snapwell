@@ -163,7 +163,7 @@ struct ContentView: View {
         .frame(minWidth: 720, minHeight: 400)
         .coordinateSpace(name: DetailCoordinateSpace.splitViewRoot)
         .navigationTitle(detailNavigationTitle)
-        .searchable(text: $appState.searchText, isPresented: $isSearchFieldPresented, placement: .toolbar, prompt: "Search patterns, descriptions...")
+        .searchable(text: $appState.searchText, isPresented: $isSearchFieldPresented, placement: .toolbar, prompt: "Search...")
         .toolbar {
             if appState.detailItem != nil {
                 ToolbarItem(placement: .navigation) {
@@ -214,6 +214,11 @@ struct ContentView: View {
             onCreateNewSpace: { createSpace() },
             onFocusSearch: {
                 isSearchFieldPresented = true
+                DispatchQueue.main.async {
+                    guard let window = NSApp.keyWindow ?? NSApp.mainWindow,
+                          let contentView = window.contentView else { return }
+                    Self.firstSearchField(in: contentView).map { window.makeFirstResponder($0) }
+                }
             },
             onSelectAll: { appState.selectAll(activeFilteredItems.map(\.id)) },
             onSwitchToSpace: { digit in
@@ -1077,6 +1082,13 @@ struct ContentView: View {
         }
     }
 
+    private static func firstSearchField(in view: NSView) -> NSSearchField? {
+        if let sf = view as? NSSearchField { return sf }
+        for sub in view.subviews {
+            if let found = firstSearchField(in: sub) { return found }
+        }
+        return nil
+    }
 }
 
 
