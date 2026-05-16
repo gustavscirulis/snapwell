@@ -195,6 +195,27 @@ struct SidecarCodableTests {
         #expect(arrayResult[0].name == "Legacy")
     }
 
+    @Test("SidecarSpace hideFromAllMedia defaults to false when missing from JSON")
+    func hideFromAllMediaDefaultsFalse() throws {
+        let json = """
+        {"id":"s1","name":"Old","order":0,"createdAt":"2024-01-01T00:00:00Z","useCustomPrompt":false}
+        """
+        let decoded = try Self.decoder.decode(SidecarSpace.self, from: Data(json.utf8))
+        #expect(decoded.hideFromAllMedia == false)
+    }
+
+    @Test("SidecarSpace hideFromAllMedia roundtrips")
+    func hideFromAllMediaRoundtrip() throws {
+        let original = SidecarSpace(
+            id: "s1", name: "Hidden", order: 0,
+            createdAt: Date(timeIntervalSince1970: 1700000000),
+            customPrompt: nil, useCustomPrompt: false, hideFromAllMedia: true
+        )
+        let data = try Self.encoder.encode(original)
+        let decoded = try Self.decoder.decode(SidecarSpace.self, from: data)
+        #expect(decoded.hideFromAllMedia == true)
+    }
+
     @Test("ISO 8601 dates survive encode/decode")
     func iso8601DatesPreserved() throws {
         let date = Date(timeIntervalSince1970: 1700000000)

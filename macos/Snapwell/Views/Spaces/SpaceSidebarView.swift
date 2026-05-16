@@ -9,6 +9,7 @@ struct SpaceSidebarView: View {
     let onRenameSpace: (String, String) -> Void
     let onReorderSpaces: (Int, Int) -> Void
     let onChangeSpaceMembership: (Set<String>, SpaceMembershipAction) -> Void
+    let onToggleHideFromAllMedia: (String) -> Void
 
     @State private var editingSpaceId: String?
     @State private var editName: String = ""
@@ -93,17 +94,29 @@ struct SpaceSidebarView: View {
         } else {
             Text(space.name)
                 .contextMenu {
-                    Button("Rename") {
+                    Button {
                         editName = space.name
                         editingSpaceId = space.id
+                    } label: {
+                        Label("Rename", systemImage: "pencil")
+                    }
+                    Button {
+                        onToggleHideFromAllMedia(space.id)
+                    } label: {
+                        Label(
+                            space.hideFromAllMedia ? "Show in All Media" : "Hide from All Media",
+                            systemImage: space.hideFromAllMedia ? "eye" : "eye.slash"
+                        )
                     }
                     Divider()
-                    Button("Delete", role: .destructive) {
+                    Button(role: .destructive) {
                         if space.items.isEmpty {
                             onDeleteSpace(space.id)
                         } else {
                             spaceToDelete = space
                         }
+                    } label: {
+                        Label("Delete", systemImage: "trash")
                     }
                 }
                 .onDoubleClick {

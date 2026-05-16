@@ -9,6 +9,7 @@ class Space {
     var createdAt: Date
     var customPrompt: String?
     var useCustomPrompt: Bool = false
+    var hideFromAllMedia: Bool = false
 
     @Relationship(deleteRule: .nullify, inverse: \MediaItem.spaces)
     var items: [MediaItem] = []

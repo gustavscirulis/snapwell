@@ -205,6 +205,7 @@ struct DeletedSpaceInfo {
     let createdAt: Date
     let customPrompt: String?
     let useCustomPrompt: Bool
+    let hideFromAllMedia: Bool
     let itemIds: [String]
 }
 

@@ -128,6 +128,29 @@ struct SidecarSpace: Codable, Sendable {
     let createdAt: Date
     let customPrompt: String?
     let useCustomPrompt: Bool
+    let hideFromAllMedia: Bool
+
+    init(id: String, name: String, order: Int, createdAt: Date,
+         customPrompt: String?, useCustomPrompt: Bool, hideFromAllMedia: Bool = false) {
+        self.id = id
+        self.name = name
+        self.order = order
+        self.createdAt = createdAt
+        self.customPrompt = customPrompt
+        self.useCustomPrompt = useCustomPrompt
+        self.hideFromAllMedia = hideFromAllMedia
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id               = try c.decode(String.self, forKey: .id)
+        name             = try c.decode(String.self, forKey: .name)
+        order            = try c.decode(Int.self, forKey: .order)
+        createdAt        = try c.decode(Date.self, forKey: .createdAt)
+        customPrompt     = try c.decodeIfPresent(String.self, forKey: .customPrompt)
+        useCustomPrompt  = try c.decodeIfPresent(Bool.self, forKey: .useCustomPrompt) ?? false
+        hideFromAllMedia = try c.decodeIfPresent(Bool.self, forKey: .hideFromAllMedia) ?? false
+    }
 }
 
 /// Wrapper for spaces.json that includes all-space guidance alongside the spaces array.
@@ -226,7 +249,8 @@ final class MetadataSidecarService: Sendable {
                 order: space.order,
                 createdAt: space.createdAt,
                 customPrompt: space.customPrompt,
-                useCustomPrompt: space.useCustomPrompt
+                useCustomPrompt: space.useCustomPrompt,
+                hideFromAllMedia: space.hideFromAllMedia
             )
         }
         writeSpaceSidecars(sidecars)

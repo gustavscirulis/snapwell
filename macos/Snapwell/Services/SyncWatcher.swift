@@ -477,6 +477,7 @@ final class SyncWatcher {
                 )
                 space.customPrompt = sidecar.customPrompt
                 space.useCustomPrompt = sidecar.useCustomPrompt
+                space.hideFromAllMedia = sidecar.hideFromAllMedia
                 context.insert(space)
             }
         }
@@ -487,6 +488,7 @@ final class SyncWatcher {
                 if space.order != sidecar.order { space.order = sidecar.order }
                 if space.customPrompt != sidecar.customPrompt { space.customPrompt = sidecar.customPrompt }
                 if space.useCustomPrompt != sidecar.useCustomPrompt { space.useCustomPrompt = sidecar.useCustomPrompt }
+                if space.hideFromAllMedia != sidecar.hideFromAllMedia { space.hideFromAllMedia = sidecar.hideFromAllMedia }
             } else {
                 // Space was deleted on the other device
                 context.delete(space)

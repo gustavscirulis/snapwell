@@ -206,7 +206,7 @@ struct AppStateTests {
     @Test("Push and pop space deletion batch")
     func spaceDeletionUndoStack() {
         let state = AppState()
-        let info = DeletedSpaceInfo(id: "s1", name: "Design", order: 0, createdAt: .now, customPrompt: "Analyze design", useCustomPrompt: true, itemIds: ["item1", "item2"])
+        let info = DeletedSpaceInfo(id: "s1", name: "Design", order: 0, createdAt: .now, customPrompt: "Analyze design", useCustomPrompt: true, hideFromAllMedia: false, itemIds: ["item1", "item2"])
         state.pushUndoBatch(.spaceDeletion(info))
 
         guard case .spaceDeletion(let popped) = state.popUndoBatch() else {

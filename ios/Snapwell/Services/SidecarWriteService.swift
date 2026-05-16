@@ -82,7 +82,8 @@ enum SidecarWriteService {
                 order: space.order,
                 createdAt: space.createdAt,
                 customPrompt: space.customPrompt,
-                useCustomPrompt: space.useCustomPrompt
+                useCustomPrompt: space.useCustomPrompt,
+                hideFromAllMedia: space.hideFromAllMedia
             )
         }
 
