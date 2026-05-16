@@ -126,7 +126,7 @@
 		480D2D2839ABBA0294002566 /* DataCleanupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataCleanupService.swift; sourceTree = "<group>"; };
 		4906BAC04FF86E81EB0E2A68 /* NSImage+Thumbnail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NSImage+Thumbnail.swift"; sourceTree = "<group>"; };
 		4D5C3D220F8D67C08E23743A /* ImportServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportServiceTests.swift; sourceTree = "<group>"; };
-		4DA7B97F4581236A0CA4C6EA /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		4DA7B97F4581236A0CA4C6EA /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		502F1DDA2B1822158D09D39E /* SpaceMembership.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpaceMembership.swift; sourceTree = "<group>"; };
 		54E8AC928A5EEE78B6D497A3 /* SpaceSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpaceSidebarView.swift; sourceTree = "<group>"; };
 		5516C7C718B0CAA2172278AC /* ModelRelationshipTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelRelationshipTests.swift; sourceTree = "<group>"; };
@@ -599,13 +599,13 @@
 				ASSETCATALOG_COMPILER_STANDALONE_ICON_BEHAVIOR = none;
 				CODE_SIGN_ENTITLEMENTS = Snapwell/Resources/Snapwell.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 6;
 				INFOPLIST_FILE = Snapwell/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = co.snapwell;
 				SDKROOT = macosx;
 				SWIFT_STRICT_CONCURRENCY = complete;
@@ -620,13 +620,13 @@
 				ASSETCATALOG_COMPILER_STANDALONE_ICON_BEHAVIOR = none;
 				CODE_SIGN_ENTITLEMENTS = Snapwell/Resources/Snapwell.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 6;
 				INFOPLIST_FILE = Snapwell/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = co.snapwell;
 				SDKROOT = macosx;
 				SWIFT_STRICT_CONCURRENCY = complete;
