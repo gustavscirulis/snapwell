@@ -350,6 +350,26 @@ struct SyncWatcherIntegrationTests {
         #expect(spaces[1].customPrompt == "Focus on layout")
     }
 
+    @Test("syncSpaces syncs hideFromAllMedia from spaces.json")
+    @MainActor func syncSpacesSyncsHideFromAllMedia() async throws {
+        let spacesFile = SidecarSpacesFile(
+            spaces: [
+                SidecarSpace(id: "sp-hidden", name: "Private", order: 0, createdAt: Date(), customPrompt: nil, useCustomPrompt: false, hideFromAllMedia: true),
+                SidecarSpace(id: "sp-visible", name: "Public", order: 1, createdAt: Date(), customPrompt: nil, useCustomPrompt: false, hideFromAllMedia: false)
+            ],
+            allSpaceGuidance: nil, useAllSpaceGuidance: false
+        )
+        try IntegrationTestSupport.writeSpacesJSON(spacesFile, to: tempRoot)
+
+        let watcher = makeWatcher()
+        await watcher.initialSync(context: context)
+
+        let spaces = try context.fetch(FetchDescriptor<Space>(sortBy: [SortDescriptor(\.order)]))
+        #expect(spaces.count == 2)
+        #expect(spaces[0].hideFromAllMedia == true)
+        #expect(spaces[1].hideFromAllMedia == false)
+    }
+
     @Test("syncSpaces deletes spaces not in spaces.json")
     @MainActor func syncSpacesDeletesRemoved() async throws {
         let keep = Space(id: "sp-keep", name: "Keep", order: 0)

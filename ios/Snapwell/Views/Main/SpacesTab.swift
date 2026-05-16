@@ -15,6 +15,7 @@ struct SpacesTab<AddMenu: View>: View {
     let onCreateSpace: () -> Void
     let onRenameSpace: (String) -> Void
     let onDeleteSpace: (String) -> Void
+    let onToggleHideFromAllMedia: (String) -> Void
     let addImagesMenu: AddMenu
 
     @State private var spaceToDelete: Space?
@@ -45,6 +46,14 @@ struct SpacesTab<AddMenu: View>: View {
                                         onRenameSpace(space.id)
                                     } label: {
                                         Label("Rename", systemImage: "pencil")
+                                    }
+                                    Button {
+                                        onToggleHideFromAllMedia(space.id)
+                                    } label: {
+                                        Label(
+                                            space.hideFromAllMedia ? "Show in All Media" : "Hide from All Media",
+                                            systemImage: space.hideFromAllMedia ? "eye" : "eye.slash"
+                                        )
                                     }
                                     Button(role: .destructive) {
                                         if space.items.isEmpty {

@@ -37,6 +37,8 @@ struct ContentView: View {
 
         if let spaceId {
             items = items.filter { $0.belongs(to: spaceId) }
+        } else {
+            items = items.filter { !$0.spaces.contains(where: { $0.hideFromAllMedia }) }
         }
 
         guard isSearchActive else { return items }
@@ -88,7 +90,8 @@ struct ContentView: View {
                 onDeleteSpace: deleteSpace,
                 onRenameSpace: renameSpace,
                 onReorderSpaces: reorderSpaces,
-                onChangeSpaceMembership: updateSpaceMembership
+                onChangeSpaceMembership: updateSpaceMembership,
+                onToggleHideFromAllMedia: toggleHideFromAllMedia
             )
         } detail: {
             ZStack {
@@ -860,6 +863,7 @@ struct ContentView: View {
         let space = Space(id: info.id, name: info.name, order: info.order, createdAt: info.createdAt)
         space.customPrompt = info.customPrompt
         space.useCustomPrompt = info.useCustomPrompt
+        space.hideFromAllMedia = info.hideFromAllMedia
         modelContext.insert(space)
 
         let memberItems = allItems.filter { info.itemIds.contains($0.id) }
@@ -883,6 +887,7 @@ struct ContentView: View {
             createdAt: space.createdAt,
             customPrompt: space.customPrompt,
             useCustomPrompt: space.useCustomPrompt,
+            hideFromAllMedia: space.hideFromAllMedia,
             itemIds: space.items.map(\.id)
         )
         appState.pushUndoBatch(.spaceDeletion(freshSnapshot))
@@ -928,6 +933,7 @@ struct ContentView: View {
             createdAt: space.createdAt,
             customPrompt: space.customPrompt,
             useCustomPrompt: space.useCustomPrompt,
+            hideFromAllMedia: space.hideFromAllMedia,
             itemIds: space.items.map(\.id)
         )
         appState.pushUndoBatch(.spaceDeletion(snapshot))
@@ -948,6 +954,15 @@ struct ContentView: View {
         for item in itemsToUpdate {
             MetadataSidecarService.shared.writeSidecar(for: item)
         }
+        syncWatcher.endLocalChange()
+    }
+
+    private func toggleHideFromAllMedia(_ id: String) {
+        guard let space = spaces.first(where: { $0.id == id }) else { return }
+        syncWatcher.beginLocalChange()
+        space.hideFromAllMedia.toggle()
+        modelContext.saveOrLog()
+        MetadataSidecarService.shared.writeSpaces(from: modelContext)
         syncWatcher.endLocalChange()
     }
 

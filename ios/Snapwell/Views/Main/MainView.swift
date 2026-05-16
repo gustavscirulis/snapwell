@@ -31,7 +31,7 @@ struct MainView: View {
         if let spaceId = appState.searchSpaceId {
             return allItems.filter { $0.belongs(to: spaceId) }
         }
-        return Array(allItems)
+        return allItems.filter { !$0.spaces.contains(where: { $0.hideFromAllMedia }) }
     }
 
     private var searchResultItems: [MediaItem] {
@@ -300,6 +300,7 @@ struct MainView: View {
             onCreateSpace: createSpace,
             onRenameSpace: beginRenameSpace,
             onDeleteSpace: deleteSpace,
+            onToggleHideFromAllMedia: toggleHideFromAllMedia,
             addImagesMenu: addImagesMenu
         )
     }
@@ -424,6 +425,19 @@ struct MainView: View {
         renameSpaceName = space.name
         renameSpaceId = id
         showRenameSpaceAlert = true
+    }
+
+    private func toggleHideFromAllMedia(_ id: String) {
+        guard let space = spaces.first(where: { $0.id == id }) else { return }
+        space.hideFromAllMedia.toggle()
+        modelContext.saveOrLog()
+
+        if let rootURL = fileSystem.rootURL {
+            let allSpaces = (try? modelContext.fetch(FetchDescriptor<Space>(sortBy: [SortDescriptor(\.order)]))) ?? []
+            SidecarWriteService.writeSpaces(allSpaces, rootURL: rootURL)
+        }
+
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
 
     private func renameSpace(_ id: String, _ newName: String) {
