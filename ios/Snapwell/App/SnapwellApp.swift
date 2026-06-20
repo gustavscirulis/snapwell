@@ -5,6 +5,7 @@ import SwiftData
 struct SnapwellApp: App {
     @StateObject private var fileSystem = FileSystemManager()
     @StateObject private var keySyncService = KeySyncService.shared
+    @Environment(\.scenePhase) private var scenePhase
     let container: ModelContainer
     private static let multiSpaceStoreResetKey = "multiSpaceStoreReset_v1"
 
@@ -69,5 +70,13 @@ struct SnapwellApp: App {
                 }
         }
         .modelContainer(container)
+        .onChange(of: scenePhase) { _, newPhase in
+            // Garbage-collect orphaned thumbnail disk-cache files when the app
+            // launches into the foreground or moves to the background. The cache
+            // is otherwise never pruned and grows unbounded as items are deleted.
+            if newPhase == .active || newPhase == .background {
+                ThumbnailCache.shared.pruneDiskCache(modelContext: container.mainContext)
+            }
+        }
     }
 }

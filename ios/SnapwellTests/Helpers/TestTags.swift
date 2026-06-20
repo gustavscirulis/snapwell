@@ -10,4 +10,5 @@ extension Tag {
     @Tag static var filesystem: Self
     @Tag static var integration: Self
     @Tag static var sync: Self
+    @Tag static var state: Self
 }

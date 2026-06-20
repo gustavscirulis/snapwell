@@ -1074,14 +1074,27 @@ struct FullScreenImageOverlay: View {
 
     // MARK: - Image Loading
 
+    /// Target decode width for the full-screen view. Sized to the screen's pixel
+    /// width with ~2x headroom so panning a zoomed image still looks crisp, while
+    /// avoiding full-resolution (e.g. 4K) bitmaps that blow up memory. The overlay
+    /// allows up to `maxZoomScale` zoom, but the image is pannable so only ~1/zoom
+    /// of its width is ever on screen at once — 2x the screen width comfortably
+    /// covers the visible region without visible degradation.
+    private var fullImageTargetPixelWidth: CGFloat {
+        let scale = max(UIScreen.main.scale, 1)
+        let screenPointWidth = max(screenSize.width, UIScreen.main.bounds.width)
+        return screenPointWidth * scale * 2
+    }
+
     private func loadFullImage() {
         guard let url = item.mediaURL, !item.isVideo else {
             isLoadingFullRes = false
             return
         }
         isLoadingFullRes = true
+        let targetWidth = fullImageTargetPixelWidth
         loadTask = Task {
-            let loaded = await ThumbnailCache.shared.loadImage(for: url).image
+            let loaded = await ThumbnailCache.shared.loadImage(for: url, targetPixelWidth: targetWidth).image
             if !Task.isCancelled {
                 image = loaded
                 isLoadingFullRes = false
@@ -1100,7 +1113,7 @@ struct FullScreenImageOverlay: View {
                 return
             }
             isLoadingFullRes = true
-            let loaded = await ThumbnailCache.shared.loadImage(for: url).image
+            let loaded = await ThumbnailCache.shared.loadImage(for: url, targetPixelWidth: fullImageTargetPixelWidth).image
             if !Task.isCancelled {
                 image = loaded
                 isLoadingFullRes = false
