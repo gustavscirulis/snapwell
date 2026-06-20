@@ -34,6 +34,7 @@ targets:
       - path: Snapwell
         excludes:
           - "**/.DS_Store"
+      - path: ../shared
     info:
       path: Snapwell/Resources/Info.plist
       properties:

@@ -1,6 +1,12 @@
 import Foundation
 import UniformTypeIdentifiers
 
+// MARK: - Supported Media Types + Filename Resolution (shared by both apps)
+//
+// Single source of truth for which extensions/UTTypes are supported and for
+// resolving the real on-disk media filename. Previously duplicated across the
+// Mac `SupportedMedia` and an iOS copy embedded in `SyncService`.
+
 enum SupportedMedia {
     static let imageExtensions: Set<String> = ["png", "jpg", "jpeg", "gif", "bmp", "tiff", "webp", "heic"]
     static let videoExtensions: Set<String> = ["mp4", "webm", "mov", "avi", "m4v"]
@@ -29,7 +35,7 @@ enum SupportedMedia {
 /// Resolves the real on-disk media filename for an item id by probing the actual
 /// files in a directory rather than guessing the extension from the sidecar `type`.
 ///
-/// Mac import normalises saved files to `png`/`mp4`, but cross-source / cross-device
+/// Import normalises saved files to `png`/`mp4`, but cross-source / cross-device
 /// files can be `heic`/`webp`/`m4v`/`avi`/`webm`/`mov`/`jpg`/etc. Guessing from `type`
 /// (the old behaviour) silently dropped those. This walks `SupportedMedia.allExtensions`
 /// and returns whatever file is genuinely present.

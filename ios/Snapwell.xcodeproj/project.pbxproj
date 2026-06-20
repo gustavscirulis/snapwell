@@ -24,6 +24,8 @@
 		93BCDEF1234567890ABCDE12 /* SpaceGuidanceResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92BCDEF1234567890ABCDE12 /* SpaceGuidanceResolverTests.swift */; };
 		A0E9D3DA2F7328AC00E35403 /* ShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A0E9D3D02F7328AC00E35403 /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A100000001 /* SnapwellApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000001 /* SnapwellApp.swift */; };
+		A300000001 /* SidecarModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000001 /* SidecarModels.swift */; };
+		A300000002 /* SupportedMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000002 /* SupportedMedia.swift */; };
 		A100000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000002 /* ContentView.swift */; };
 		A100000004 /* Space.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000004 /* Space.swift */; };
 		A100000005 /* FileSystemManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000005 /* FileSystemManager.swift */; };
@@ -120,6 +122,8 @@
 		A0E9D3D02F7328AC00E35403 /* ShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		B0AEB8740C7475677E69AF73 /* MediaDeleteServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MediaDeleteServiceTests.swift; sourceTree = "<group>"; };
 		B100000001 /* SnapwellApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapwellApp.swift; sourceTree = "<group>"; };
+		B300000001 /* SidecarModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SidecarModels.swift; path = "../shared/SidecarModels.swift"; sourceTree = SOURCE_ROOT; };
+		B300000002 /* SupportedMedia.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SupportedMedia.swift; path = "../shared/SupportedMedia.swift"; sourceTree = SOURCE_ROOT; };
 		B100000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		B100000004 /* Space.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Space.swift; sourceTree = "<group>"; };
 		B100000005 /* FileSystemManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileSystemManager.swift; sourceTree = "<group>"; };
@@ -302,6 +306,8 @@
 				91BCDEF1234567890ABCDE12 /* SpaceMembership.swift */,
 				8EA2C659B43CBFC9C4825931 /* MediaItem.swift */,
 				71A78C6996F3AEB37B949CCE /* AnalysisResult.swift */,
+				B300000001 /* SidecarModels.swift */,
+				B300000002 /* SupportedMedia.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -586,6 +592,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				A100000001 /* SnapwellApp.swift in Sources */,
+				A300000001 /* SidecarModels.swift in Sources */,
+				A300000002 /* SupportedMedia.swift in Sources */,
 				A100000002 /* ContentView.swift in Sources */,
 				A100000004 /* Space.swift in Sources */,
 				A100000005 /* FileSystemManager.swift in Sources */,
