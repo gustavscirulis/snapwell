@@ -73,6 +73,55 @@ struct MediaDeleteServiceIntegrationTests {
         #expect(data.count > 1)
     }
 
+    // MARK: - Restore from Trash
+
+    @Test("moveToTrash then restoreFromTrash round-trips all three files")
+    func moveToTrashThenRestoreRoundTrip() throws {
+        // Create all three files
+        try IntegrationTestSupport.createDummyMedia(id: "restore-1", in: tempRoot)
+        try IntegrationTestSupport.writeSidecarJSON(
+            IntegrationTestSupport.makeSidecar(id: "restore-1"), to: tempRoot)
+        try IntegrationTestSupport.createDummyThumbnail(id: "restore-1", in: tempRoot)
+
+        try MediaDeleteService.moveToTrash(filename: "restore-1.png", id: "restore-1", rootURL: tempRoot)
+        try MediaDeleteService.restoreFromTrash(filename: "restore-1.png", id: "restore-1", rootURL: tempRoot)
+
+        let fm = FileManager.default
+        // All three back in original locations
+        #expect(fm.fileExists(atPath: tempRoot.appendingPathComponent("images/restore-1.png").path))
+        #expect(fm.fileExists(atPath: tempRoot.appendingPathComponent("metadata/restore-1.json").path))
+        #expect(fm.fileExists(atPath: tempRoot.appendingPathComponent("thumbnails/restore-1.jpg").path))
+
+        // Trash is empty for this item
+        #expect(!fm.fileExists(atPath: tempRoot.appendingPathComponent(".trash/images/restore-1.png").path))
+        #expect(!fm.fileExists(atPath: tempRoot.appendingPathComponent(".trash/metadata/restore-1.json").path))
+        #expect(!fm.fileExists(atPath: tempRoot.appendingPathComponent(".trash/thumbnails/restore-1.jpg").path))
+    }
+
+    @Test("restoreFromTrash succeeds when destination already exists")
+    func restoreFromTrashOverExistingDestination() throws {
+        let fm = FileManager.default
+
+        try IntegrationTestSupport.createDummyMedia(id: "restore-over-1", in: tempRoot)
+        try IntegrationTestSupport.writeSidecarJSON(
+            IntegrationTestSupport.makeSidecar(id: "restore-over-1"), to: tempRoot)
+        try IntegrationTestSupport.createDummyThumbnail(id: "restore-over-1", in: tempRoot)
+        try MediaDeleteService.moveToTrash(filename: "restore-over-1.png", id: "restore-over-1", rootURL: tempRoot)
+
+        // Re-create files at original locations (e.g. a new import reused the id/name)
+        try Data([0x01]).write(to: tempRoot.appendingPathComponent("images/restore-over-1.png"))
+        try Data([0x01]).write(to: tempRoot.appendingPathComponent("metadata/restore-over-1.json"))
+        try Data([0x01]).write(to: tempRoot.appendingPathComponent("thumbnails/restore-over-1.jpg"))
+
+        // Should not throw — destinations are cleared before the move
+        try MediaDeleteService.restoreFromTrash(filename: "restore-over-1.png", id: "restore-over-1", rootURL: tempRoot)
+
+        // Restored real files (> 1 byte) overwrote the placeholders
+        let restoredMedia = try Data(contentsOf: tempRoot.appendingPathComponent("images/restore-over-1.png"))
+        #expect(restoredMedia.count > 1)
+        #expect(!fm.fileExists(atPath: tempRoot.appendingPathComponent(".trash/images/restore-over-1.png").path))
+    }
+
     // MARK: - Old Trash Cleanup
 
     @Test("emptyOldTrash removes old files but keeps recent ones")

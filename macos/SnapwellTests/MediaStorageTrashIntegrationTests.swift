@@ -61,6 +61,37 @@ struct MediaStorageTrashIntegrationTests {
         #expect(fm.fileExists(atPath: storage.thumbnailDir.appendingPathComponent("restore-1.jpg").path))
     }
 
+    @Test("restoreFromTrash succeeds when destination already exists")
+    func restoreFromTrashOverExistingDestination() throws {
+        let fm = FileManager.default
+
+        // Trash all three files
+        try IntegrationTestSupport.createDummyMedia(id: "restore-over-1", in: tempRoot)
+        try IntegrationTestSupport.writeSidecarJSON(
+            IntegrationTestSupport.makeSidecar(id: "restore-over-1"), to: tempRoot)
+        try IntegrationTestSupport.createDummyThumbnail(id: "restore-over-1", in: tempRoot)
+        try storage.moveToTrash(filename: "restore-over-1.png", id: "restore-over-1")
+
+        // Re-create files at the ORIGINAL locations (e.g. a new import reused the id/name).
+        // Without destination cleanup, moveItem would throw "file exists".
+        try Data([0x01]).write(to: storage.mediaDir.appendingPathComponent("restore-over-1.png"))
+        try Data([0x01]).write(to: storage.metadataDir.appendingPathComponent("restore-over-1.json"))
+        try Data([0x01]).write(to: storage.thumbnailDir.appendingPathComponent("restore-over-1.jpg"))
+
+        // Should not throw — destinations are cleared before the move.
+        try storage.restoreFromTrash(filename: "restore-over-1.png", id: "restore-over-1")
+
+        // Restored (trashed) files are back, and they are the real ones (> 1 byte).
+        #expect(fm.fileExists(atPath: storage.mediaDir.appendingPathComponent("restore-over-1.png").path))
+        #expect(fm.fileExists(atPath: storage.metadataDir.appendingPathComponent("restore-over-1.json").path))
+        #expect(fm.fileExists(atPath: storage.thumbnailDir.appendingPathComponent("restore-over-1.jpg").path))
+        let restoredMedia = try Data(contentsOf: storage.mediaDir.appendingPathComponent("restore-over-1.png"))
+        #expect(restoredMedia.count > 1)
+
+        // Trash is now empty for this item.
+        #expect(!fm.fileExists(atPath: storage.trashMediaDir.appendingPathComponent("restore-over-1.png").path))
+    }
+
     @Test("emptyOldTrash removes expired files but keeps recent ones")
     func emptyOldTrashRemovesExpiredFiles() throws {
         let fm = FileManager.default

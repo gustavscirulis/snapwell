@@ -21,7 +21,7 @@ struct SidecarWriteServiceIntegrationTests {
     // MARK: - Space Membership Merge
 
     @Test("writeSpaceMembership merges into existing sidecar without losing analysis")
-    @MainActor func writeSpaceMembershipMergesIntoExistingSidecar() throws {
+    @MainActor func writeSpaceMembershipMergesIntoExistingSidecar() async throws {
         // Write a sidecar with analysis fields
         let sidecar = IntegrationTestSupport.makeSidecar(
             id: "merge-1",
@@ -44,7 +44,7 @@ struct SidecarWriteServiceIntegrationTests {
         context.saveOrLog()
 
         // Write memberships — should merge, not clobber
-        SidecarWriteService.writeSpaceMembership(for: item, rootURL: tempRoot)
+        await SidecarWriteService.writeSpaceMembership(for: item, rootURL: tempRoot)
 
         // Read the raw JSON and verify both fields exist
         let url = tempRoot.appendingPathComponent("metadata/merge-1.json")
@@ -58,7 +58,7 @@ struct SidecarWriteServiceIntegrationTests {
     }
 
     @Test("writeSpaceMembership removes both space keys when item has no spaces")
-    @MainActor func writeSpaceMembershipRemovesKeysWhenEmpty() throws {
+    @MainActor func writeSpaceMembershipRemovesKeysWhenEmpty() async throws {
         // Write a legacy sidecar with spaceId
         let sidecar = IntegrationTestSupport.makeSidecar(id: "remove-space-1", spaceId: "sp-old")
         try IntegrationTestSupport.writeSidecarJSON(sidecar, to: tempRoot)
@@ -68,7 +68,7 @@ struct SidecarWriteServiceIntegrationTests {
         context.insert(item)
         context.saveOrLog()
 
-        SidecarWriteService.writeSpaceMembership(for: item, rootURL: tempRoot)
+        await SidecarWriteService.writeSpaceMembership(for: item, rootURL: tempRoot)
 
         let url = tempRoot.appendingPathComponent("metadata/remove-space-1.json")
         let data = try Data(contentsOf: url)
@@ -79,10 +79,53 @@ struct SidecarWriteServiceIntegrationTests {
         #expect(json["spaceIds"] == nil)
     }
 
+    // MARK: - Concurrent Writes
+
+    @Test("Concurrent writeAnalysis + writeSpaceMembership preserve BOTH fields")
+    @MainActor func concurrentAnalysisAndMembershipDoNotClobber() async throws {
+        // Start from a bare sidecar with neither analysis nor spaceIds.
+        let sidecar = IntegrationTestSupport.makeSidecar(id: "concurrent-1")
+        try IntegrationTestSupport.writeSidecarJSON(sidecar, to: tempRoot)
+
+        // One item carries BOTH a space membership and an analysis result.
+        let space = Space(id: "sp-conc", name: "Concurrent", order: 0)
+        context.insert(space)
+        let item = MediaItem(id: "concurrent-1", mediaType: .image, filename: "concurrent-1.png", width: 800, height: 600)
+        item.addSpace(space)
+        item.analysisResult = AnalysisResult(
+            imageContext: "Concurrent context",
+            imageSummary: "Concurrent summary",
+            patterns: [PatternTag(name: "pattern", confidence: 0.7)],
+            analyzedAt: Date(),
+            provider: "openai",
+            model: "gpt-4o"
+        )
+        context.insert(item)
+        context.saveOrLog()
+
+        // Fire both writes concurrently. With the old non-atomic enum, the two
+        // read-modify-write cycles could interleave and one would clobber the
+        // other (last-writer-wins). The actor serializes them, so both survive.
+        async let a: Void = SidecarWriteService.writeAnalysis(for: item, rootURL: tempRoot)
+        async let b: Void = SidecarWriteService.writeSpaceMembership(for: item, rootURL: tempRoot)
+        _ = await (a, b)
+
+        let url = tempRoot.appendingPathComponent("metadata/concurrent-1.json")
+        let data = try Data(contentsOf: url)
+        let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+
+        // BOTH the analysis fields AND the space membership must be present.
+        #expect(json["imageContext"] as? String == "Concurrent context")
+        #expect(json["imageSummary"] as? String == "Concurrent summary")
+        #expect((json["patterns"] as? [[String: Any]])?.count == 1)
+        #expect(json["analyzedAt"] != nil)
+        #expect(json["spaceIds"] as? [String] == ["sp-conc"])
+    }
+
     // MARK: - Analysis Merge
 
     @Test("writeAnalysis merges into existing sidecar without losing spaceIds")
-    @MainActor func writeAnalysisMergesIntoExistingSidecar() throws {
+    @MainActor func writeAnalysisMergesIntoExistingSidecar() async throws {
         // Write a sidecar with canonical spaceIds
         let sidecar = IntegrationTestSupport.makeSidecar(id: "analysis-merge-1", spaceIds: ["sp-keep", "sp-also"])
         try IntegrationTestSupport.writeSidecarJSON(sidecar, to: tempRoot)
@@ -100,7 +143,7 @@ struct SidecarWriteServiceIntegrationTests {
         context.insert(item)
         context.saveOrLog()
 
-        SidecarWriteService.writeAnalysis(for: item, rootURL: tempRoot)
+        await SidecarWriteService.writeAnalysis(for: item, rootURL: tempRoot)
 
         let url = tempRoot.appendingPathComponent("metadata/analysis-merge-1.json")
         let data = try Data(contentsOf: url)
@@ -114,7 +157,7 @@ struct SidecarWriteServiceIntegrationTests {
     }
 
     @Test("writeAnalysis falls back to full sidecar when file doesn't exist")
-    @MainActor func writeAnalysisFallsBackWhenNoFileExists() throws {
+    @MainActor func writeAnalysisFallsBackWhenNoFileExists() async throws {
         let item = MediaItem(id: "fallback-1", mediaType: .image, filename: "fallback-1.png", width: 1024, height: 768)
         item.analysisResult = AnalysisResult(
             imageContext: "Fallback analysis",
@@ -128,7 +171,7 @@ struct SidecarWriteServiceIntegrationTests {
         context.saveOrLog()
 
         // No existing sidecar on disk
-        SidecarWriteService.writeAnalysis(for: item, rootURL: tempRoot)
+        await SidecarWriteService.writeAnalysis(for: item, rootURL: tempRoot)
 
         // Complete sidecar should exist now
         let url = tempRoot.appendingPathComponent("metadata/fallback-1.json")

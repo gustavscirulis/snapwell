@@ -68,6 +68,8 @@ final class AnalysisCoordinator {
         analysisTask = Task {
             for item in items {
                 guard !Task.isCancelled else { break }
+                // Prevent duplicate analysis (e.g. an in-flight item re-submitted)
+                guard !item.isAnalyzing else { continue }
 
                 item.isAnalyzing = true
                 do {
@@ -99,7 +101,7 @@ final class AnalysisCoordinator {
                     item.isAnalyzing = false
                     item.analysisError = nil
 
-                    SidecarWriteService.writeAnalysis(for: item, rootURL: rootURL)
+                    await SidecarWriteService.writeAnalysis(for: item, rootURL: rootURL)
                     searchService.addToIndex(item: item)
                     modelContext.saveOrLog()
                     print("[Analysis] Completed: \(item.id)")

@@ -414,7 +414,7 @@ struct MainView: View {
 
         if let rootURL = fileSystem.rootURL {
             let allSpaces = (try? modelContext.fetch(FetchDescriptor<Space>(sortBy: [SortDescriptor(\.order)]))) ?? []
-            SidecarWriteService.writeSpaces(allSpaces, rootURL: rootURL)
+            Task { await SidecarWriteService.writeSpaces(allSpaces, rootURL: rootURL) }
         }
 
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -434,7 +434,7 @@ struct MainView: View {
 
         if let rootURL = fileSystem.rootURL {
             let allSpaces = (try? modelContext.fetch(FetchDescriptor<Space>(sortBy: [SortDescriptor(\.order)]))) ?? []
-            SidecarWriteService.writeSpaces(allSpaces, rootURL: rootURL)
+            Task { await SidecarWriteService.writeSpaces(allSpaces, rootURL: rootURL) }
         }
 
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -447,7 +447,7 @@ struct MainView: View {
 
         if let rootURL = fileSystem.rootURL {
             let allSpaces = (try? modelContext.fetch(FetchDescriptor<Space>(sortBy: [SortDescriptor(\.order)]))) ?? []
-            SidecarWriteService.writeSpaces(allSpaces, rootURL: rootURL)
+            Task { await SidecarWriteService.writeSpaces(allSpaces, rootURL: rootURL) }
         }
 
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -469,9 +469,11 @@ struct MainView: View {
 
         if let rootURL = fileSystem.rootURL {
             let allSpaces = (try? modelContext.fetch(FetchDescriptor<Space>(sortBy: [SortDescriptor(\.order)]))) ?? []
-            SidecarWriteService.writeSpaces(allSpaces, rootURL: rootURL)
-            for item in itemsToUpdate {
-                SidecarWriteService.writeSpaceMembership(for: item, rootURL: rootURL)
+            Task {
+                await SidecarWriteService.writeSpaces(allSpaces, rootURL: rootURL)
+                for item in itemsToUpdate {
+                    await SidecarWriteService.writeSpaceMembership(for: item, rootURL: rootURL)
+                }
             }
         }
 
@@ -495,7 +497,7 @@ struct MainView: View {
         modelContext.saveOrLog()
 
         if let rootURL = fileSystem.rootURL {
-            SidecarWriteService.writeSpaceMembership(for: item, rootURL: rootURL)
+            Task { await SidecarWriteService.writeSpaceMembership(for: item, rootURL: rootURL) }
         }
 
         if shouldReanalyze {

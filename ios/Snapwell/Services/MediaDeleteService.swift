@@ -51,6 +51,55 @@ enum MediaDeleteService {
         }
     }
 
+    /// Restore a media item's files (image/video, metadata sidecar, thumbnail) from `.trash/`
+    /// back to their original directories. Mirrors `MediaStorageService.restoreFromTrash` (Mac).
+    /// Uses the same rollback + destination-cleanup pattern as `moveToTrash`: if any move fails,
+    /// previously moved files are restored, and an existing destination is removed before moving.
+    static func restoreFromTrash(filename: String, id: String, rootURL: URL) throws {
+        let fm = FileManager.default
+
+        let imagesDir = rootURL.appendingPathComponent("images")
+        let metadataDir = rootURL.appendingPathComponent("metadata")
+        let thumbnailsDir = rootURL.appendingPathComponent("thumbnails")
+
+        let trashImagesDir = rootURL.appendingPathComponent(".trash/images")
+        let trashMetadataDir = rootURL.appendingPathComponent(".trash/metadata")
+        let trashThumbnailsDir = rootURL.appendingPathComponent(".trash/thumbnails")
+
+        // Ensure destination directories exist
+        for dir in [imagesDir, metadataDir, thumbnailsDir] {
+            try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+
+        // Track moved files for rollback on failure
+        var movedPairs: [(src: URL, dst: URL)] = []
+
+        func moveFile(from src: URL, to dst: URL) throws {
+            guard fm.fileExists(atPath: src.path) else { return }
+            if fm.fileExists(atPath: dst.path) { try fm.removeItem(at: dst) }
+            try fm.moveItem(at: src, to: dst)
+            movedPairs.append((src: src, dst: dst))
+        }
+
+        func rollback() {
+            for pair in movedPairs.reversed() {
+                try? fm.moveItem(at: pair.dst, to: pair.src)
+            }
+        }
+
+        do {
+            try moveFile(from: trashImagesDir.appendingPathComponent(filename),
+                         to: imagesDir.appendingPathComponent(filename))
+            try moveFile(from: trashMetadataDir.appendingPathComponent("\(id).json"),
+                         to: metadataDir.appendingPathComponent("\(id).json"))
+            try moveFile(from: trashThumbnailsDir.appendingPathComponent("\(id).jpg"),
+                         to: thumbnailsDir.appendingPathComponent("\(id).jpg"))
+        } catch {
+            rollback()
+            throw error
+        }
+    }
+
     /// Delete trash files older than the given interval (default 30 days).
     /// Matches the Mac app's `MediaStorageService.emptyOldTrash` behavior.
     static func emptyOldTrash(rootURL: URL, olderThan interval: TimeInterval = 30 * 24 * 3600) {

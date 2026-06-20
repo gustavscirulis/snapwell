@@ -158,6 +158,19 @@ struct SidecarSpacesFile: Codable, Sendable {
     let spaces: [SidecarSpace]
     let allSpaceGuidance: String?
     let useAllSpaceGuidance: Bool
+
+    init(spaces: [SidecarSpace], allSpaceGuidance: String?, useAllSpaceGuidance: Bool) {
+        self.spaces = spaces
+        self.allSpaceGuidance = allSpaceGuidance
+        self.useAllSpaceGuidance = useAllSpaceGuidance
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        spaces              = try c.decode([SidecarSpace].self, forKey: .spaces)
+        allSpaceGuidance    = try c.decodeIfPresent(String.self, forKey: .allSpaceGuidance)
+        useAllSpaceGuidance = try c.decodeIfPresent(Bool.self, forKey: .useAllSpaceGuidance) ?? false
+    }
 }
 
 // MARK: - SyncService
