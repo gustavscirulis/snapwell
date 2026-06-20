@@ -122,11 +122,18 @@ final class AnalysisCoordinator {
             print("[Analysis] Skipped — coordinator not configured")
             return
         }
-        let descriptor = FetchDescriptor<MediaItem>()
-        let allCurrentItems = (try? modelContext.fetch(descriptor)) ?? []
-        let unanalyzed = allCurrentItems.filter {
-            $0.analysisResult == nil && !$0.isAnalyzing && $0.analysisError == nil
-        }
+        // Push the scalar-flag conditions into the fetch predicate so SwiftData
+        // narrows the result set in the store instead of loading every MediaItem.
+        // The `analysisResult == nil` check stays an in-memory filter: SwiftData's
+        // #Predicate support for `== nil` on a to-one relationship is unreliable,
+        // and correctness here matters more than shaving the final filter. This
+        // matches the previous behavior exactly while avoiding a fetch-all.
+        var descriptor = FetchDescriptor<MediaItem>(
+            predicate: #Predicate { !$0.isAnalyzing && $0.analysisError == nil }
+        )
+        descriptor.includePendingChanges = true
+        let candidates = (try? modelContext.fetch(descriptor)) ?? []
+        let unanalyzed = candidates.filter { $0.analysisResult == nil }
 
         analyzeItems(unanalyzed, allItems: allItems)
     }

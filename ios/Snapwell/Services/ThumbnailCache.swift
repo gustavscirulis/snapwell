@@ -1,6 +1,7 @@
 import UIKit
 import ImageIO
 import AVFoundation
+import SwiftData
 
 /// Actor-based concurrency limiter to replace DispatchSemaphore in async contexts.
 private actor ConcurrencyLimiter {
@@ -51,6 +52,20 @@ class ThumbnailCache {
         ) { [weak self] _ in
             self?.cache.removeAllObjects()
         }
+    }
+
+    /// Designated initializer used only by tests so the disk cache can point at a
+    /// throwaway directory instead of the shared system caches directory.
+    init(diskCacheDir: URL) {
+        cache.countLimit = 800
+        cache.totalCostLimit = 150 * 1024 * 1024
+        self.diskCacheDir = diskCacheDir
+        try? FileManager.default.createDirectory(at: diskCacheDir, withIntermediateDirectories: true)
+    }
+
+    /// Build an isolated cache instance for tests (does not touch the shared singleton).
+    static func makeForTesting(diskCacheDir: URL) -> ThumbnailCache {
+        ThumbnailCache(diskCacheDir: diskCacheDir)
     }
 
     deinit {
@@ -146,6 +161,75 @@ class ThumbnailCache {
                     _ = await self.loadImage(for: mediaURL, targetPixelWidth: targetPixelWidth)
                 }
             }
+        }
+    }
+
+    // MARK: - Disk Cache Garbage Collection
+
+    /// Extract the media item id encoded in a disk-cache filename.
+    /// Filenames are `{id}.jpg` or `{id}@{width}w.jpg` (see `diskCacheURL`).
+    /// Returns nil for anything that isn't a `.jpg` we wrote.
+    static func itemID(fromCacheFilename filename: String) -> String? {
+        guard filename.hasSuffix(".jpg") else { return nil }
+        var base = String(filename.dropLast(4)) // strip ".jpg"
+        // Strip an optional "@{width}w" suffix.
+        if let atIndex = base.lastIndex(of: "@") {
+            let suffix = base[base.index(after: atIndex)...]
+            if suffix.hasSuffix("w"), suffix.dropLast().allSatisfy(\.isNumber) {
+                base = String(base[..<atIndex])
+            }
+        }
+        return base.isEmpty ? nil : base
+    }
+
+    /// Remove disk-cache files in `directory` that no longer correspond to a live
+    /// media item. Strictly scoped to `directory`; only touches `.jpg` files this
+    /// cache wrote (anything we can't parse an id from is left alone). Synchronous —
+    /// call from a background context. Returns the number of files removed.
+    /// Static + `Sendable`-only inputs so it can run safely off the main actor.
+    @discardableResult
+    static func pruneDiskCache(in directory: URL, liveItemIDs: Set<String>) -> Int {
+        let fm = FileManager.default
+        guard let files = try? fm.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        ) else { return 0 }
+
+        var removed = 0
+        for file in files {
+            let filename = file.lastPathComponent
+            // Only consider cache files we wrote; leave anything else untouched.
+            guard let id = itemID(fromCacheFilename: filename) else { continue }
+            guard !liveItemIDs.contains(id) else { continue }
+            do {
+                try fm.removeItem(at: file)
+                removed += 1
+            } catch {
+                #if DEBUG
+                print("[ThumbnailCache] Failed to prune \(filename): \(error)")
+                #endif
+            }
+        }
+        return removed
+    }
+
+    /// Instance wrapper that prunes this cache's own `diskCacheDir`.
+    @discardableResult
+    func pruneDiskCache(liveItemIDs: Set<String>) -> Int {
+        Self.pruneDiskCache(in: diskCacheDir, liveItemIDs: liveItemIDs)
+    }
+
+    /// Convenience entry point: gather live ids from SwiftData on the main actor,
+    /// then prune the disk cache off the main thread. Safe to call on launch or
+    /// when the app moves to the background.
+    @MainActor
+    func pruneDiskCache(modelContext: ModelContext) {
+        let descriptor = FetchDescriptor<MediaItem>()
+        let liveIDs = Set(((try? modelContext.fetch(descriptor)) ?? []).map(\.id))
+        let directory = diskCacheDir
+        diskWriteQueue.async {
+            Self.pruneDiskCache(in: directory, liveItemIDs: liveIDs)
         }
     }
 
