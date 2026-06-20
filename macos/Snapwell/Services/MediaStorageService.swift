@@ -133,6 +133,7 @@ final class MediaStorageService: Sendable {
 
         func moveFile(from src: URL, to dst: URL) throws {
             guard fm.fileExists(atPath: src.path) else { return }
+            if fm.fileExists(atPath: dst.path) { try fm.removeItem(at: dst) }
             try fm.moveItem(at: src, to: dst)
             movedPairs.append((src: src, dst: dst))
         }

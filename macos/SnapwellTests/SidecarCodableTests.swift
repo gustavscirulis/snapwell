@@ -177,6 +177,56 @@ struct SidecarCodableTests {
         #expect(decoded.useAllSpaceGuidance == true)
     }
 
+    @Test("SidecarSpacesFile decodes when useAllSpaceGuidance key is omitted (defaults false)")
+    func spacesFileUseAllSpaceGuidanceDefaultsFalse() throws {
+        // Wrapper-format spaces.json that omits useAllSpaceGuidance entirely.
+        // Must NOT fail decoding — otherwise all spaces would silently vanish.
+        let json = """
+        {
+            "spaces": [
+                {"id":"s1","name":"UI","order":0,"createdAt":"2023-11-14T22:13:20Z","useCustomPrompt":false}
+            ],
+            "allSpaceGuidance": "Some guidance"
+        }
+        """
+        let decoded = try Self.decoder.decode(SidecarSpacesFile.self, from: Data(json.utf8))
+        #expect(decoded.spaces.count == 1)
+        #expect(decoded.spaces[0].id == "s1")
+        #expect(decoded.allSpaceGuidance == "Some guidance")
+        #expect(decoded.useAllSpaceGuidance == false)
+    }
+
+    @Test("SidecarSpacesFile decodes when useAllSpaceGuidance is present")
+    func spacesFileUseAllSpaceGuidancePresent() throws {
+        let json = """
+        {
+            "spaces": [
+                {"id":"s1","name":"UI","order":0,"createdAt":"2023-11-14T22:13:20Z","useCustomPrompt":false}
+            ],
+            "allSpaceGuidance": "Guidance",
+            "useAllSpaceGuidance": true
+        }
+        """
+        let decoded = try Self.decoder.decode(SidecarSpacesFile.self, from: Data(json.utf8))
+        #expect(decoded.spaces.count == 1)
+        #expect(decoded.useAllSpaceGuidance == true)
+    }
+
+    @Test("SidecarSpacesFile decodes when both guidance keys are omitted")
+    func spacesFileGuidanceKeysOmitted() throws {
+        let json = """
+        {
+            "spaces": [
+                {"id":"s1","name":"UI","order":0,"createdAt":"2023-11-14T22:13:20Z","useCustomPrompt":false}
+            ]
+        }
+        """
+        let decoded = try Self.decoder.decode(SidecarSpacesFile.self, from: Data(json.utf8))
+        #expect(decoded.spaces.count == 1)
+        #expect(decoded.allSpaceGuidance == nil)
+        #expect(decoded.useAllSpaceGuidance == false)
+    }
+
     @Test("Legacy bare array decodes as SidecarSpacesFile spaces")
     func legacyBareArrayDecodes() throws {
         // The legacy format is just a bare [SidecarSpace] array
