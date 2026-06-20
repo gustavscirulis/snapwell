@@ -62,6 +62,7 @@
 		A100000070 /* Settings.bundle in Resources */ = {isa = PBXBuildFile; fileRef = B100000070 /* Settings.bundle */; };
 		A1MIGR0001 /* LocalToiCloudMigrationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1MIGR0001 /* LocalToiCloudMigrationService.swift */; };
 		A200000001 /* GridPreferenceKeyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000001 /* GridPreferenceKeyTests.swift */; };
+		A200000002 /* PerformanceHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000002 /* PerformanceHardeningTests.swift */; };
 		C325B2DE9C4EBB590CE9AA5B /* MediaItemTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BC6070D4921036591CAB048 /* MediaItemTests.swift */; };
 		E34FCD416FC123E6A9B6418F /* ImageImportServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7283BD792D4DC7DA66FA0273 /* ImageImportServiceTests.swift */; };
 		E740BF023E205C121824CCB6 /* TestTags.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC1856679647210724D1E66B /* TestTags.swift */; };
@@ -159,6 +160,7 @@
 		B100000070 /* Settings.bundle */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.plug-in"; path = Settings.bundle; sourceTree = "<group>"; };
 		B1MIGR0001 /* LocalToiCloudMigrationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalToiCloudMigrationService.swift; sourceTree = "<group>"; };
 		B200000001 /* GridPreferenceKeyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GridPreferenceKeyTests.swift; sourceTree = "<group>"; };
+		B200000002 /* PerformanceHardeningTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PerformanceHardeningTests.swift; sourceTree = "<group>"; };
 		C100000001 /* Snapwell.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Snapwell.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CC1856679647210724D1E66B /* TestTags.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TestTags.swift; sourceTree = "<group>"; };
 		D03B2C30D0292058D69AC3B2 /* ShareImportServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShareImportServiceTests.swift; sourceTree = "<group>"; };
@@ -246,6 +248,7 @@
 				0D3694D12FDBE22980A4E2CF /* KeySyncServiceTests.swift */,
 				7283BD792D4DC7DA66FA0273 /* ImageImportServiceTests.swift */,
 				B200000001 /* GridPreferenceKeyTests.swift */,
+				B200000002 /* PerformanceHardeningTests.swift */,
 			);
 			path = SnapwellTests;
 			sourceTree = "<group>";
@@ -567,6 +570,7 @@
 				5E5E4765114B409FE5994A83 /* KeySyncServiceTests.swift in Sources */,
 				E34FCD416FC123E6A9B6418F /* ImageImportServiceTests.swift in Sources */,
 				A200000001 /* GridPreferenceKeyTests.swift in Sources */,
+				A200000002 /* PerformanceHardeningTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

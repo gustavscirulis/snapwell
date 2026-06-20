@@ -107,8 +107,10 @@ struct PerformanceHardeningTests {
     /// buffers are never created for the full-screen view.
     @Test("Bounded decode downsamples a large image below the source size", .tags(.layout))
     func boundedDecodeProducesSmallerImage() async throws {
-        let root = try IntegrationTestSupport.makeTempRoot()
-        defer { IntegrationTestSupport.cleanup(root) }
+        let root = try Self.makeTempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(
+            at: root.appendingPathComponent("images"), withIntermediateDirectories: true)
 
         // Build a deliberately large source image (4000px wide).
         let sourcePixels: CGFloat = 4000
@@ -181,7 +183,7 @@ struct PerformanceHardeningTests {
         let orphanSized = dir.appendingPathComponent("\(orphanID)@800w.jpg")
         let foreign = dir.appendingPathComponent("README.txt") // not ours
 
-        let payload = IntegrationTestSupport.dummyPNGData
+        let payload = Self.placeholderData
         for url in [livePlain, liveSized, orphanPlain, orphanSized, foreign] {
             try payload.write(to: url)
         }
@@ -208,7 +210,7 @@ struct PerformanceHardeningTests {
 
         let cache = ThumbnailCache.makeForTesting(diskCacheDir: dir)
         for i in 0..<5 {
-            try IntegrationTestSupport.dummyPNGData.write(
+            try Self.placeholderData.write(
                 to: dir.appendingPathComponent("item-\(i).jpg"))
         }
 
