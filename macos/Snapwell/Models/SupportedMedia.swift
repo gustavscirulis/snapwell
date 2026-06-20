@@ -25,3 +25,66 @@ enum SupportedMedia {
         "video/quicktime": "mov", "video/x-msvideo": "avi", "video/x-m4v": "m4v",
     ]
 }
+
+/// Resolves the real on-disk media filename for an item id by probing the actual
+/// files in a directory rather than guessing the extension from the sidecar `type`.
+///
+/// Mac import normalises saved files to `png`/`mp4`, but cross-source / cross-device
+/// files can be `heic`/`webp`/`m4v`/`avi`/`webm`/`mov`/`jpg`/etc. Guessing from `type`
+/// (the old behaviour) silently dropped those. This walks `SupportedMedia.allExtensions`
+/// and returns whatever file is genuinely present.
+enum MediaFilenameResolver {
+
+    /// Returns `"{id}.{ext}"` for the real media file in `directory`, or `nil` if none
+    /// of the supported extensions resolves to an existing file (or an iCloud
+    /// placeholder for one).
+    ///
+    /// - Parameter preferredExtensions: extensions to try first (e.g. derived from the
+    ///   sidecar `type`) so the common case resolves on the first probe. The full set
+    ///   from `SupportedMedia.allExtensions` is always tried as a fallback.
+    static func resolveMediaFilename(
+        id: String,
+        in directory: URL,
+        preferredExtensions: [String] = []
+    ) -> String? {
+        let fm = FileManager.default
+        for ext in orderedExtensions(preferred: preferredExtensions) {
+            let filename = "\(id).\(ext)"
+            let candidate = directory.appendingPathComponent(filename)
+            if fm.fileExists(atPath: candidate.path) {
+                return filename
+            }
+            // Also treat an iCloud placeholder ".{id}.{ext}.icloud" as a match so the
+            // caller can trigger a download for the real file.
+            let placeholder = directory.appendingPathComponent(".\(filename).icloud")
+            if fm.fileExists(atPath: placeholder.path) {
+                return filename
+            }
+        }
+        return nil
+    }
+
+    /// Convenience returning the full URL for the resolved filename.
+    static func resolveMediaURL(
+        id: String,
+        in directory: URL,
+        preferredExtensions: [String] = []
+    ) -> URL? {
+        resolveMediaFilename(id: id, in: directory, preferredExtensions: preferredExtensions)
+            .map { directory.appendingPathComponent($0) }
+    }
+
+    /// Preferred extensions first (de-duplicated), then the remaining supported set.
+    private static func orderedExtensions(preferred: [String]) -> [String] {
+        var seen = Set<String>()
+        var ordered: [String] = []
+        for ext in preferred {
+            let lower = ext.lowercased()
+            if seen.insert(lower).inserted { ordered.append(lower) }
+        }
+        for ext in SupportedMedia.allExtensions where seen.insert(ext).inserted {
+            ordered.append(ext)
+        }
+        return ordered
+    }
+}

@@ -75,7 +75,7 @@ final class AnalysisCoordinator {
 
                     let result: AnalysisResult
                     if item.isVideo {
-                        let frames = try extractVideoFrames(for: item, rootURL: rootURL)
+                        let frames = try await extractVideoFrames(for: item, rootURL: rootURL)
                         result = try await AIAnalysisService.shared.analyzeVideo(
                             frames: frames,
                             provider: provider,
@@ -85,7 +85,7 @@ final class AnalysisCoordinator {
                             spaceContext: spaceContext
                         )
                     } else {
-                        let image = try loadImage(for: item, rootURL: rootURL)
+                        let image = try await loadImage(for: item, rootURL: rootURL)
                         result = try await AIAnalysisService.shared.analyze(
                             image: image,
                             provider: provider,
@@ -131,8 +131,10 @@ final class AnalysisCoordinator {
 
     // MARK: - Private Helpers
 
-    private func loadImage(for item: MediaItem, rootURL: URL) throws -> UIImage {
+    private func loadImage(for item: MediaItem, rootURL: URL) async throws -> UIImage {
         let fileURL = rootURL.appendingPathComponent("images/\(item.filename)")
+        // Ensure the file is downloaded from iCloud before reading — it may be a placeholder.
+        await iCloudDownloadMonitor.shared.waitForDownload(of: fileURL)
         guard let data = try? Data(contentsOf: fileURL),
               let image = UIImage(data: data) else {
             throw AIAnalysisService.AnalysisError.imageConversionFailed
@@ -142,8 +144,10 @@ final class AnalysisCoordinator {
 
     /// Extract frames at 33% and 66% of video duration for multi-frame analysis,
     /// matching the Mac app's VideoFrameExtractor.extractAnalysisFrames behavior.
-    private func extractVideoFrames(for item: MediaItem, rootURL: URL) throws -> [UIImage] {
+    private func extractVideoFrames(for item: MediaItem, rootURL: URL) async throws -> [UIImage] {
         let fileURL = rootURL.appendingPathComponent("images/\(item.filename)")
+        // Ensure the file is downloaded from iCloud before reading — it may be a placeholder.
+        await iCloudDownloadMonitor.shared.waitForDownload(of: fileURL)
         let asset = AVURLAsset(url: fileURL)
         let generator = AVAssetImageGenerator(asset: asset)
         generator.appliesPreferredTrackTransform = true

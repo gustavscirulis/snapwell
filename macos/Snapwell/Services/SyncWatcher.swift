@@ -507,25 +507,25 @@ final class SyncWatcher {
         guard let sidecar = sidecarService.readSidecar(id: id) else { return nil }
 
         let mediaType: MediaType = sidecar.type == "video" ? .video : .image
-        let ext = mediaType == .video ? "mp4" : "png"
-        let filename = "\(id).\(ext)"
-
-        let mediaURL = storage.mediaDir.appendingPathComponent(filename)
         let fm = FileManager.default
-        var mediaFileFound = true
 
-        if !fm.fileExists(atPath: mediaURL.path) {
-            let placeholderName = ".\(filename).icloud"
-            let placeholderURL = storage.mediaDir.appendingPathComponent(placeholderName)
-            if fm.fileExists(atPath: placeholderURL.path) {
-                try? fm.startDownloadingUbiquitousItem(at: mediaURL)
-            } else {
-                let altExt = mediaType == .video ? "mov" : "jpg"
-                let altFilename = "\(id).\(altExt)"
-                if !fm.fileExists(atPath: storage.mediaDir.appendingPathComponent(altFilename).path) {
-                    mediaFileFound = false
-                }
-            }
+        // Resolve the real on-disk filename by probing actual files, rather than
+        // guessing png/mp4 from the sidecar type. Cross-source/cross-device files
+        // can be heic/webp/m4v/avi/webm/etc.
+        let preferred = mediaType == .video ? ["mp4", "mov", "m4v", "webm"] : ["png", "jpg", "heic", "webp"]
+        let resolvedFilename = MediaFilenameResolver.resolveMediaFilename(
+            id: id, in: storage.mediaDir, preferredExtensions: preferred
+        )
+
+        // Fall back to the canonical name when nothing resolves, so downstream
+        // (MediaItem.filename) still has a stable value.
+        let filename = resolvedFilename ?? "\(id).\(mediaType == .video ? "mp4" : "png")"
+        let mediaURL = storage.mediaDir.appendingPathComponent(filename)
+        var mediaFileFound = resolvedFilename != nil
+
+        // If the resolved file is only present as an iCloud placeholder, trigger a download.
+        if mediaFileFound, !fm.fileExists(atPath: mediaURL.path) {
+            try? fm.startDownloadingUbiquitousItem(at: mediaURL)
         }
 
         let needsThumbnail = !storage.thumbnailExists(id: id)

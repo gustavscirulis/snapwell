@@ -324,10 +324,15 @@ final class ElectronImportService {
         let data = try Data(contentsOf: metadataURL)
         let metadata = try JSONDecoder().decode(ElectronMetadata.self, from: data)
 
-        // Resolve media file (may need iCloud download)
+        // Resolve media file (may need iCloud download). Probe the real extension
+        // rather than guessing png/mp4 — Electron sources can hold heic/webp/m4v/etc.
         let isVideo = metadata.type == "video" || electronId.hasPrefix("vid_")
         let imagesDir = electronRoot.appendingPathComponent("images")
-        let extensions = isVideo ? ["mp4", "mov"] : ["png", "jpg"]
+        let preferred = isVideo ? ["mp4", "mov", "m4v", "webm"] : ["png", "jpg", "heic", "webp"]
+        var seen = Set<String>()
+        var extensions: [String] = []
+        for ext in preferred where seen.insert(ext).inserted { extensions.append(ext) }
+        for ext in SupportedMedia.allExtensions where seen.insert(ext).inserted { extensions.append(ext) }
         var sourceURL: URL?
         for ext in extensions {
             let candidate = imagesDir.appendingPathComponent("\(electronId).\(ext)")

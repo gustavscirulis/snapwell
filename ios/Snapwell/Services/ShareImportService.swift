@@ -45,9 +45,12 @@ enum ShareImportService {
         for jsonURL in jsonFiles {
             let id = jsonURL.deletingPathExtension().lastPathComponent
 
-            // Determine file extension from sidecar type field, falling back to .png
-            let ext = mediaExtension(for: jsonURL) ?? "png"
-            let mediaFilename = "\(id).\(ext)"
+            // Resolve the real staged media filename across supported extensions,
+            // preferring the sidecar's type-based guess, instead of assuming mp4/png.
+            let typeExt = mediaExtension(for: jsonURL) ?? "png"
+            let mediaFilename = MediaFilenameResolver.resolveMediaFilename(
+                id: id, in: pendingImages, preferredExtensions: [typeExt]
+            ) ?? "\(id).\(typeExt)"
 
             let srcMedia = pendingImages.appendingPathComponent(mediaFilename)
             let dstImage = imagesDir.appendingPathComponent(mediaFilename)

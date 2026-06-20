@@ -72,6 +72,63 @@ final class iCloudDownloadManager {
         return findEvictedFiles(in: [storage.mediaDir, storage.thumbnailDir]).count
     }
 
+    // MARK: - Ensure Downloaded (single read-safety entry point)
+
+    /// Ensure a single file is fully downloaded from iCloud before it is read.
+    ///
+    /// Hot read paths (`NSImage(contentsOf:)`, `Data(contentsOf:)`, video frame
+    /// extraction) silently return blank/nil when the file is an iCloud placeholder.
+    /// Call this first — it detects an evicted file (using the same status checks as
+    /// `findEvictedFiles`), triggers a download, and polls (bounded) until the real
+    /// file is downloaded and present on disk.
+    ///
+    /// Safe to call from background `Task`s — it never touches the main thread and
+    /// sleeps cooperatively between polls. Returns `true` once the file is readable
+    /// (or was already local / non-iCloud), `false` if it could not be downloaded
+    /// within `timeout`.
+    ///
+    /// - Parameters:
+    ///   - url: The real (non-placeholder) media/thumbnail file URL to read.
+    ///   - timeout: Maximum seconds to wait for the download (default ~10s).
+    @discardableResult
+    nonisolated static func ensureDownloaded(at url: URL, timeout: TimeInterval = 10) async -> Bool {
+        let fm = FileManager.default
+
+        // Already downloaded and present — nothing to do (covers non-iCloud files too).
+        if isReadable(url) { return true }
+
+        // Trigger the download. If the real file isn't materialised yet, the request
+        // still works because iCloud knows the logical item from the placeholder.
+        try? fm.startDownloadingUbiquitousItem(at: url)
+
+        let deadline = Date().addingTimeInterval(timeout)
+        // Poll until readable or the deadline passes. ~300ms cadence keeps latency low
+        // for small files while bounding total wall-clock time.
+        while Date() < deadline {
+            if Task.isCancelled { return isReadable(url) }
+            try? await Task.sleep(for: .milliseconds(300))
+            if isReadable(url) { return true }
+        }
+        return isReadable(url)
+    }
+
+    /// Whether `url` points at a file that can be read right now: it exists on disk
+    /// and, if it is an iCloud item, its download status is `.current`.
+    nonisolated static func isReadable(_ url: URL) -> Bool {
+        var fresh = url
+        fresh.removeAllCachedResourceValues()
+
+        let keys: Set<URLResourceKey> = [.ubiquitousItemDownloadingStatusKey, .isUbiquitousItemKey]
+        if let values = try? fresh.resourceValues(forKeys: keys),
+           values.isUbiquitousItem == true {
+            // iCloud item: readable only when fully downloaded.
+            return values.ubiquitousItemDownloadingStatus == URLUbiquitousItemDownloadingStatus.current
+        }
+
+        // Non-iCloud (or status unavailable): readable if the file exists on disk.
+        return FileManager.default.fileExists(atPath: url.path)
+    }
+
     // MARK: - Private
 
     /// Find files that are not downloaded locally using URLResourceValues.

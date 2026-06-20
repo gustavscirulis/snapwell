@@ -46,8 +46,11 @@ final class ImageCacheService: @unchecked Sendable {
                 return NSImage(contentsOf: storage.thumbnailURL(id: id))
             }
 
-            // Slow path: load original, generate + persist a thumbnail, return that
+            // Slow path: load original, generate + persist a thumbnail, return that.
+            // Ensure the file is downloaded from iCloud first — otherwise NSImage
+            // silently returns nil for evicted placeholders.
             let mediaURL = storage.mediaURL(filename: filename)
+            _ = await iCloudDownloadManager.ensureDownloaded(at: mediaURL)
             guard let original = NSImage(contentsOf: mediaURL) else { return nil }
 
             if let _ = try? ThumbnailService.generateThumbnail(from: original, id: id, storage: storage) {

@@ -1,6 +1,46 @@
 import Foundation
 import SwiftData
 
+// MARK: - Supported Media Types (mirrors macOS SupportedMedia)
+
+enum SupportedMedia {
+    static let imageExtensions: Set<String> = ["png", "jpg", "jpeg", "gif", "bmp", "tiff", "webp", "heic"]
+    static let videoExtensions: Set<String> = ["mp4", "webm", "mov", "avi", "m4v"]
+    static let allExtensions: Set<String> = imageExtensions.union(videoExtensions)
+
+    static func isImage(_ ext: String) -> Bool { imageExtensions.contains(ext.lowercased()) }
+    static func isVideo(_ ext: String) -> Bool { videoExtensions.contains(ext.lowercased()) }
+    static func isSupported(_ ext: String) -> Bool { allExtensions.contains(ext.lowercased()) }
+}
+
+/// Resolves the real on-disk media filename for an item id by probing actual files
+/// rather than guessing the extension from the sidecar `type`. Mirrors the macOS
+/// MediaFilenameResolver so heic/webp/m4v/avi/webm files round-trip through sync.
+enum MediaFilenameResolver {
+    static func resolveMediaFilename(id: String, in directory: URL, preferredExtensions: [String] = []) -> String? {
+        let fm = FileManager.default
+        for ext in orderedExtensions(preferred: preferredExtensions) {
+            let filename = "\(id).\(ext)"
+            if fm.fileExists(atPath: directory.appendingPathComponent(filename).path) { return filename }
+            if fm.fileExists(atPath: directory.appendingPathComponent(".\(filename).icloud").path) { return filename }
+        }
+        return nil
+    }
+
+    static func resolveMediaURL(id: String, in directory: URL, preferredExtensions: [String] = []) -> URL? {
+        resolveMediaFilename(id: id, in: directory, preferredExtensions: preferredExtensions)
+            .map { directory.appendingPathComponent($0) }
+    }
+
+    private static func orderedExtensions(preferred: [String]) -> [String] {
+        var seen = Set<String>()
+        var ordered: [String] = []
+        for ext in preferred where seen.insert(ext.lowercased()).inserted { ordered.append(ext.lowercased()) }
+        for ext in SupportedMedia.allExtensions where seen.insert(ext).inserted { ordered.append(ext) }
+        return ordered
+    }
+}
+
 // MARK: - Sidecar JSON Models (matches Mac's MetadataSidecarService)
 
 struct SidecarMetadata: Codable, Sendable {
@@ -246,29 +286,29 @@ final class SyncService {
             let id = url.deletingPathExtension().lastPathComponent
             seenIds.insert(id)
 
-            // Check media file exists (locally or as iCloud placeholder)
-            let ext = sidecar.type == "video" ? "mp4" : "png"
-            let mediaFilename = "\(id).\(ext)"
+            // Resolve the real on-disk media filename across all supported extensions
+            // (not a mp4/png guess) so heic/webp/m4v/avi/webm files aren't orphaned.
+            let preferredExts = sidecar.type == "video" ? ["mp4", "mov", "m4v", "webm"] : ["png", "jpg", "jpeg", "heic"]
+            guard let mediaFilename = MediaFilenameResolver.resolveMediaFilename(
+                id: id, in: imagesDir, preferredExtensions: preferredExts
+            ) else {
+                continue // Orphaned sidecar: no media file or iCloud placeholder for any supported extension
+            }
             let mediaURL = imagesDir.appendingPathComponent(mediaFilename)
-            let iCloudPlaceholder = imagesDir.appendingPathComponent(".\(id).\(ext).icloud")
 
             if !fm.fileExists(atPath: mediaURL.path) {
+                // Resolver matched an iCloud placeholder — trigger the download.
                 if isUsingiCloud {
-                    // iCloud: check for placeholder and trigger download
-                    if fm.fileExists(atPath: iCloudPlaceholder.path) {
-                        try? fm.startDownloadingUbiquitousItem(at: mediaURL)
-                    } else if let rv = try? mediaURL.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey]),
-                              rv.ubiquitousItemDownloadingStatus != nil {
-                        if rv.ubiquitousItemDownloadingStatus != .current {
-                            try? fm.startDownloadingUbiquitousItem(at: mediaURL)
-                        }
-                    } else {
-                        continue // Orphaned sidecar
-                    }
+                    try? fm.startDownloadingUbiquitousItem(at: mediaURL)
                 } else {
-                    // Local mode: no media file means orphaned sidecar
-                    continue
+                    continue // Local mode: placeholder without a real file means orphaned
                 }
+            } else if isUsingiCloud,
+                      let rv = try? mediaURL.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey]),
+                      let status = rv.ubiquitousItemDownloadingStatus,
+                      status != .current {
+                // Real file present but evicted/not current — trigger the download.
+                try? fm.startDownloadingUbiquitousItem(at: mediaURL)
             }
 
             // Upsert into SwiftData
