@@ -8,6 +8,36 @@ import SwiftData
 @MainActor
 struct SyncServiceDataTests {
 
+    // MARK: - Media filename resolution (WS1)
+
+    @Test("MediaFilenameResolver finds the real file across supported extensions", .tags(.filesystem))
+    func resolverFindsRealExtension() throws {
+        let fm = FileManager.default
+        let dir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: dir) }
+
+        try Data([0x00]).write(to: dir.appendingPathComponent("img-heic.heic"))
+        try Data([0x00]).write(to: dir.appendingPathComponent("vid-m4v.m4v"))
+
+        // Preferred guess (png/mp4) misses, but the resolver still finds the real file.
+        #expect(MediaFilenameResolver.resolveMediaFilename(id: "img-heic", in: dir, preferredExtensions: ["png", "jpg"]) == "img-heic.heic")
+        #expect(MediaFilenameResolver.resolveMediaFilename(id: "vid-m4v", in: dir, preferredExtensions: ["mp4"]) == "vid-m4v.m4v")
+        #expect(MediaFilenameResolver.resolveMediaFilename(id: "missing", in: dir) == nil)
+    }
+
+    @Test("MediaFilenameResolver matches an iCloud placeholder for an evicted file", .tags(.filesystem))
+    func resolverMatchesPlaceholder() throws {
+        let fm = FileManager.default
+        let dir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: dir) }
+
+        // Only the iCloud placeholder exists (the real file isn't downloaded yet).
+        try Data([0x00]).write(to: dir.appendingPathComponent(".evicted.mov.icloud"))
+        #expect(MediaFilenameResolver.resolveMediaFilename(id: "evicted", in: dir, preferredExtensions: ["mp4"]) == "evicted.mov")
+    }
+
     // MARK: - sourceURL sync (PR #150)
 
     @Test("sourceURL only set when item has nil sourceURL")

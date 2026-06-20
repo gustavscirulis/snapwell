@@ -195,11 +195,16 @@ final class ImportService {
             let spaceContext = resolvedGuidance.spaceContext
             print("[Analysis] Guidance for \(item.id): \(guidance ?? "<default>")")
 
+            // Ensure the media is downloaded from iCloud before analysis reads it;
+            // an evicted placeholder would otherwise fail to load.
+            let mediaURL = storage.mediaURL(filename: item.filename)
+            _ = await iCloudDownloadManager.ensureDownloaded(at: mediaURL)
+
             if item.isVideo {
-                let frames = try await VideoFrameExtractor.extractAnalysisFrames(from: storage.mediaURL(filename: item.filename))
+                let frames = try await VideoFrameExtractor.extractAnalysisFrames(from: mediaURL)
                 result = try await analysisService.analyzeVideo(frames: frames, provider: provider, model: model, guidance: guidance, spaceContext: spaceContext)
             } else {
-                guard let image = NSImage(contentsOf: storage.mediaURL(filename: item.filename)) else {
+                guard let image = NSImage(contentsOf: mediaURL) else {
                     throw ImportError.cannotReadDimensions
                 }
                 result = try await analysisService.analyze(image: image, provider: provider, model: model, guidance: guidance, spaceContext: spaceContext)

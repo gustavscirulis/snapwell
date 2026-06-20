@@ -732,7 +732,11 @@ struct DetailItemView: View {
         guard !item.isVideo else { return }
         let filename = item.filename
         let loaded: NSImage? = await Task.detached(priority: .utility) {
-            return NSImage(contentsOf: MediaStorageService.shared.mediaURL(filename: filename))
+            // Ensure the file is downloaded from iCloud before reading; an evicted
+            // placeholder would otherwise load as a blank/nil image.
+            let url = MediaStorageService.shared.mediaURL(filename: filename)
+            _ = await iCloudDownloadManager.ensureDownloaded(at: url)
+            return NSImage(contentsOf: url)
         }.value
         if let loaded, !Task.isCancelled, items[currentIndex].id == item.id {
             self.image = loaded

@@ -5,6 +5,8 @@ enum ThumbnailService {
 
     static func generateThumbnail(from sourceURL: URL, id: String, storage: MediaStorageService = .shared) async throws -> URL {
         let data = try await Task.detached(priority: .utility) {
+            // Ensure the source is downloaded from iCloud before reading it.
+            _ = await iCloudDownloadManager.ensureDownloaded(at: sourceURL)
             guard let image = NSImage(contentsOf: sourceURL) else {
                 throw ThumbnailError.cannotLoadImage
             }
