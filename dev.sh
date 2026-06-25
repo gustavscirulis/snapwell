@@ -161,7 +161,7 @@ run_ios_device() {
 
     local bundle_id
     bundle_id=$(echo "$install_output" | grep 'bundleID:' | awk '{print $3}')
-    bundle_id="${bundle_id:-co.snapwell.app}"
+    bundle_id="${bundle_id:-co.snapwell}"
 
     printf "${DIM}Launching...${RESET}\n"
     xcrun devicectl device process launch --device "$device_id" "$bundle_id" 2>&1
@@ -215,7 +215,7 @@ run_ios_simulator() {
     xcrun simctl install "$sim_id" "$app_path"
 
     printf "${DIM}Launching...${RESET}\n"
-    xcrun simctl launch "$sim_id" "co.snapwell.app"
+    xcrun simctl launch "$sim_id" "co.snapwell"
 
     printf "${GREEN}✓ Snapwell is running on %s simulator${RESET}\n" "$sim_name"
 }
