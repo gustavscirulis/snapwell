@@ -42,7 +42,7 @@ struct ZoomableImageView: View {
             .frame(width: frameSize.width, height: frameSize.height)
             .contentShape(Rectangle())
             .gesture(magnifyGesture)
-            .simultaneousGesture(dragGesture)
+            .simultaneousGesture(dragGesture, name: "zoomPan", isEnabled: isZoomed)
             .onTapGesture(count: 2) { location in
                 handleDoubleTap(at: location)
             }

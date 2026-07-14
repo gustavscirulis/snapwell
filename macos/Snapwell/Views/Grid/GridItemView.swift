@@ -420,6 +420,7 @@ struct GridItemView: View {
 
     private var dragSourceOverlay: some View {
         GridDragSourceRepresentable(
+            isSuppressed: appState.detailItem != nil,
             payloadProvider: makeDragExportPayload,
             previewImageProvider: { thumbnail },
             onDragStarted: {
@@ -559,21 +560,25 @@ struct GridDragExportPayload {
 }
 
 private struct GridDragSourceRepresentable: NSViewRepresentable {
+    let isSuppressed: Bool
     let payloadProvider: () -> GridDragExportPayload
     let previewImageProvider: () -> NSImage?
     let onDragStarted: () -> Void
     let onDragEnded: () -> Void
 
     func makeNSView(context: Context) -> GridDragSourceView {
-        GridDragSourceView(
+        let view = GridDragSourceView(
             payloadProvider: payloadProvider,
             previewImageProvider: previewImageProvider,
             onDragStarted: onDragStarted,
             onDragEnded: onDragEnded
         )
+        view.isSuppressed = isSuppressed
+        return view
     }
 
     func updateNSView(_ nsView: GridDragSourceView, context: Context) {
+        nsView.isSuppressed = isSuppressed
         nsView.payloadProvider = payloadProvider
         nsView.previewImageProvider = previewImageProvider
         nsView.onDragStarted = onDragStarted
@@ -586,6 +591,8 @@ private final class GridDragSourceView: NSView, NSDraggingSource {
     var previewImageProvider: () -> NSImage?
     var onDragStarted: () -> Void
     var onDragEnded: () -> Void
+
+    var isSuppressed = false
 
     private var monitor: Any?
     private var mouseDownPoint: NSPoint?
@@ -643,6 +650,14 @@ private final class GridDragSourceView: NSView, NSDraggingSource {
     }
 
     private func handle(_ event: NSEvent) -> NSEvent? {
+        // Full-screen detail overlay is open: let events pass through to
+        // SwiftUI's .onDrag on DetailItemView instead of dragging the grid
+        // cell beneath the overlay.
+        if isSuppressed {
+            mouseDownPoint = nil
+            dragStarted = false
+            return event
+        }
         switch event.type {
         case .leftMouseDown:
             guard contains(event) else { return event }
