@@ -62,9 +62,33 @@ final class AIAnalysisService: Sendable {
     """
 
     static let defaultGuidance = """
-    If it's a UI screenshot, focus on UI patterns and components. \
-    If it's a general scene, focus on objects and subjects. \
-    Use specific, descriptive language appropriate to the content.
+    For UI screenshots, app interfaces, and websites:
+
+    Name components with the term a designer would use in a spec — the \
+    conventional name for that thing, whatever it is. Match the level of \
+    specificity in "kebab menu" and "segmented control" rather than "menu" and \
+    "buttons," but never force an observed element into a familiar label: if it \
+    has a well-known name, use it; if it doesn't, name it in the most conventional \
+    terms available. Novel and domain-specific components matter most, since \
+    they're the hardest to find later.
+
+    imageContext: open with what the product is and what this screen does, then \
+    walk the layout region by region and name every distinct component visible, \
+    including small ones. Close with visual style, colour treatment, typography, \
+    and component states such as loading, empty, selected, disabled, or in \
+    progress. This text is searched, so name things explicitly rather than \
+    describing them loosely.
+
+    patterns: pick the six most distinctive and searchable. Prefer layout \
+    structures, screen archetypes, and unusual components over elements present in \
+    nearly every interface — a tag that narrows a search beats one that doesn't.
+
+    For general scenes: apply the same approach. imageContext names subjects, \
+    objects, materials, colours, setting, lighting, and composition in detail; \
+    patterns capture the six most distinctive of those.
+
+    Use specific, concrete language. Describe only what is visible — never infer \
+    off-screen content or product identity.
     """
 
     private let userText = "Analyze this image."
