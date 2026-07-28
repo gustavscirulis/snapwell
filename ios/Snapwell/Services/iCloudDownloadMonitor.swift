@@ -1,6 +1,48 @@
 import Foundation
 import Combine
 
+/// Serializes one `waitForDownload` call's resume-once flag with its cancellation handles, which
+/// are written by the caller and read by whichever of the sink or the timeout fires first.
+private final class DownloadWaitState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var resumed = false
+    private var cancellable: AnyCancellable?
+    private var timeoutTask: Task<Void, Never>?
+
+    /// True for exactly one caller — the one that should resume the continuation.
+    func claim() -> Bool {
+        lock.lock()
+        guard !resumed else {
+            lock.unlock()
+            return false
+        }
+        resumed = true
+        let pendingCancellable = cancellable
+        let pendingTimeout = timeoutTask
+        cancellable = nil
+        timeoutTask = nil
+        lock.unlock()
+
+        pendingCancellable?.cancel()
+        pendingTimeout?.cancel()
+        return true
+    }
+
+    func store(cancellable: AnyCancellable, timeoutTask: Task<Void, Never>) {
+        lock.lock()
+        guard !resumed else {
+            lock.unlock()
+            // Already resolved — often synchronously, when the file was ready on subscribe.
+            cancellable.cancel()
+            timeoutTask.cancel()
+            return
+        }
+        self.cancellable = cancellable
+        self.timeoutTask = timeoutTask
+        lock.unlock()
+    }
+}
+
 /// Centralized monitor for iCloud file downloads.
 /// Tracks requested downloads and polls their status, publishing updates
 /// when files become available.
@@ -71,20 +113,10 @@ class iCloudDownloadMonitor {
         if isDownloaded(url) { return }
         requestDownload(for: url)
 
-        let resumeLock = NSLock()
-        var resumed = false
-        var cancellable: AnyCancellable?
-        var timeoutTask: Task<Void, Never>?
-
-        func resumeOnce(_ continuation: CheckedContinuation<Void, Never>) {
-            resumeLock.lock()
-            guard !resumed else { resumeLock.unlock(); return }
-            resumed = true
-            resumeLock.unlock()
-            cancellable?.cancel()
-            timeoutTask?.cancel()
-            continuation.resume()
-        }
+        // The sink runs on the polling task's thread while the continuation body still runs on the
+        // caller's, so the cancellation handles have to live behind the same lock as the resumed
+        // flag rather than in captured locals.
+        let state = DownloadWaitState()
 
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             if Task.isCancelled {
@@ -92,15 +124,19 @@ class iCloudDownloadMonitor {
                 return
             }
 
-            cancellable = fileReady
+            let cancellable = fileReady
                 .filter { $0.absoluteString == url.absoluteString }
                 .first()
-                .sink { _ in resumeOnce(continuation) }
+                .sink { _ in
+                    if state.claim() { continuation.resume() }
+                }
 
-            timeoutTask = Task {
+            let timeoutTask = Task {
                 try? await Task.sleep(for: .seconds(timeout))
-                resumeOnce(continuation)
+                if state.claim() { continuation.resume() }
             }
+
+            state.store(cancellable: cancellable, timeoutTask: timeoutTask)
         }
     }
 

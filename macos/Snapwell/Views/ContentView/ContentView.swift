@@ -22,6 +22,9 @@ struct ContentView: View {
     /// Pre-computed search scores keyed by item ID. Empty = no active search.
     @State private var searchScores: [String: Double] = [:]
     @State private var isSearchActive = false
+    /// Incremented whenever the search result set is replaced, so the grid can reset its scroll
+    /// offset instead of resolving a deep offset against a wholly new item list.
+    @State private var searchGeneration = 0
     @State private var isSearchFieldPresented = false
     @State private var shareAnchorView: NSView?
     @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
@@ -81,6 +84,9 @@ struct ContentView: View {
 
     var body: some View {
         @Bindable var appState = appState
+        // Computed once per pass — `activeFilteredItems` re-filters and re-sorts `allItems` on
+        // every access, and body used it three times.
+        let filteredItems = activeFilteredItems
         NavigationSplitView(columnVisibility: $columnVisibility) {
             SpaceSidebarView(
                 spaces: spaces,
@@ -95,7 +101,7 @@ struct ContentView: View {
             )
         } detail: {
             ZStack {
-                detailContent
+                detailContent(items: filteredItems)
                     .onDrop(of: [.fileURL, .image], isTargeted: $isDragTargeted) { providers in
                         if appState.isDraggingFromApp { return false }
                         handleDrop(providers)
@@ -105,8 +111,8 @@ struct ContentView: View {
                 // Detail overlay — hero zoom from thumbnail
                 if let detailId = appState.detailItem,
                    let sourceFrame = appState.detailSourceFrame {
-                    let overlayItems = activeFilteredItems.contains(where: { $0.id == detailId })
-                        ? activeFilteredItems : allItems
+                    let overlayItems = filteredItems.contains(where: { $0.id == detailId })
+                        ? filteredItems : allItems
                     DetailItemView(
                         items: overlayItems,
                         startItemId: detailId,
@@ -223,7 +229,7 @@ struct ContentView: View {
                     Self.firstSearchField(in: contentView).map { window.makeFirstResponder($0) }
                 }
             },
-            onSelectAll: { appState.selectAll(activeFilteredItems.map(\.id)) },
+            onSelectAll: { appState.selectAll(filteredItems.map(\.id)) },
             onSwitchToSpace: { digit in
                 if digit == 1 {
                     switchToSpace(nil)
@@ -271,8 +277,8 @@ struct ContentView: View {
             if trimmed.isEmpty {
                 isSearchActive = false
                 searchScores = [:]
+                searchGeneration += 1
             } else {
-                isSearchActive = true
                 if appState.detailItem != nil {
                     appState.detailItem = nil
                     appState.detailSourceFrame = nil
@@ -284,6 +290,8 @@ struct ContentView: View {
                     let lowered = trimmed.lowercased()
                     if lowered == "video" || lowered == "image" {
                         searchScores = [:]
+                        isSearchActive = true
+                        searchGeneration += 1
                         return
                     }
 
@@ -291,6 +299,11 @@ struct ContentView: View {
                     let results = searchService.search(query: trimmed)
                     guard !Task.isCancelled else { return }
                     searchScores = Dictionary(uniqueKeysWithValues: results.map { ($0.itemId, $0.score) })
+                    // Flipped only once results exist. Setting it on the first keystroke made
+                    // `itemsForSpace` return [] for 100ms, which swapped the whole grid out for the
+                    // empty state and back — two full view-list teardowns per search.
+                    isSearchActive = true
+                    searchGeneration += 1
                 }
             }
         }
@@ -402,8 +415,7 @@ struct ContentView: View {
     // MARK: - Detail Content
 
     @ViewBuilder
-    private var detailContent: some View {
-        let items = activeFilteredItems
+    private func detailContent(items: [MediaItem]) -> some View {
         if allItems.isEmpty || debugSimulateEmptyState {
             EmptyStateView(isDragTargeted: isDragTargeted)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -443,7 +455,8 @@ struct ContentView: View {
                 onRetryAnalysis: retryAnalysis,
                 onShare: { ids, frame in shareItems(ids, sourceFrame: frame) },
                 onSetSelection: { ids in appState.selectedIds = ids },
-                coordinateSpaceName: "gridContent"
+                coordinateSpaceName: "gridContent",
+                scrollResetToken: searchGeneration
             )
         }
     }

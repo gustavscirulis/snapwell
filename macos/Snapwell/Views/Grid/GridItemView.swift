@@ -2,11 +2,15 @@ import SwiftUI
 import AppKit
 import AVFoundation
 
-struct GridItemView: View {
+struct GridItemView: View, Equatable {
     let item: MediaItem
     let width: CGFloat
-    let orderedItems: [MediaItem]
-    let spaces: [Space]
+    /// Resolved only when a drag actually starts. A stored array here would be compared
+    /// element-by-element for every cell on every update pass — O(n²) across the grid.
+    let orderedItems: () -> [MediaItem]
+    /// Order-sensitive fingerprint of the parent's item list. Never read by `body`; it exists so
+    /// `==` invalidates cells whose captured closures have gone stale.
+    let itemsFingerprint: Int
     let activeSpaceId: String?
     let onSelect: (CGRect) -> Void
     let onToggleSelect: () -> Void
@@ -19,8 +23,10 @@ struct GridItemView: View {
     @Environment(VideoPreviewManager.self) private var videoPreview
     @Environment(AppState.self) private var appState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.gridSpaces) private var spaces
     @State private var isHovered = false
     @State private var thumbnail: NSImage?
+    @State private var loadFailed = false
     @State private var globalFrame: CGRect = .zero
     @State private var hoverTask: Task<Void, Never>?
     /// Suppresses the first `.onHover(false)` after a video preview starts.
@@ -42,11 +48,11 @@ struct GridItemView: View {
         isSelected && selectedCount > 1 ? appState.selectedIds : [item.id]
     }
 
-    init(item: MediaItem, width: CGFloat, orderedItems: [MediaItem], spaces: [Space], activeSpaceId: String?, onSelect: @escaping (CGRect) -> Void, onToggleSelect: @escaping () -> Void, onShiftSelect: @escaping () -> Void, onDelete: @escaping (Set<String>) -> Void, onChangeSpaceMembership: @escaping (Set<String>, SpaceMembershipAction) -> Void, onRetryAnalysis: @escaping (Set<String>) -> Void, onShare: @escaping (Set<String>, CGRect) -> Void) {
+    init(item: MediaItem, width: CGFloat, orderedItems: @escaping () -> [MediaItem], itemsFingerprint: Int, activeSpaceId: String?, onSelect: @escaping (CGRect) -> Void, onToggleSelect: @escaping () -> Void, onShiftSelect: @escaping () -> Void, onDelete: @escaping (Set<String>) -> Void, onChangeSpaceMembership: @escaping (Set<String>, SpaceMembershipAction) -> Void, onRetryAnalysis: @escaping (Set<String>) -> Void, onShare: @escaping (Set<String>, CGRect) -> Void) {
         self.item = item
         self.width = width
         self.orderedItems = orderedItems
-        self.spaces = spaces
+        self.itemsFingerprint = itemsFingerprint
         self.activeSpaceId = activeSpaceId
         self.onSelect = onSelect
         self.onToggleSelect = onToggleSelect
@@ -57,8 +63,23 @@ struct GridItemView: View {
         self.onShare = onShare
         self.itemIsVideo = item.isVideo
         self.itemSpaceIds = item.orderedSpaceIDs
-        self.itemAspectRatio = item.aspectRatio
+        self.itemAspectRatio = item.gridAspectRatio
         _thumbnail = State(initialValue: ImageCacheService.shared.image(forKey: item.id))
+    }
+
+    /// Only the fields `body` cannot re-read observably. Everything read directly off the `@Model`
+    /// (`isAnalyzing`, `analysisResult`, `analysisError`, `width`/`height`) is tracked by
+    /// Observation and invalidates independently; so do `AppState`, `VideoPreviewManager`, and the
+    /// environment. The eagerly-snapshotted properties below are *not* observable, so omitting one
+    /// would leave stale UI.
+    nonisolated static func == (lhs: GridItemView, rhs: GridItemView) -> Bool {
+        lhs.item === rhs.item
+            && lhs.width == rhs.width
+            && lhs.activeSpaceId == rhs.activeSpaceId
+            && lhs.itemsFingerprint == rhs.itemsFingerprint
+            && lhs.itemAspectRatio == rhs.itemAspectRatio
+            && lhs.itemIsVideo == rhs.itemIsVideo
+            && lhs.itemSpaceIds == rhs.itemSpaceIds
     }
 
     private var height: CGFloat {
@@ -74,6 +95,7 @@ struct GridItemView: View {
         parts.append("\(item.width) by \(item.height)")
         if item.isAnalyzing { parts.append("Analyzing") }
         if item.analysisError != nil { parts.append("Analysis failed") }
+        if loadFailed { parts.append("Preview unavailable, click to retry") }
         return parts.joined(separator: ", ")
     }
 
@@ -124,6 +146,11 @@ struct GridItemView: View {
                     onToggleSelect()
                 } else if flags.contains(.shift) {
                     onShiftSelect()
+                } else if loadFailed {
+                    // Retry through the button rather than a tap gesture on the placeholder —
+                    // a gesture inside a Button label competes with the button itself.
+                    loadFailed = false
+                    Task { await loadThumbnail() }
                 } else {
                     onSelect(globalFrame)
                 }
@@ -135,14 +162,23 @@ struct GridItemView: View {
                             .aspectRatio(contentMode: .fill)
                             .frame(width: width, height: height)
                             .clipped()
-                    } else {
+                    } else if loadFailed {
                         Rectangle()
                             .fill(Color.snapMuted)
                             .frame(width: width, height: height)
                             .overlay {
-                                ProgressView()
-                                    .controlSize(.small)
+                                VStack(spacing: 8) {
+                                    Image(systemName: "icloud.and.arrow.down")
+                                        .font(.body)
+                                    Text("Click to retry")
+                                        .font(.caption2)
+                                }
+                                .foregroundStyle(Color.snapMutedForeground)
                             }
+                    } else {
+                        Rectangle()
+                            .fill(Color.snapMuted)
+                            .frame(width: width, height: height)
                     }
                 }
             }
@@ -412,6 +448,7 @@ struct GridItemView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .thumbnailsRegenerated)) { _ in
             thumbnail = nil
+            loadFailed = false
             Task { await loadThumbnail() }
         }
     }
@@ -511,9 +548,19 @@ struct GridItemView: View {
         return globalFrame.contains(swiftUIPoint)
     }
 
-    private func loadThumbnail() async {
+    private func loadThumbnail(isRetry: Bool = false) async {
         if let loaded = await ImageCacheService.shared.loadThumbnail(id: item.id, filename: item.filename) {
             self.thumbnail = loaded
+            return
+        }
+
+        // Auto-retry once — an iCloud file may arrive just after the first attempt.
+        if !isRetry {
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+            await loadThumbnail(isRetry: true)
+        } else {
+            loadFailed = true
         }
     }
 
@@ -521,7 +568,7 @@ struct GridItemView: View {
         GridDragExportPayload(
             draggedItem: item,
             effectiveIds: effectiveIds,
-            orderedItems: orderedItems,
+            orderedItems: orderedItems(),
             storage: MediaStorageService.shared
         )
     }

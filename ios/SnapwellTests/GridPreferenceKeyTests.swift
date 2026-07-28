@@ -36,7 +36,10 @@ struct GridPreferenceKeyTests {
 
     @Test("Reduce prefers on-screen frames over off-screen when same key exists")
     func reduceOnScreenPreferred() {
-        let screen = UIScreen.main.bounds
+        let screen = CGRect(x: 0, y: 0, width: 393, height: 852)
+        GridItemRectsPreferenceKey.screenBounds = screen
+        defer { GridItemRectsPreferenceKey.screenBounds = .zero }
+
         let onScreen = CGRect(
             x: screen.midX - 50, y: screen.midY - 50,
             width: 100, height: 100
@@ -51,7 +54,10 @@ struct GridPreferenceKeyTests {
 
     @Test("Reduce keeps existing on-screen frame when next value is off-screen")
     func reduceKeepsExistingOnScreen() {
-        let screen = UIScreen.main.bounds
+        let screen = CGRect(x: 0, y: 0, width: 393, height: 852)
+        GridItemRectsPreferenceKey.screenBounds = screen
+        defer { GridItemRectsPreferenceKey.screenBounds = .zero }
+
         let onScreen = CGRect(
             x: screen.midX - 50, y: screen.midY - 50,
             width: 100, height: 100
@@ -61,6 +67,17 @@ struct GridPreferenceKeyTests {
         var value: [String: CGRect] = ["item": onScreen]
         GridItemRectsPreferenceKey.reduce(value: &value) { ["item": offScreen] }
         #expect(value["item"] == onScreen, "Existing on-screen frame should be kept")
+    }
+
+    @Test("Reduce takes the newest frame before screen bounds are known")
+    func reduceWithoutScreenBoundsPrefersNewest() {
+        GridItemRectsPreferenceKey.screenBounds = .zero
+        let old = CGRect(x: 0, y: 0, width: 100, height: 100)
+        let new = CGRect(x: 50, y: 50, width: 100, height: 100)
+
+        var value: [String: CGRect] = ["item": old]
+        GridItemRectsPreferenceKey.reduce(value: &value) { ["item": new] }
+        #expect(value["item"] == new)
     }
 }
 

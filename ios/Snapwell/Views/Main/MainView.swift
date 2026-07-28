@@ -88,14 +88,22 @@ struct MainView: View {
 
         GeometryReader { geo in
             let gridWidth = geo.size.width - 24
+            // Computed once per pass. Each access filters `allItems` (faulting every item's
+            // `spaces` relationship) and re-sorts, and body reached it four times.
+            let searchItems = searchContentItems
+            let overlayItems = detailOverlayItems
 
             ZStack {
-                tabContent(gridWidth: gridWidth)
+                tabContent(gridWidth: gridWidth, searchItems: searchItems)
                     .allowsHitTesting(!appState.showOverlay)
+                    // Only the overlay's hero-close reads these rects. Publishing them while
+                    // scrolling rewrote this view's state every frame, which re-ran the search
+                    // filter (and faulted every item's `spaces` relationship) per frame.
+                    .environment(\.gridPublishesFrames, appState.showOverlay)
 
-                if appState.showOverlay, appState.selectedIndex != nil, !detailOverlayItems.isEmpty {
+                if appState.showOverlay, appState.selectedIndex != nil, !overlayItems.isEmpty {
                     MediaDetailModal(
-                        items: detailOverlayItems,
+                        items: overlayItems,
                         title: detailOverlayTitle,
                         showOverlay: $appState.showOverlay,
                         selectedItemId: $appState.selectedItemId,
@@ -111,6 +119,12 @@ struct MainView: View {
                 }
             }
             .onPreferenceChange(GridItemRectsPreferenceKey.self) { gridItemRects = $0 }
+            .onAppear {
+                GridItemRectsPreferenceKey.screenBounds = geo.frame(in: .global)
+            }
+            .onChange(of: geo.size) { _, _ in
+                GridItemRectsPreferenceKey.screenBounds = geo.frame(in: .global)
+            }
         }
         .task {
             await loadContent()
@@ -227,17 +241,17 @@ struct MainView: View {
     // MARK: - Tab Content
 
     @ViewBuilder
-    private func tabContent(gridWidth: CGFloat) -> some View {
+    private func tabContent(gridWidth: CGFloat, searchItems: [MediaItem]) -> some View {
         if #available(iOS 26, *) {
             TabView(selection: $appState.selectedTab) {
                 Tab("All", systemImage: "square.grid.2x2", value: AppTab.all) {
-                    allItemsContent(gridWidth: gridWidth)
+                    allItemsContent(gridWidth: gridWidth, items: searchItems)
                 }
                 Tab("Spaces", systemImage: "folder", value: AppTab.spaces) {
                     spacesContent(gridWidth: gridWidth)
                 }
                 Tab(value: AppTab.search, role: .search) {
-                    searchContent(gridWidth: gridWidth)
+                    searchContent(gridWidth: gridWidth, items: searchItems)
                 }
             }
             .tabBarMinimizeBehavior(.onScrollDown)
@@ -245,7 +259,7 @@ struct MainView: View {
             .toolbarColorScheme(.dark, for: .tabBar)
         } else {
             TabView(selection: $appState.selectedTab) {
-                allItemsContent(gridWidth: gridWidth)
+                allItemsContent(gridWidth: gridWidth, items: searchItems)
                     .tabItem { Label("All", systemImage: "square.grid.2x2") }
                     .tag(AppTab.all)
                 spacesContent(gridWidth: gridWidth)
@@ -257,11 +271,11 @@ struct MainView: View {
     }
 
     @ViewBuilder
-    private func allItemsContent(gridWidth: CGFloat) -> some View {
+    private func allItemsContent(gridWidth: CGFloat, items: [MediaItem]) -> some View {
         @Bindable var appState = appState
 
         AllItemsTab(
-            items: searchContentItems,
+            items: items,
             spaces: spaces,
             gridWidth: gridWidth,
             isLoading: isLoading,
@@ -306,9 +320,8 @@ struct MainView: View {
     }
 
     @ViewBuilder
-    private func searchContent(gridWidth: CGFloat) -> some View {
+    private func searchContent(gridWidth: CGFloat, items: [MediaItem]) -> some View {
         @Bindable var appState = appState
-        let items = searchContentItems
         let scopedSpaceName = appState.searchSpaceId.flatMap { id in spaces.first { $0.id == id }?.name }
 
         NavigationStack {
