@@ -174,8 +174,9 @@ final class ImportService {
         }
 
         let storedModel = UserDefaults.standard.string(forKey: "\(provider.rawValue)Model") ?? ModelDiscoveryService.autoModelValue
+        let isAutoResolved = storedModel == ModelDiscoveryService.autoModelValue
         let model: String
-        if storedModel == ModelDiscoveryService.autoModelValue {
+        if isAutoResolved {
             model = await ModelDiscoveryService.shared.resolveAutoModel(for: provider)
         } else {
             model = storedModel
@@ -195,14 +196,16 @@ final class ImportService {
             let spaceContext = resolvedGuidance.spaceContext
             print("[Analysis] Guidance for \(item.id): \(guidance ?? "<default>")")
 
-            if item.isVideo {
-                let frames = try await VideoFrameExtractor.extractAnalysisFrames(from: storage.mediaURL(filename: item.filename))
-                result = try await analysisService.analyzeVideo(frames: frames, provider: provider, model: model, guidance: guidance, spaceContext: spaceContext)
-            } else {
-                guard let image = NSImage(contentsOf: storage.mediaURL(filename: item.filename)) else {
-                    throw ImportError.cannotReadDimensions
-                }
-                result = try await analysisService.analyze(image: image, provider: provider, model: model, guidance: guidance, spaceContext: spaceContext)
+            do {
+                result = try await runAnalysis(item, storage: storage, provider: provider, model: model, guidance: guidance, spaceContext: spaceContext)
+            } catch let error as AIAnalysisService.AnalysisError where isAutoResolved && Self.indicatesUnusableModel(error) {
+                // An auto-picked model the provider rejects outright is most likely retired,
+                // so drop it and re-resolve rather than surfacing a dead end to the user.
+                ModelDiscoveryService.shared.clearCache(for: provider)
+                let fallback = await ModelDiscoveryService.shared.resolveAutoModel(for: provider, excluding: [model])
+                guard fallback != model else { throw error }
+                print("[Analysis] \(model) was rejected; retrying with \(fallback)")
+                result = try await runAnalysis(item, storage: storage, provider: provider, model: fallback, guidance: guidance, spaceContext: spaceContext)
             }
 
             print("[Analysis] Success for \(item.id): \(result.patterns.count) patterns")
@@ -221,6 +224,32 @@ final class ImportService {
             context.saveOrLog()
             return false
         }
+    }
+
+    private func runAnalysis(
+        _ item: MediaItem,
+        storage: MediaStorageService,
+        provider: AIProvider,
+        model: String,
+        guidance: String?,
+        spaceContext: String?
+    ) async throws -> AnalysisResult {
+        if item.isVideo {
+            let frames = try await VideoFrameExtractor.extractAnalysisFrames(from: storage.mediaURL(filename: item.filename))
+            return try await analysisService.analyzeVideo(frames: frames, provider: provider, model: model, guidance: guidance, spaceContext: spaceContext)
+        }
+        guard let image = NSImage(contentsOf: storage.mediaURL(filename: item.filename)) else {
+            throw ImportError.cannotReadDimensions
+        }
+        return try await analysisService.analyze(image: image, provider: provider, model: model, guidance: guidance, spaceContext: spaceContext)
+    }
+
+    /// True for the statuses that mean "this model cannot serve this request" — a bad or
+    /// retired model ID (404) or a body the model won't accept (400). Auth, quota and rate
+    /// limits are deliberately excluded: swapping models cannot fix those.
+    static func indicatesUnusableModel(_ error: AIAnalysisService.AnalysisError) -> Bool {
+        guard case .apiError(let code, _, _) = error else { return false }
+        return code == 400 || code == 404
     }
 
     func analyzeUnanalyzedItems(from items: [MediaItem], context: ModelContext) async {

@@ -24,10 +24,10 @@ enum AIProvider: String, CaseIterable, Codable, Sendable {
 
     var defaultModel: String {
         switch self {
-        case .openai: return "gpt-4o"
-        case .anthropic: return "claude-sonnet-4-20250514"
-        case .gemini: return "gemini-2.0-flash"
-        case .openrouter: return "openai/gpt-4o"
+        case .openai: return "gpt-5.6-luna"
+        case .anthropic: return "claude-sonnet-5"
+        case .gemini: return "gemini-3.5-flash"
+        case .openrouter: return "google/gemini-3.5-flash"
         }
     }
 }
@@ -231,7 +231,9 @@ final class AIAnalysisService: Sendable {
                 headers: ["x-api-key": apiKey, "anthropic-version": "2023-06-01"],
                 body: [
                     "model": model,
-                    "max_tokens": 800,
+                    // Recent Claude models think by default and count thinking against
+                    // max_tokens, so this must stay well above the 1024 thinking floor.
+                    "max_tokens": 2000,
                     "system": prompt,
                     "messages": [
                         ["role": "user", "content": [
@@ -245,13 +247,7 @@ final class AIAnalysisService: Sendable {
                     ]
                 ],
                 provider: provider,
-                extractText: { json in
-                    let content = json["content"] as? [[String: Any]]
-                    guard let text = content?.first?["text"] as? String else {
-                        throw AnalysisError.invalidResponse
-                    }
-                    return text
-                }
+                extractText: Self.extractAnthropicText
             )
         case .gemini:
             return ProviderRequest(
@@ -311,6 +307,37 @@ final class AIAnalysisService: Sendable {
             throw AnalysisError.invalidResponse
         }
         return content
+    }
+
+    /// Pulls the human-readable reason out of a provider error body. The result is persisted
+    /// to MediaItem.analysisError and written to sidecar JSON, so it is length-capped.
+    static func providerErrorMessage(from body: String) -> String? {
+        var extracted: String?
+
+        if let data = body.data(using: .utf8),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            if let error = json["error"] as? [String: Any], let msg = error["message"] as? String {
+                extracted = msg
+            } else if let msg = json["message"] as? String {
+                extracted = msg
+            }
+        }
+
+        let candidate = (extracted ?? body).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !candidate.isEmpty else { return nil }
+        guard candidate.count > 300 else { return candidate }
+        return candidate.prefix(300).trimmingCharacters(in: .whitespacesAndNewlines) + "…"
+    }
+
+    /// Text extractor for the Anthropic Messages format. Scans for the first text block
+    /// rather than taking content[0] — thinking-enabled models emit a thinking block first.
+    static func extractAnthropicText(_ json: [String: Any]) throws -> String {
+        let content = json["content"] as? [[String: Any]] ?? []
+        guard let text = content.first(where: { $0["type"] as? String == "text" })?["text"] as? String,
+              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw AnalysisError.invalidResponse
+        }
+        return text
     }
 
     private func sendProviderRequest(_ req: ProviderRequest) async throws -> String {
@@ -458,7 +485,8 @@ final class AIAnalysisService: Sendable {
             case .noAPIKey: return "No API key configured"
             case .imageConversionFailed: return "Failed to convert image for analysis"
             case .invalidResponse: return "Invalid response from AI provider"
-            case .apiError(let code, _, let provider):
+            case .apiError(let code, let message, let provider):
+                let detail = AIAnalysisService.providerErrorMessage(from: message)
                 switch code {
                 case 401, 403: return "Your API key is invalid or unauthorized. Check your key in Settings."
                 case 402: return "Insufficient credits. Check your account balance with your AI provider."
@@ -467,8 +495,14 @@ final class AIAnalysisService: Sendable {
                         return "Rate limit exceeded. Gemini Flash models have a free tier — try switching to a Flash model in Settings."
                     }
                     return "Rate limit exceeded. Wait a moment and try again."
-                case 500...599: return "The AI provider is experiencing issues (HTTP \(code)). Try again later."
-                default: return "API request failed with HTTP \(code). Check your provider settings."
+                case 500...599:
+                    let base = "The AI provider is experiencing issues (HTTP \(code)). Try again later."
+                    return detail.map { "\(base) \($0)" } ?? base
+                default:
+                    if let detail {
+                        return "API request failed with HTTP \(code): \(detail)"
+                    }
+                    return "API request failed with HTTP \(code). Check your provider settings."
                 }
             case .parseFailed: return "Failed to parse AI response"
             }

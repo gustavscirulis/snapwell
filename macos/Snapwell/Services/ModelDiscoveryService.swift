@@ -53,9 +53,35 @@ final class ModelDiscoveryService: @unchecked Sendable {
         return models
     }
 
-    func resolveAutoModel(for provider: AIProvider) async -> String {
+    /// Ordered model-family preferences per provider, matched by prefix against the live
+    /// model list. Prefixes rather than exact IDs so a point release still matches; the
+    /// scoring heuristics below remain the fallback for families listed nowhere here.
+    static let preferredModelPrefixes: [AIProvider: [String]] = [
+        .openai: ["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.5", "gpt-5.4", "gpt-5", "gpt-4.1", "gpt-4o"],
+        .anthropic: ["claude-sonnet-5", "claude-opus-5", "claude-opus-4-8", "claude-haiku-4-5", "claude-sonnet-4-6"],
+        .gemini: ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.1-flash", "gemini-3-pro", "gemini-2.5-flash", "gemini-2.0-flash"],
+        .openrouter: ["google/gemini-3.5-flash", "google/gemini-3.6-flash", "openai/gpt-5.6-luna", "anthropic/claude-sonnet-5"]
+    ]
+
+    /// First model matching the earliest preferred prefix. Within a family the shortest ID
+    /// wins, which favours the base model over `-pro` / `-image` / `-fast` variants.
+    func preferredModel(from models: [DiscoveredModel], for provider: AIProvider) -> DiscoveredModel? {
+        guard let prefixes = Self.preferredModelPrefixes[provider] else { return nil }
+        for prefix in prefixes {
+            let matches = models.filter { $0.id.lowercased().hasPrefix(prefix) }
+            if let best = matches.min(by: { ($0.id.count, $0.id) < ($1.id.count, $1.id) }) {
+                return best
+            }
+        }
+        return nil
+    }
+
+    func resolveAutoModel(for provider: AIProvider, excluding excluded: Set<String> = []) async -> String {
         do {
-            let models = try await fetchModels(for: provider)
+            let models = try await fetchModels(for: provider).filter { !excluded.contains($0.id) }
+            if let preferred = preferredModel(from: models, for: provider) {
+                return preferred.id
+            }
             return models.first?.id ?? provider.defaultModel
         } catch {
             return provider.defaultModel
@@ -277,7 +303,9 @@ final class ModelDiscoveryService: @unchecked Sendable {
         var errorDescription: String? {
             switch self {
             case .noAPIKey: return "No API key configured"
-            case .apiError(let msg): return "API error: \(msg)"
+            case .apiError(let msg):
+                let detail = AIAnalysisService.providerErrorMessage(from: msg) ?? "Unknown error"
+                return "API error: \(detail)"
             }
         }
     }
