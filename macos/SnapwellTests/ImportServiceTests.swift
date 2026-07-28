@@ -76,4 +76,27 @@ struct ImportServiceTests {
     func allVideoMimes(_ mime: String, _ expected: String) {
         #expect(ImportService.fileExtension(from: mime, urlPathExtension: nil) == expected)
     }
+
+    // MARK: - Auto-model retry eligibility
+
+    @Test("400 and 404 mark the model unusable", arguments: [400, 404])
+    func modelRejectionStatuses(_ code: Int) {
+        let error = AIAnalysisService.AnalysisError.apiError(statusCode: code, message: "", provider: .openai)
+        #expect(ImportService.indicatesUnusableModel(error))
+    }
+
+    @Test("Auth, quota, rate-limit and server errors do not trigger a model swap",
+          arguments: [401, 402, 403, 429, 500, 503])
+    func nonModelStatuses(_ code: Int) {
+        let error = AIAnalysisService.AnalysisError.apiError(statusCode: code, message: "", provider: .openai)
+        #expect(!ImportService.indicatesUnusableModel(error))
+    }
+
+    @Test("Non-API failures do not trigger a model swap")
+    func nonAPIErrors() {
+        #expect(!ImportService.indicatesUnusableModel(.invalidResponse))
+        #expect(!ImportService.indicatesUnusableModel(.parseFailed))
+        #expect(!ImportService.indicatesUnusableModel(.noAPIKey))
+        #expect(!ImportService.indicatesUnusableModel(.imageConversionFailed))
+    }
 }

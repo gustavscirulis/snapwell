@@ -182,4 +182,120 @@ struct AIAnalysisParsingTests {
     func providerCount() {
         #expect(AIProvider.allCases.count == 4)
     }
+
+    // MARK: - providerErrorMessage
+
+    @Test("Extracts nested error.message (Anthropic / OpenAI / OpenRouter shape)")
+    func providerErrorNestedMessage() {
+        let body = #"{"type":"error","error":{"type":"invalid_request_error","message":"max_tokens must be greater than thinking.budget_tokens"}}"#
+        #expect(AIAnalysisService.providerErrorMessage(from: body) == "max_tokens must be greater than thinking.budget_tokens")
+    }
+
+    @Test("Extracts top-level message (Gemini shape)")
+    func providerErrorTopLevelMessage() {
+        let body = #"{"message":"API key not valid","status":"INVALID_ARGUMENT"}"#
+        #expect(AIAnalysisService.providerErrorMessage(from: body) == "API key not valid")
+    }
+
+    @Test("Non-JSON body passes through trimmed")
+    func providerErrorNonJSON() {
+        #expect(AIAnalysisService.providerErrorMessage(from: "  Bad Gateway\n") == "Bad Gateway")
+    }
+
+    @Test("Empty and whitespace-only bodies produce nil")
+    func providerErrorEmpty() {
+        #expect(AIAnalysisService.providerErrorMessage(from: "") == nil)
+        #expect(AIAnalysisService.providerErrorMessage(from: "   \n ") == nil)
+    }
+
+    @Test("Oversized body is truncated")
+    func providerErrorTruncation() throws {
+        let long = String(repeating: "x", count: 500)
+        let result = try #require(AIAnalysisService.providerErrorMessage(from: long))
+        #expect(result.count == 301)
+        #expect(result.hasSuffix("…"))
+    }
+
+    // MARK: - apiError description
+
+    @Test("400 surfaces the provider's explanation")
+    func apiError400IncludesDetail() throws {
+        let body = #"{"error":{"message":"image dimensions exceed max allowed size"}}"#
+        let error = AIAnalysisService.AnalysisError.apiError(statusCode: 400, message: body, provider: .anthropic)
+        let description = try #require(error.errorDescription)
+        #expect(description.contains("HTTP 400"))
+        #expect(description.contains("image dimensions exceed max allowed size"))
+    }
+
+    @Test("400 with an empty body falls back to generic copy")
+    func apiError400EmptyBody() throws {
+        let error = AIAnalysisService.AnalysisError.apiError(statusCode: 400, message: "", provider: .anthropic)
+        let description = try #require(error.errorDescription)
+        #expect(description == "API request failed with HTTP 400. Check your provider settings.")
+    }
+
+    @Test("Auth failures keep tailored copy and do not leak the body")
+    func apiErrorAuthDoesNotLeakBody() throws {
+        let body = #"{"error":{"message":"x-api-key header LEAKED-KEY-FIXTURE is invalid"}}"#
+        for code in [401, 403] {
+            let error = AIAnalysisService.AnalysisError.apiError(statusCode: code, message: body, provider: .anthropic)
+            let description = try #require(error.errorDescription)
+            #expect(!description.contains("LEAKED-KEY-FIXTURE"))
+            #expect(description.contains("Check your key in Settings"))
+        }
+    }
+
+    @Test("Rate limit keeps tailored per-provider copy")
+    func apiErrorRateLimitUnchanged() throws {
+        let body = #"{"error":{"message":"quota exceeded"}}"#
+        let gemini = AIAnalysisService.AnalysisError.apiError(statusCode: 429, message: body, provider: .gemini)
+        #expect(try #require(gemini.errorDescription).contains("free tier"))
+
+        let openai = AIAnalysisService.AnalysisError.apiError(statusCode: 429, message: body, provider: .openai)
+        #expect(try #require(openai.errorDescription).contains("Wait a moment"))
+    }
+
+    @Test("5xx appends the provider's explanation to the generic advice")
+    func apiError500IncludesDetail() throws {
+        let body = #"{"error":{"message":"upstream connect error"}}"#
+        let error = AIAnalysisService.AnalysisError.apiError(statusCode: 503, message: body, provider: .openrouter)
+        let description = try #require(error.errorDescription)
+        #expect(description.contains("HTTP 503"))
+        #expect(description.contains("upstream connect error"))
+    }
+
+    // MARK: - extractAnthropicText
+
+    @Test("Skips a leading thinking block to find the text block")
+    func anthropicTextSkipsThinking() throws {
+        let json: [String: Any] = ["content": [
+            ["type": "thinking", "thinking": "considering the image..."],
+            ["type": "text", "text": "{\"imageSummary\":\"Login Form\"}"]
+        ]]
+        #expect(try AIAnalysisService.extractAnthropicText(json) == "{\"imageSummary\":\"Login Form\"}")
+    }
+
+    @Test("Reads a lone text block")
+    func anthropicTextSingleBlock() throws {
+        let json: [String: Any] = ["content": [["type": "text", "text": "hello"]]]
+        #expect(try AIAnalysisService.extractAnthropicText(json) == "hello")
+    }
+
+    @Test("Throws when no text block is present (thinking-only truncation)")
+    func anthropicTextThinkingOnly() {
+        let json: [String: Any] = ["content": [["type": "thinking", "thinking": "truncated"]]]
+        #expect(throws: AIAnalysisService.AnalysisError.self) {
+            try AIAnalysisService.extractAnthropicText(json)
+        }
+    }
+
+    @Test("Throws on empty content array and blank text")
+    func anthropicTextEmpty() {
+        #expect(throws: AIAnalysisService.AnalysisError.self) {
+            try AIAnalysisService.extractAnthropicText(["content": []])
+        }
+        #expect(throws: AIAnalysisService.AnalysisError.self) {
+            try AIAnalysisService.extractAnthropicText(["content": [["type": "text", "text": "  \n "]]])
+        }
+    }
 }

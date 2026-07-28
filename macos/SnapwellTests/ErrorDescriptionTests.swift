@@ -41,6 +41,41 @@ struct ErrorDescriptionTests {
         #expect(desc.contains("Flash"))
     }
 
+    @Test("AnalysisError 400 surfaces the provider's explanation")
+    func analysisApiError400IncludesDetail() throws {
+        let body = #"{"error":{"message":"image dimensions exceed max allowed size"}}"#
+        let error = AIAnalysisService.AnalysisError.apiError(statusCode: 400, message: body, provider: .anthropic)
+        let desc = try #require(error.errorDescription)
+        #expect(desc.contains("HTTP 400"))
+        #expect(desc.contains("image dimensions exceed max allowed size"))
+    }
+
+    @Test("AnalysisError 400 with an empty body falls back to generic copy")
+    func analysisApiError400EmptyBody() throws {
+        let error = AIAnalysisService.AnalysisError.apiError(statusCode: 400, message: "", provider: .anthropic)
+        let desc = try #require(error.errorDescription)
+        #expect(desc == "API request failed with HTTP 400. Check your provider settings.")
+    }
+
+    @Test("AnalysisError auth failures keep tailored copy and do not leak the body",
+          arguments: [401, 403])
+    func analysisApiErrorAuthDoesNotLeakBody(_ code: Int) throws {
+        let body = #"{"error":{"message":"x-api-key header LEAKED-KEY-FIXTURE is invalid"}}"#
+        let error = AIAnalysisService.AnalysisError.apiError(statusCode: code, message: body, provider: .anthropic)
+        let desc = try #require(error.errorDescription)
+        #expect(!desc.contains("LEAKED-KEY-FIXTURE"))
+        #expect(desc.contains("Check your key in Settings"))
+    }
+
+    @Test("AnalysisError 5xx appends the provider's explanation")
+    func analysisApiError500IncludesDetail() throws {
+        let body = #"{"error":{"message":"upstream connect error"}}"#
+        let error = AIAnalysisService.AnalysisError.apiError(statusCode: 503, message: body, provider: .openrouter)
+        let desc = try #require(error.errorDescription)
+        #expect(desc.contains("HTTP 503"))
+        #expect(desc.contains("upstream connect error"))
+    }
+
     @Test("AnalysisError.parseFailed has description")
     func analysisParseFailed() {
         let error = AIAnalysisService.AnalysisError.parseFailed

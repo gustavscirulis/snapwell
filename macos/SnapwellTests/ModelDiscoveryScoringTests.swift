@@ -125,4 +125,61 @@ struct ModelDiscoveryScoringTests {
     func noDateDetected(_ input: String) {
         #expect(service.hasDateSnapshot(input) == false)
     }
+
+    // MARK: - Preferred Model Selection
+
+    private func models(_ ids: [String]) -> [DiscoveredModel] {
+        ids.map { DiscoveredModel(id: $0, displayName: $0) }
+    }
+
+    @Test("Prefers the earliest listed family over a newer unlisted one")
+    func preferredFamilyOrdering() {
+        let live = models(["gpt-5.5", "gpt-5.6-luna", "gpt-4o"])
+        #expect(service.preferredModel(from: live, for: .openai)?.id == "gpt-5.6-luna")
+    }
+
+    @Test("Prefers the base model over -pro and other suffixed variants")
+    func preferredShortestWins() {
+        let live = models(["gpt-5.6-luna-pro", "gpt-5.6-luna"])
+        #expect(service.preferredModel(from: live, for: .openai)?.id == "gpt-5.6-luna")
+
+        let gemini = models(["gemini-3-pro-image", "gemini-3-pro"])
+        #expect(service.preferredModel(from: gemini, for: .gemini)?.id == "gemini-3-pro")
+    }
+
+    @Test("Falls back through the preference list when top families are absent")
+    func preferredFallsThroughList() {
+        let live = models(["gpt-4o", "gpt-4.1"])
+        #expect(service.preferredModel(from: live, for: .openai)?.id == "gpt-4.1")
+    }
+
+    @Test("Returns nil when nothing in the live list is recognised")
+    func preferredNoMatch() {
+        #expect(service.preferredModel(from: models(["mystery-model-9"]), for: .openai) == nil)
+    }
+
+    @Test("Does not pick a chat alias over a real model")
+    func preferredSkipsChatAlias() {
+        let live = models(["gpt-5-chat-latest", "gpt-5.6-luna"])
+        #expect(service.preferredModel(from: live, for: .openai)?.id == "gpt-5.6-luna")
+    }
+
+    @Test("Anthropic and OpenRouter preferences resolve")
+    func preferredOtherProviders() {
+        let anthropic = models(["claude-haiku-4-5", "claude-sonnet-5"])
+        #expect(service.preferredModel(from: anthropic, for: .anthropic)?.id == "claude-sonnet-5")
+
+        let openrouter = models(["openai/gpt-5.6-luna", "google/gemini-3.5-flash"])
+        #expect(service.preferredModel(from: openrouter, for: .openrouter)?.id == "google/gemini-3.5-flash")
+    }
+
+    @Test("Every provider has a preference list and a discoverable default",
+          arguments: AIProvider.allCases)
+    func everyProviderHasPreferences(_ provider: AIProvider) throws {
+        let prefixes = try #require(ModelDiscoveryService.preferredModelPrefixes[provider])
+        #expect(!prefixes.isEmpty)
+        // The last-resort default must itself be something the preference list would pick,
+        // otherwise auto-resolution and the offline fallback disagree.
+        #expect(prefixes.contains { provider.defaultModel.hasPrefix($0) })
+    }
 }

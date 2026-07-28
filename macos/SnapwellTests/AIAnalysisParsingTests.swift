@@ -190,4 +190,72 @@ struct AIAnalysisParsingTests {
     func providerKeychainService(_ provider: AIProvider) {
         #expect(provider.keychainService == provider.rawValue)
     }
+
+    // MARK: - providerErrorMessage
+
+    @Test("Extracts nested error.message (Anthropic / OpenAI / OpenRouter shape)")
+    func providerErrorNestedMessage() {
+        let body = #"{"type":"error","error":{"type":"invalid_request_error","message":"max_tokens must be greater than thinking.budget_tokens"}}"#
+        #expect(AIAnalysisService.providerErrorMessage(from: body) == "max_tokens must be greater than thinking.budget_tokens")
+    }
+
+    @Test("Extracts top-level message (Gemini shape)")
+    func providerErrorTopLevelMessage() {
+        let body = #"{"message":"API key not valid","status":"INVALID_ARGUMENT"}"#
+        #expect(AIAnalysisService.providerErrorMessage(from: body) == "API key not valid")
+    }
+
+    @Test("Non-JSON body passes through trimmed")
+    func providerErrorNonJSON() {
+        #expect(AIAnalysisService.providerErrorMessage(from: "  Bad Gateway\n") == "Bad Gateway")
+    }
+
+    @Test("Empty and whitespace-only bodies produce nil")
+    func providerErrorEmpty() {
+        #expect(AIAnalysisService.providerErrorMessage(from: "") == nil)
+        #expect(AIAnalysisService.providerErrorMessage(from: "   \n ") == nil)
+    }
+
+    @Test("Oversized body is truncated")
+    func providerErrorTruncation() throws {
+        let long = String(repeating: "x", count: 500)
+        let result = try #require(AIAnalysisService.providerErrorMessage(from: long))
+        #expect(result.count == 301)
+        #expect(result.hasSuffix("…"))
+    }
+
+    // MARK: - extractAnthropicText
+
+    @Test("Skips a leading thinking block to find the text block")
+    func anthropicTextSkipsThinking() throws {
+        let json: [String: Any] = ["content": [
+            ["type": "thinking", "thinking": "considering the image..."],
+            ["type": "text", "text": "{\"imageSummary\":\"Login Form\"}"]
+        ]]
+        #expect(try AIAnalysisService.extractAnthropicText(json) == "{\"imageSummary\":\"Login Form\"}")
+    }
+
+    @Test("Reads a lone text block")
+    func anthropicTextSingleBlock() throws {
+        let json: [String: Any] = ["content": [["type": "text", "text": "hello"]]]
+        #expect(try AIAnalysisService.extractAnthropicText(json) == "hello")
+    }
+
+    @Test("Throws when no text block is present (thinking-only truncation)")
+    func anthropicTextThinkingOnly() {
+        let json: [String: Any] = ["content": [["type": "thinking", "thinking": "truncated"]]]
+        #expect(throws: AIAnalysisService.AnalysisError.self) {
+            try AIAnalysisService.extractAnthropicText(json)
+        }
+    }
+
+    @Test("Throws on empty content array and blank text")
+    func anthropicTextEmpty() {
+        #expect(throws: AIAnalysisService.AnalysisError.self) {
+            try AIAnalysisService.extractAnthropicText(["content": []])
+        }
+        #expect(throws: AIAnalysisService.AnalysisError.self) {
+            try AIAnalysisService.extractAnthropicText(["content": [["type": "text", "text": "  \n "]]])
+        }
+    }
 }
