@@ -33,6 +33,13 @@ class MediaItem {
         return CGFloat(width) / CGFloat(height)
     }
 
+    /// Aspect ratio capped at 1:2 for grid display. An unclamped tall screenshot produces a
+    /// cell many times the viewport height, which inflates the scroll view's content size and
+    /// forces repeated layout re-negotiation. The detail view uses `aspectRatio` directly.
+    var gridAspectRatio: CGFloat {
+        max(aspectRatio, 0.5)
+    }
+
     var isVideo: Bool { mediaType == .video }
 
     init(id: String = UUID().uuidString, mediaType: MediaType, filename: String, width: Int, height: Int, createdAt: Date = .now, duration: Double? = nil) {

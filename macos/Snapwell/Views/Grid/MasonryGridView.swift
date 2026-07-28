@@ -9,6 +9,14 @@ struct ItemFramePreferenceKey: PreferenceKey {
     }
 }
 
+/// Holds rubber-band hit rects outside SwiftUI's dependency graph. `body` never reads it, so
+/// preference deliveries no longer invalidate the grid — previously every delivery during a drag
+/// re-ran the whole distribution.
+@MainActor
+final class ItemFrameStore {
+    var frames: [String: CGRect] = [:]
+}
+
 // MARK: - Masonry Grid
 
 struct MasonryGridView: View {
@@ -26,11 +34,16 @@ struct MasonryGridView: View {
     let onSetSelection: (Set<String>) -> Void
     var coordinateSpaceName: String = "gridContent"
     var topInset: CGFloat = 0
+    /// Bumped by the parent when the item set is replaced wholesale (a new search). Resolving a
+    /// deep scroll offset against a list whose identity is being replaced is the worst case for
+    /// the lazy stacks' size estimation.
+    var scrollResetToken: Int = 0
 
     @Environment(AppState.self) private var appState
 
     // Rubber band state
-    @State private var itemFrames: [String: CGRect] = [:]
+    @State private var frameStore = ItemFrameStore()
+    @State private var scrollPosition = ScrollPosition(edge: .top)
     @State private var rubberBandStart: CGPoint?
     @State private var rubberBandCurrent: CGPoint?
     @State private var rubberBandActive = false
@@ -51,111 +64,87 @@ struct MasonryGridView: View {
             let spacing: CGFloat = 16  // masonry-grid.css:10,16 — 16px column/row gaps
             let horizontalPadding: CGFloat = 24
             let availableWidth = geometry.size.width - horizontalPadding * 2
-            let columns = thumbnailSize.columns(forWidth: geometry.size.width)
-            let columnWidth = (availableWidth - spacing * CGFloat(columns - 1)) / CGFloat(columns)
-            let distribution = computeDistribution(totalColumns: columns)
+            let columnCount = thumbnailSize.columns(forWidth: geometry.size.width)
+            let columnWidth = max(1, (availableWidth - spacing * CGFloat(columnCount - 1)) / CGFloat(columnCount))
+            let columns = MasonryLayout.distribute(
+                items,
+                columns: columnCount,
+                columnWidth: columnWidth,
+                spacing: spacing
+            )
+            let fingerprint = MasonryLayout.fingerprint(items.lazy.map(\.id))
 
             ScrollView {
-                ZStack(alignment: .topLeading) {
-                    // Background gesture layer — catches drags on empty space
-                    Color.clear
-                        .contentShape(Rectangle())
-                        .frame(minHeight: geometry.size.height)
-                        .gesture(
-                            DragGesture(minimumDistance: 0, coordinateSpace: .named(coordinateSpaceName))
-                                .onChanged { value in
-                                    if rubberBandStart == nil {
-                                        rubberBandStart = value.startLocation
-                                        let flags = NSEvent.modifierFlags
-                                        frozenSelection = (flags.contains(.shift) || flags.contains(.command))
-                                            ? appState.selectedIds : Set()
-                                    }
-                                    rubberBandCurrent = value.location
-
-                                    let dx = value.location.x - value.startLocation.x
-                                    let dy = value.location.y - value.startLocation.y
-                                    if !rubberBandActive && (dx * dx + dy * dy >= 9) {
-                                        rubberBandActive = true
-                                    }
-
-                                    if rubberBandActive, let rect = rubberBandRect {
-                                        var newSelection = frozenSelection
-                                        for (id, frame) in itemFrames {
-                                            if rect.intersects(frame) {
-                                                newSelection.insert(id)
-                                            }
+                // The lazy stacks must be the scroll view's only sizing child. Putting them in a
+                // ZStack alongside a min-height sibling makes the ZStack measure them, which
+                // defeats laziness — `LazyVStack.sizeThatFits` then walks the whole library on
+                // every layout pass. `background`/`overlay` are layout-neutral, so the rubber-band
+                // layers inherit the resolved size instead of participating in it.
+                HStack(alignment: .top, spacing: spacing) {
+                    ForEach(columns) { column in
+                        LazyVStack(spacing: spacing) {
+                            ForEach(column.items) { item in
+                                if !item.isDeleted {
+                                    GridItemView(
+                                        item: item,
+                                        width: columnWidth,
+                                        orderedItems: { items },
+                                        itemsFingerprint: fingerprint,
+                                        activeSpaceId: activeSpaceId,
+                                        onSelect: { frame in onSelect(item.id, frame) },
+                                        onToggleSelect: { onToggleSelect(item.id) },
+                                        onShiftSelect: { onShiftSelect(item.id) },
+                                        onDelete: onDelete,
+                                        onChangeSpaceMembership: onChangeSpaceMembership,
+                                        onRetryAnalysis: onRetryAnalysis,
+                                        onShare: onShare
+                                    )
+                                    .equatable()
+                                    // Outside the EquatableView — this closure captures
+                                    // `rubberBandStart`, which legitimately changes every pass.
+                                    .background(
+                                        GeometryReader { geo in
+                                            Color.clear.preference(
+                                                key: ItemFramePreferenceKey.self,
+                                                value: rubberBandStart != nil
+                                                    ? [item.id: geo.frame(in: .named(coordinateSpaceName))]
+                                                    : [:]
+                                            )
                                         }
-                                        onSetSelection(newSelection)
-                                    }
-                                }
-                                .onEnded { _ in
-                                    if !rubberBandActive && frozenSelection.isEmpty {
-                                        // Click on empty space without modifiers — clear selection
-                                        onSetSelection([])
-                                    }
-                                    rubberBandStart = nil
-                                    rubberBandCurrent = nil
-                                    rubberBandActive = false
-                                    frozenSelection = []
-                                }
-                        )
-
-                    // Content columns
-                    HStack(alignment: .top, spacing: spacing) {
-                        ForEach(0..<columns, id: \.self) { column in
-                            LazyVStack(spacing: spacing) {
-                                ForEach(distribution[column]) { item in
-                                    if !item.isDeleted {
-                                        GridItemView(
-                                            item: item,
-                                            width: columnWidth,
-                                            orderedItems: items,
-                                            spaces: spaces,
-                                            activeSpaceId: activeSpaceId,
-                                            onSelect: { frame in onSelect(item.id, frame) },
-                                            onToggleSelect: { onToggleSelect(item.id) },
-                                            onShiftSelect: { onShiftSelect(item.id) },
-                                            onDelete: onDelete,
-                                            onChangeSpaceMembership: onChangeSpaceMembership,
-                                            onRetryAnalysis: onRetryAnalysis,
-                                            onShare: onShare
-                                        )
-                                        .background(
-                                            GeometryReader { geo in
-                                                Color.clear.preference(
-                                                    key: ItemFramePreferenceKey.self,
-                                                    value: rubberBandStart != nil
-                                                        ? [item.id: geo.frame(in: .named(coordinateSpaceName))]
-                                                        : [:]
-                                                )
-                                            }
-                                        )
-                                    }
+                                    )
                                 }
                             }
                         }
                     }
-                    .padding(.horizontal, horizontalPadding)  // ImageGrid.tsx:598 — px-4
-                    .padding(.top, 24 + topInset)
-                    .padding(.bottom, 24)
-
-                    // Rubber band visual
-                    if let rect = rubberBandRect {
-                        Rectangle()
-                            .fill(Color.accentColor.opacity(0.10))
-                            .overlay(
-                                Rectangle()
-                                    .stroke(Color.accentColor.opacity(0.6), lineWidth: 1)
-                            )
-                            .frame(width: rect.width, height: rect.height)
-                            .offset(x: rect.minX, y: rect.minY)
-                            .allowsHitTesting(false)
-                    }
                 }
+                // One padding layer, not three chained ones — each adds a layout level the
+                // measuring pass has to descend through.
+                .padding(EdgeInsets(
+                    top: 24 + topInset,
+                    leading: horizontalPadding,  // ImageGrid.tsx:598 — px-4
+                    bottom: 24,
+                    trailing: horizontalPadding
+                ))
+                .environment(\.gridSpaces, spaces)
+                // Outside the padding, so the drag catcher still covers the viewport when the
+                // content is shorter than it.
+                .frame(
+                    minWidth: geometry.size.width,
+                    minHeight: geometry.size.height,
+                    alignment: .topLeading
+                )
+                .background(alignment: .topLeading) { rubberBandCatcher }
+                .overlay(alignment: .topLeading) { rubberBandVisual }
                 .coordinateSpace(.named(coordinateSpaceName))
-                .onPreferenceChange(ItemFramePreferenceKey.self) { frames in
-                    MainActor.assumeIsolated { itemFrames = frames }
+                // The action is @Sendable with no main-actor guarantee, so `assumeIsolated` here
+                // would trap. Hop explicitly instead.
+                .onPreferenceChange(ItemFramePreferenceKey.self) { [frameStore] frames in
+                    Task { @MainActor in frameStore.frames = frames }
                 }
+            }
+            .scrollPosition($scrollPosition)
+            .onChange(of: scrollResetToken) {
+                scrollPosition.scrollTo(edge: .top)
             }
             #if compiler(>=6.3)
             .modifier(SoftScrollEdgeModifier())
@@ -163,20 +152,66 @@ struct MasonryGridView: View {
         }
     }
 
-    /// Distribute items across columns using shortest-column-first algorithm.
-    /// Computed once per body evaluation (O(n)), not per-column.
-    private func computeDistribution(totalColumns: Int) -> [[MediaItem]] {
-        var columnHeights = Array(repeating: CGFloat(0), count: totalColumns)
-        var columnItems = Array(repeating: [MediaItem](), count: totalColumns)
+    // MARK: - Rubber Band
 
-        for item in items where !item.isDeleted {
-            let shortest = columnHeights.enumerated().min(by: { $0.element < $1.element })?.offset ?? 0
-            columnItems[shortest].append(item)
-            let estimatedHeight = 1.0 / item.aspectRatio
-            columnHeights[shortest] += estimatedHeight + 16
+    /// Catches drags on empty space. Deliberately has no `.frame` — as a background it inherits
+    /// the parent's already-resolved size, which is what keeps it out of the sizing path.
+    private var rubberBandCatcher: some View {
+        Color.clear
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0, coordinateSpace: .named(coordinateSpaceName))
+                    .onChanged { value in
+                        if rubberBandStart == nil {
+                            rubberBandStart = value.startLocation
+                            let flags = NSEvent.modifierFlags
+                            frozenSelection = (flags.contains(.shift) || flags.contains(.command))
+                                ? appState.selectedIds : Set()
+                        }
+                        rubberBandCurrent = value.location
+
+                        let dx = value.location.x - value.startLocation.x
+                        let dy = value.location.y - value.startLocation.y
+                        if !rubberBandActive && (dx * dx + dy * dy >= 9) {
+                            rubberBandActive = true
+                        }
+
+                        if rubberBandActive, let rect = rubberBandRect {
+                            var newSelection = frozenSelection
+                            for (id, frame) in frameStore.frames {
+                                if rect.intersects(frame) {
+                                    newSelection.insert(id)
+                                }
+                            }
+                            onSetSelection(newSelection)
+                        }
+                    }
+                    .onEnded { _ in
+                        if !rubberBandActive && frozenSelection.isEmpty {
+                            // Click on empty space without modifiers — clear selection
+                            onSetSelection([])
+                        }
+                        rubberBandStart = nil
+                        rubberBandCurrent = nil
+                        rubberBandActive = false
+                        frozenSelection = []
+                    }
+            )
+    }
+
+    @ViewBuilder
+    private var rubberBandVisual: some View {
+        if let rect = rubberBandRect {
+            Rectangle()
+                .fill(Color.accentColor.opacity(0.10))
+                .overlay(
+                    Rectangle()
+                        .stroke(Color.accentColor.opacity(0.6), lineWidth: 1)
+                )
+                .frame(width: rect.width, height: rect.height)
+                .offset(x: rect.minX, y: rect.minY)
+                .allowsHitTesting(false)
         }
-
-        return columnItems
     }
 }
 

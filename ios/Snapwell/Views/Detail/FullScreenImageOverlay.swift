@@ -70,7 +70,6 @@ extension View {
 // MARK: - Full Screen Image Overlay
 
 struct FullScreenImageOverlay: View {
-    let startIndex: Int
     let sourceRect: CGRect
     let screenSize: CGSize
     let thumbnailImage: UIImage?
@@ -90,6 +89,10 @@ struct FullScreenImageOverlay: View {
     /// Captured at open time — stays stable even when parent re-filters.
     @State private var items: [MediaItem]
     @State private var currentIndex: Int
+    /// Identity of the item the hero animation started from. `startIndex` is deliberately not
+    /// stored: the parent recomputes it against the live filtered array, so using it to index the
+    /// frozen `items` snapshot goes out of range as soon as a search settles or sync delivers items.
+    @State private var originalItemId: String?
 
     // Phase control
     @State private var isExpanded = false
@@ -177,7 +180,6 @@ struct FullScreenImageOverlay: View {
         onDelete: ((MediaItem) -> Void)? = nil
     ) {
         _items = State(initialValue: items)
-        self.startIndex = startIndex
         self.sourceRect = sourceRect
         self.screenSize = screenSize
         self.thumbnailImage = thumbnailImage
@@ -191,7 +193,9 @@ struct FullScreenImageOverlay: View {
         self.onClose = onClose
         self.onSearchPattern = onSearchPattern
         self.onDelete = onDelete
-        _currentIndex = State(initialValue: startIndex)
+        let clampedStart = items.indices.contains(startIndex) ? startIndex : 0
+        _currentIndex = State(initialValue: clampedStart)
+        _originalItemId = State(initialValue: items.indices.contains(clampedStart) ? items[clampedStart].id : nil)
         _closeTargetFrame = State(initialValue: sourceRect)
     }
 
@@ -1035,8 +1039,7 @@ struct FullScreenImageOverlay: View {
                 // off-screen TabView pages), so anchor to sourceRect.
                 // Skip this after search-triggered close — grid has re-laid out
                 // with new items, so the original correction is invalid.
-                let originalItemId = items[startIndex].id
-                if let originalGridRect = gridItemRects[originalItemId] {
+                if let originalItemId, let originalGridRect = gridItemRects[originalItemId] {
                     let xCorrection = sourceRect.midX - originalGridRect.midX
                     let yCorrection = sourceRect.midY - originalGridRect.midY
                     correctedRect = CGRect(

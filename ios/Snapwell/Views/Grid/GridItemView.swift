@@ -1,21 +1,50 @@
 import SwiftUI
 
 struct GridItemRectsPreferenceKey: PreferenceKey {
-    static var defaultValue: [String: CGRect] = [:]
+    nonisolated static let defaultValue: [String: CGRect] = [:]
+
+    /// Snapshot of the screen bounds. `reduce` is nonisolated and runs on every preference merge,
+    /// so it must not read main-actor UIKit state; `MainView` refreshes this on appear.
+    nonisolated(unsafe) static var screenBounds: CGRect = .zero
+
     static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) {
         // When multiple grids exist (space pages in a horizontal pager),
         // prefer rects that are on the visible screen over off-screen ones.
-        let screen = UIScreen.main.bounds
+        let screen = screenBounds
         value.merge(nextValue()) { existing, new in
-            if screen.intersects(new) { return new }
+            if screen.isEmpty || screen.intersects(new) { return new }
             return existing
         }
     }
 }
 
+private struct GridPublishesFramesKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+private struct GridSpacesKey: EnvironmentKey {
+    static let defaultValue: [Space] = []
+}
+
+extension EnvironmentValues {
+    /// Gates per-cell frame reporting. The rects are only read by the detail overlay's hero-close
+    /// animation, so publishing them while merely scrolling invalidates the whole view tree on
+    /// every frame.
+    var gridPublishesFrames: Bool {
+        get { self[GridPublishesFramesKey.self] }
+        set { self[GridPublishesFramesKey.self] = newValue }
+    }
+
+    /// Passed through the environment rather than as a stored property on `GridItemView`, so the
+    /// array is not compared element-by-element for every cell on every update pass.
+    var gridSpaces: [Space] {
+        get { self[GridSpacesKey.self] }
+        set { self[GridSpacesKey.self] = newValue }
+    }
+}
+
 struct GridItemView: View {
     let item: MediaItem
-    var spaces: [Space] = []
     let width: CGFloat
     var isSelected: Bool = false
     var onSelect: ((MediaItem, CGRect, UIImage?) -> Void)?
@@ -23,6 +52,8 @@ struct GridItemView: View {
     var onShare: (() -> Void)?
     var onDelete: (() -> Void)?
     var onAssignToSpace: ((String, String?) -> Void)?
+    @Environment(\.gridPublishesFrames) private var publishesFrames
+    @Environment(\.gridSpaces) private var spaces
     @State private var thumbnail: UIImage?
     @State private var loadFailed = false
 
@@ -127,7 +158,7 @@ struct GridItemView: View {
                     }
                     .preference(
                         key: GridItemRectsPreferenceKey.self,
-                        value: [item.id: geo.frame(in: .global)]
+                        value: publishesFrames ? [item.id: geo.frame(in: .global)] : [:]
                     )
             }
         )

@@ -55,6 +55,32 @@ struct MediaItemTests {
         #expect(item.isVideo == false)
     }
 
+    // MARK: - gridAspectRatio
+
+    @Test("gridAspectRatio caps tall images at 0.5")
+    func gridAspectRatioCapped() throws {
+        let container = try TestContainer.create()
+        let item = MediaItem(mediaType: .image, filename: "tall.png", width: 390, height: 2000)
+        container.mainContext.insert(item)
+        #expect(item.gridAspectRatio == 0.5)
+    }
+
+    @Test("gridAspectRatio unchanged for normal images")
+    func gridAspectRatioNormal() throws {
+        let container = try TestContainer.create()
+        let item = MediaItem(mediaType: .image, filename: "test.png", width: 1920, height: 1080)
+        container.mainContext.insert(item)
+        #expect(item.gridAspectRatio == item.aspectRatio)
+    }
+
+    @Test("gridAspectRatio exactly 0.5 stays at 0.5")
+    func gridAspectRatioExactly05() throws {
+        let container = try TestContainer.create()
+        let item = MediaItem(mediaType: .image, filename: "test.png", width: 500, height: 1000)
+        container.mainContext.insert(item)
+        #expect(item.gridAspectRatio == 0.5)
+    }
+
     @Test("Default id is generated UUID")
     func defaultId() throws {
         let container = try TestContainer.create()

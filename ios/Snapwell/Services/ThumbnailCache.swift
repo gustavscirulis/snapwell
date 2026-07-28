@@ -87,9 +87,15 @@ class ThumbnailCache {
             return (nil, false)
         }
 
+        // A cell scrolled off-screen has already had its task cancelled; decoding anyway would
+        // occupy one of the four slots for work nobody will display.
+        if Task.isCancelled { return (nil, false) }
+
         // Throttle concurrent loads using structured concurrency
         await limiter.acquire()
         defer { Task { await limiter.release() } }
+
+        if Task.isCancelled { return (nil, false) }
 
         if url.pathExtension.lowercased() == "mp4" {
             guard let thumbnail = generateVideoThumbnail(for: url) else {
@@ -199,7 +205,7 @@ class ThumbnailCache {
                let pw = properties[kCGImagePropertyPixelWidth] as? CGFloat,
                let ph = properties[kCGImagePropertyPixelHeight] as? CGFloat,
                pw > 0, ph > pw {
-                maxPixelSize = Int(targetPixelWidth * ph / pw)
+                maxPixelSize = Int(targetPixelWidth * min(ph / pw, 4))
             }
         } else {
             maxPixelSize = 0

@@ -60,8 +60,10 @@
 		96D3198C61E162D1BCEB85B1 /* MediaStorageTrashIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D0223DD388E6C8DF1512A79 /* MediaStorageTrashIntegrationTests.swift */; };
 		99DC4F5383BD95095133D36C /* ElectronImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C816703A8080B87FA1BF284B /* ElectronImportView.swift */; };
 		9CDC09FB8802E584DEDC6F6F /* ElectronImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC594295DE82F5F37FCD32AE /* ElectronImportService.swift */; };
+		9F26E16B3DA67B76309E1F45 /* MasonryLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBC8CC064B2D4EB68504D126 /* MasonryLayout.swift */; };
 		A0BB9CE0730962F0AF0F2DDD /* VideoFrameExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0827E9C9154032E2226CD578 /* VideoFrameExtractor.swift */; };
 		A89A6653616507CB5D889444 /* DeveloperSettingsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC20EE1BCCCE5080F3399A35 /* DeveloperSettingsTab.swift */; };
+		ADE69059A0959E65A43F0AA4 /* MasonryLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 179E8A286C0CDB56CA52FE20 /* MasonryLayoutTests.swift */; };
 		BCE0514088740A89742CCDC5 /* SupportedMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3856EEAF89014E495066351 /* SupportedMedia.swift */; };
 		BF840D65A93D6104C27937CE /* VideoPreviewManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04691EE917E1FF08178F89E3 /* VideoPreviewManager.swift */; };
 		C279F32F68D9AF9DD17FDA83 /* MigrationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29BE00279D95DAE96324E950 /* MigrationService.swift */; };
@@ -104,6 +106,7 @@
 		0A6B8409C92571058001203C /* View+DoubleClick.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "View+DoubleClick.swift"; sourceTree = "<group>"; };
 		0FE69AE98FC89CC5DF5E49B2 /* GridDragExportPayloadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridDragExportPayloadTests.swift; sourceTree = "<group>"; };
 		16D75151835942334CFA4B10 /* Snapwell.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Snapwell.entitlements; sourceTree = "<group>"; };
+		179E8A286C0CDB56CA52FE20 /* MasonryLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MasonryLayoutTests.swift; sourceTree = "<group>"; };
 		1B8B132E7958F30D1D689F0D /* ImportServiceIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportServiceIntegrationTests.swift; sourceTree = "<group>"; };
 		21FA0BC24A2C36986BD66E53 /* TestTags.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestTags.swift; sourceTree = "<group>"; };
 		23531C55E11DF51B4F54E8DD /* MetadataSidecarService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetadataSidecarService.swift; sourceTree = "<group>"; };
@@ -126,7 +129,7 @@
 		480D2D2839ABBA0294002566 /* DataCleanupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataCleanupService.swift; sourceTree = "<group>"; };
 		4906BAC04FF86E81EB0E2A68 /* NSImage+Thumbnail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NSImage+Thumbnail.swift"; sourceTree = "<group>"; };
 		4D5C3D220F8D67C08E23743A /* ImportServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportServiceTests.swift; sourceTree = "<group>"; };
-		4DA7B97F4581236A0CA4C6EA /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		4DA7B97F4581236A0CA4C6EA /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		502F1DDA2B1822158D09D39E /* SpaceMembership.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpaceMembership.swift; sourceTree = "<group>"; };
 		54E8AC928A5EEE78B6D497A3 /* SpaceSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpaceSidebarView.swift; sourceTree = "<group>"; };
 		5516C7C718B0CAA2172278AC /* ModelRelationshipTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelRelationshipTests.swift; sourceTree = "<group>"; };
@@ -177,6 +180,7 @@
 		F1D302049D87B8F57C5CFD77 /* ImportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportService.swift; sourceTree = "<group>"; };
 		F938968574835B665B90D405 /* SelectionBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionBadge.swift; sourceTree = "<group>"; };
 		FAE314467270374181E46993 /* AIAnalysisParsingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIAnalysisParsingTests.swift; sourceTree = "<group>"; };
+		FBC8CC064B2D4EB68504D126 /* MasonryLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MasonryLayout.swift; sourceTree = "<group>"; };
 		FD2D1935EC4C8C9C34C1F18E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		FDC3A4365BE9BE0ABBB34470 /* MediaItemContextMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaItemContextMenu.swift; sourceTree = "<group>"; };
 		FE63F766C86D6562165C6B5B /* MasonryGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MasonryGridView.swift; sourceTree = "<group>"; };
@@ -273,6 +277,7 @@
 				CC26D01B27BEA8C39E30573F /* EmptyStateView.swift */,
 				D7E3B1375DB3958802F3B9E6 /* GridItemView.swift */,
 				FE63F766C86D6562165C6B5B /* MasonryGridView.swift */,
+				FBC8CC064B2D4EB68504D126 /* MasonryLayout.swift */,
 				F938968574835B665B90D405 /* SelectionBadge.swift */,
 			);
 			path = Grid;
@@ -338,6 +343,7 @@
 				1B8B132E7958F30D1D689F0D /* ImportServiceIntegrationTests.swift */,
 				4D5C3D220F8D67C08E23743A /* ImportServiceTests.swift */,
 				6231156D1ACD8BE0A4E8BCB7 /* KeySyncCryptoTests.swift */,
+				179E8A286C0CDB56CA52FE20 /* MasonryLayoutTests.swift */,
 				82ABC31E8157925AAEEC12A8 /* MediaItemTests.swift */,
 				8D0223DD388E6C8DF1512A79 /* MediaStorageTrashIntegrationTests.swift */,
 				2BA3B6CE925ED3FB194C4FE3 /* MetadataSidecarIntegrationTests.swift */,
@@ -518,6 +524,7 @@
 				730E9AC528F397E48E7727E1 /* KeySyncService.swift in Sources */,
 				7B3D823B41D4223644A23D84 /* KeychainService.swift in Sources */,
 				DC2D46F1FBC0A1D809870B07 /* MasonryGridView.swift in Sources */,
+				9F26E16B3DA67B76309E1F45 /* MasonryLayout.swift in Sources */,
 				0D1D3C4E505B22A1375620ED /* MediaItem.swift in Sources */,
 				7AB0CCB500DCE082A95EB5F9 /* MediaItemContextMenu.swift in Sources */,
 				258A241C2263692113F1A899 /* MediaStorageService.swift in Sources */,
@@ -564,6 +571,7 @@
 				5982CB9AB0F1261066893E34 /* ImportServiceTests.swift in Sources */,
 				2E8367A86B1F4F7DCD742F4E /* IntegrationTestSupport.swift in Sources */,
 				D493A42D60677011572E0242 /* KeySyncCryptoTests.swift in Sources */,
+				ADE69059A0959E65A43F0AA4 /* MasonryLayoutTests.swift in Sources */,
 				37BEB51B303FB9A3D24B3C9B /* MediaItemTests.swift in Sources */,
 				96D3198C61E162D1BCEB85B1 /* MediaStorageTrashIntegrationTests.swift in Sources */,
 				109B01AFACCA063EB5692FD5 /* MetadataSidecarIntegrationTests.swift in Sources */,
@@ -599,13 +607,13 @@
 				ASSETCATALOG_COMPILER_STANDALONE_ICON_BEHAVIOR = none;
 				CODE_SIGN_ENTITLEMENTS = Snapwell/Resources/Snapwell.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				INFOPLIST_FILE = Snapwell/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.1;
+				MARKETING_VERSION = 1.0.3;
 				PRODUCT_BUNDLE_IDENTIFIER = co.snapwell;
 				SDKROOT = macosx;
 				SWIFT_STRICT_CONCURRENCY = complete;
@@ -620,13 +628,13 @@
 				ASSETCATALOG_COMPILER_STANDALONE_ICON_BEHAVIOR = none;
 				CODE_SIGN_ENTITLEMENTS = Snapwell/Resources/Snapwell.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				INFOPLIST_FILE = Snapwell/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.1;
+				MARKETING_VERSION = 1.0.3;
 				PRODUCT_BUNDLE_IDENTIFIER = co.snapwell;
 				SDKROOT = macosx;
 				SWIFT_STRICT_CONCURRENCY = complete;

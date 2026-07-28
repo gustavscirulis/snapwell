@@ -31,6 +31,7 @@
 		A100000009 /* Color+Snapwell.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000009 /* Color+Snapwell.swift */; };
 		A100000011 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000011 /* MainView.swift */; };
 		A100000013 /* MasonryGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000013 /* MasonryGrid.swift */; };
+		A100000099 /* MasonryLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000099 /* MasonryLayout.swift */; };
 		A100000014 /* GridItemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000014 /* GridItemView.swift */; };
 		A100000015 /* PatternPills.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000015 /* PatternPills.swift */; };
 		A100000016 /* ImageDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000016 /* ImageDetailView.swift */; };
@@ -62,6 +63,7 @@
 		A100000070 /* Settings.bundle in Resources */ = {isa = PBXBuildFile; fileRef = B100000070 /* Settings.bundle */; };
 		A1MIGR0001 /* LocalToiCloudMigrationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1MIGR0001 /* LocalToiCloudMigrationService.swift */; };
 		A200000001 /* GridPreferenceKeyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000001 /* GridPreferenceKeyTests.swift */; };
+		A200000099 /* MasonryLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000099 /* MasonryLayoutTests.swift */; };
 		C325B2DE9C4EBB590CE9AA5B /* MediaItemTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BC6070D4921036591CAB048 /* MediaItemTests.swift */; };
 		E34FCD416FC123E6A9B6418F /* ImageImportServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7283BD792D4DC7DA66FA0273 /* ImageImportServiceTests.swift */; };
 		E740BF023E205C121824CCB6 /* TestTags.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC1856679647210724D1E66B /* TestTags.swift */; };
@@ -126,6 +128,7 @@
 		B100000009 /* Color+Snapwell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Snapwell.swift"; sourceTree = "<group>"; };
 		B100000011 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
 		B100000013 /* MasonryGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MasonryGrid.swift; sourceTree = "<group>"; };
+		B100000099 /* MasonryLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MasonryLayout.swift; sourceTree = "<group>"; };
 		B100000014 /* GridItemView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridItemView.swift; sourceTree = "<group>"; };
 		B100000015 /* PatternPills.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatternPills.swift; sourceTree = "<group>"; };
 		B100000016 /* ImageDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageDetailView.swift; sourceTree = "<group>"; };
@@ -159,6 +162,7 @@
 		B100000070 /* Settings.bundle */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.plug-in"; path = Settings.bundle; sourceTree = "<group>"; };
 		B1MIGR0001 /* LocalToiCloudMigrationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalToiCloudMigrationService.swift; sourceTree = "<group>"; };
 		B200000001 /* GridPreferenceKeyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GridPreferenceKeyTests.swift; sourceTree = "<group>"; };
+		B200000099 /* MasonryLayoutTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MasonryLayoutTests.swift; sourceTree = "<group>"; };
 		C100000001 /* Snapwell.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Snapwell.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CC1856679647210724D1E66B /* TestTags.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TestTags.swift; sourceTree = "<group>"; };
 		D03B2C30D0292058D69AC3B2 /* ShareImportServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShareImportServiceTests.swift; sourceTree = "<group>"; };
@@ -246,6 +250,7 @@
 				0D3694D12FDBE22980A4E2CF /* KeySyncServiceTests.swift */,
 				7283BD792D4DC7DA66FA0273 /* ImageImportServiceTests.swift */,
 				B200000001 /* GridPreferenceKeyTests.swift */,
+				B200000099 /* MasonryLayoutTests.swift */,
 			);
 			path = SnapwellTests;
 			sourceTree = "<group>";
@@ -374,6 +379,7 @@
 			isa = PBXGroup;
 			children = (
 				B100000013 /* MasonryGrid.swift */,
+				B100000099 /* MasonryLayout.swift */,
 				B100000014 /* GridItemView.swift */,
 				B100000015 /* PatternPills.swift */,
 			);
@@ -567,6 +573,7 @@
 				5E5E4765114B409FE5994A83 /* KeySyncServiceTests.swift in Sources */,
 				E34FCD416FC123E6A9B6418F /* ImageImportServiceTests.swift in Sources */,
 				A200000001 /* GridPreferenceKeyTests.swift in Sources */,
+				A200000099 /* MasonryLayoutTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -593,6 +600,7 @@
 				A100000052 /* SpaceCardView.swift in Sources */,
 				A100000053 /* SpaceDetailView.swift in Sources */,
 				A100000013 /* MasonryGrid.swift in Sources */,
+				A100000099 /* MasonryLayout.swift in Sources */,
 				A100000014 /* GridItemView.swift in Sources */,
 				A100000015 /* PatternPills.swift in Sources */,
 				A100000016 /* ImageDetailView.swift in Sources */,
@@ -646,7 +654,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = HJ4HYUU2Y6;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
@@ -659,7 +667,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.0.2;
+				MARKETING_VERSION = 1.0.3;
 				PRODUCT_BUNDLE_IDENTIFIER = co.snapwell.ShareExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -678,7 +686,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = HJ4HYUU2Y6;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
@@ -691,7 +699,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.0.2;
+				MARKETING_VERSION = 1.0.3;
 				PRODUCT_BUNDLE_IDENTIFIER = co.snapwell.ShareExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -868,7 +876,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = Snapwell/Resources/Snapwell.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = HJ4HYUU2Y6;
 				ENABLE_PREVIEWS = YES;
@@ -886,7 +894,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.2;
+				MARKETING_VERSION = 1.0.3;
 				PRODUCT_BUNDLE_IDENTIFIER = co.snapwell;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -905,7 +913,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = Snapwell/Resources/Snapwell.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = HJ4HYUU2Y6;
 				ENABLE_PREVIEWS = YES;
@@ -923,7 +931,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.2;
+				MARKETING_VERSION = 1.0.3;
 				PRODUCT_BUNDLE_IDENTIFIER = co.snapwell;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
