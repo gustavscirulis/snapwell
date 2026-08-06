@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
+import { Geist } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import DevTools from "./dev-tools";
-import { HeroGate } from "./hero-gate";
 import { IntercomWidget } from "./intercom-widget";
 
 const geistSans = Geist({
@@ -11,18 +10,14 @@ const geistSans = Geist({
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-const instrumentSerif = Instrument_Serif({
-  weight: "400",
-  style: ["normal", "italic"],
-  variable: "--font-display",
-  subsets: ["latin"],
-  display: "swap",
-});
+const DIRECTION_CONTRACT = `<!--
+THESIS: The category standard for a native Mac app, executed at full craft rather than decorated. It refuses the arrangement it replaces: gold-on-black, italic-serif accents, tracked mono eyebrows, 01/02/03 steps, abstract line-art icons.
+OWN-WORLD: Near-black cool ground (#09090B), hairline borders, one typeface (Geist) on a four-step scale. The lavender-grey accent (#B7B2CE), sampled from the app icon, is held back to selection, focus rings and one link — every colour a visitor actually sees comes from the collected work itself. No gradient text, no second hue, no decorative SVG.
+STORY: A designer learns Snapwell tags their whole library automatically, sees the real search field and real collected items as proof, and downloads.
+FIRST VIEWPORT: Hairline sticky header. Left-aligned headline at 5rem max, lead paragraph, solid near-white primary CTA. Below it the real macOS screen recording, full container width, playing search silently on loop. Mac and iOS are separate beats; the iPhone gets its own section.
+FORM: Canon — the standing exit, taken deliberately over grounded candidate 4 (Specimen Sheet). Seed key 1dc04a19.
+FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
+-->`;
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://snapwell.co"),
@@ -67,11 +62,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} h-full antialiased`}
-    >
+    <html lang="en" className={`${geistSans.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
+        <div hidden dangerouslySetInnerHTML={{ __html: DIRECTION_CONTRACT }} />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -93,7 +86,6 @@ export default function RootLayout({
         />
         {children}
         <Analytics />
-        <HeroGate />
         <IntercomWidget />
         <DevTools />
       </body>

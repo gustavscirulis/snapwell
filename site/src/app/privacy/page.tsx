@@ -36,9 +36,7 @@ export default function PrivacyPage() {
           Back to Snapwell
         </Link>
 
-        <h1 className="font-display text-4xl italic leading-tight md:text-5xl">
-          Privacy Policy
-        </h1>
+        <h1 className="t-h2">Privacy Policy</h1>
         <p className="mt-4 text-sm text-muted">Last updated — April 24, 2026</p>
 
         <div className="mt-12 space-y-10 text-[15px] leading-relaxed text-muted [&_h2]:mb-3 [&_h2]:text-lg [&_h2]:font-medium [&_h2]:text-foreground [&_a]:text-foreground [&_a]:underline [&_a]:underline-offset-2 hover:[&_a]:text-accent [&_strong]:font-medium [&_strong]:text-foreground/80 [&_ul]:list-disc [&_ul]:space-y-1.5 [&_ul]:pl-5">

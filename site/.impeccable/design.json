@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-05T00:00:00Z",
+  "title": "Design System: Snapwell Site",
+  "extensions": {
+    "colorMeta": {
+      "background": {
+        "role": "neutral",
+        "displayName": "Cool Near-Black",
+        "canonical": "#09090b",
+        "tonalRamp": ["#09090b", "#131316", "#1b1b20", "#232329", "#34343c"]
+      },
+      "foreground": {
+        "role": "neutral",
+        "displayName": "Paper White",
+        "canonical": "#f4f4f6",
+        "tonalRamp": ["#ffffff", "#f4f4f6", "#9c9ca6"]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Cool Grey",
+        "canonical": "#9c9ca6",
+        "contrastOnBackground": "7.06:1"
+      },
+      "accent": {
+        "role": "primary",
+        "displayName": "Icon Lavender",
+        "canonical": "#b7b2ce",
+        "derivedFrom": "public/icon.png shadow tones",
+        "tonalRamp": ["#d6d3e4", "#b7b2ce", "#8f86c9", "#6a61a8"]
+      }
+    },
+    "elevation": {
+      "philosophy": "layered, never both border and shadow on one element",
+      "tokens": {
+        "media-window": "0 36px 72px -16px rgba(0,0,0,0.9)",
+        "device-alpha": "drop-shadow(0 28px 56px rgba(0,0,0,0.85))",
+        "tile": "1px solid #232329",
+        "header-glass": "background-color: rgba(9,9,11,0.75); backdrop-filter: blur(24px); border-bottom: 1px solid #232329"
+      }
+    },
+    "motion": {
+      "philosophy": "one authored moment for the whole page, at first paint",
+      "tokens": {
+        "entrance": "0.7s cubic-bezier(0.16, 1, 0.3, 1) both",
+        "stagger": "65ms",
+        "entrance-transform": "translateY(12px) -> none",
+        "ui-transition": "colors, default duration"
+      },
+      "reducedMotion": "The entrance keyframes live inside @media (prefers-reduced-motion: no-preference); content is fully visible without them. The demo video does not autoplay and exposes a play control."
+    },
+    "breakpoints": {
+      "sm": "640px",
+      "md": "768px",
+      "lg": "1024px",
+      "container": "1152px",
+      "gutter": "24px"
+    },
+    "browserSurfaces": {
+      "selection": "background: color-mix(in oklab, #8f86c9 45%, transparent)",
+      "caret": "#8f86c9",
+      "focusVisible": "outline: 2px solid #8f86c9; outline-offset: 3px",
+      "scrollbar": "scrollbar-color: #34343c #09090b; thumb 10px, 3px background-coloured inset border, fully rounded",
+      "linkUnderline": "text-underline-offset: 0.22em; text-decoration-thickness: from-font"
+    },
+    "narrative": {
+      "northStar": "The darkroom — a dark, quiet room whose only light comes from the work pinned to the wall.",
+      "form": "Canon (the standing exit), taken deliberately over grounded candidate 4 (Specimen Sheet). Seed key 1dc04a19.",
+      "qualityBar": "Raycast",
+      "antiReference": "The generic AI-startup landing page: gold/terracotta on near-black, italic serif display accents, tracked monospace eyebrows, 01/02/03 steps, abstract line-art SVG icons, scroll-locked hero animation. The prior version of this site was all of these.",
+      "accentDiscipline": "The accent appears only in selection, focus ring, caret and one footer link. Page colour comes from the product's own content."
+    },
+    "notCanonized": [
+      "The 4.15s scroll-locked hero storyboard, the Instrument Serif italic display, the Geist Mono 0.3em-tracked eyebrows, the 01/02/03 numerals and the three hand-drawn use-case SVGs are recorded in Don'ts as removed defects, never as system rules.",
+      "The bare 13px label size is used inline rather than promoted to a class; it is a size, not yet a role.",
+      "Vercel Analytics and the Intercom widget are site infrastructure, not design tokens; they are noted only because they scope the privacy copy."
+    ]
+  }
+}
