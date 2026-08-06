@@ -1,301 +1,311 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ParallaxWrapper } from "./parallax-image";
+import { HeroVideo } from "./hero-video";
 
-const useCases = [
+const APP_STORE = "https://apps.apple.com/us/app/snapwell/id6762541353";
+const GITHUB = "https://github.com/gustavscirulis/snapwell";
+
+const steps = [
   {
-    title: "UI design",
-    description:
-      "UI patterns, login flows, component states, animations.",
-    icon: (
-      <svg width="64" height="64" viewBox="0 0 48 48" fill="none" className="text-accent">
-        <rect x="4" y="4" width="17" height="22" rx="2" stroke="currentColor" strokeWidth="0.8" opacity="0.5" />
-        <rect x="5" y="5" width="15" height="20" rx="1.5" fill="currentColor" opacity="0.06" />
-        <rect x="25" y="4" width="19" height="12" rx="2" stroke="currentColor" strokeWidth="0.8" opacity="0.35" />
-        <rect x="25" y="20" width="19" height="16" rx="2" stroke="currentColor" strokeWidth="0.8" opacity="0.25" />
-        <rect x="26" y="21" width="17" height="14" rx="1.5" fill="currentColor" opacity="0.04" />
-        <rect x="4" y="30" width="17" height="14" rx="2" stroke="currentColor" strokeWidth="0.8" opacity="0.35" />
-      </svg>
-    ),
+    title: "Collect anything",
+    body: "Screenshots, photos, video, images off the web. Drag in, paste, or share from any app on Mac and iPhone.",
   },
   {
-    title: "Home improvements",
-    description:
-      "Interior design ideas, furniture, paint swatches, room layouts.",
-    icon: (
-      <svg width="64" height="64" viewBox="0 0 48 48" fill="none" className="text-accent">
-        <g transform="rotate(-8 16 22)">
-          <rect x="4" y="8" width="22" height="22" rx="2" stroke="currentColor" strokeWidth="0.8" opacity="0.2" />
-          <line x1="8" y1="26" x2="22" y2="12" stroke="currentColor" strokeWidth="0.4" opacity="0.1" />
-          <line x1="8" y1="22" x2="18" y2="12" stroke="currentColor" strokeWidth="0.4" opacity="0.08" />
-          <line x1="12" y1="26" x2="22" y2="16" stroke="currentColor" strokeWidth="0.4" opacity="0.08" />
-        </g>
-        <g transform="rotate(3 24 24)">
-          <rect x="13" y="10" width="22" height="22" rx="2" stroke="currentColor" strokeWidth="0.8" opacity="0.38" />
-          <circle cx="20" cy="17" r="1.2" fill="currentColor" opacity="0.08" />
-          <circle cx="28" cy="15" r="0.8" fill="currentColor" opacity="0.1" />
-          <circle cx="24" cy="24" r="1" fill="currentColor" opacity="0.07" />
-          <circle cx="18" cy="26" r="0.7" fill="currentColor" opacity="0.1" />
-          <circle cx="30" cy="22" r="1.3" fill="currentColor" opacity="0.06" />
-        </g>
-        <g transform="rotate(-2 30 26)">
-          <rect x="22" y="16" width="22" height="22" rx="2" stroke="currentColor" strokeWidth="0.8" opacity="0.55" />
-          <rect x="25" y="19" width="16" height="10" rx="1.5" fill="currentColor" opacity="0.1" />
-        </g>
-      </svg>
-    ),
+    title: "AI describes and tags it",
+    body: "AI writes a description and tags for every item on its own, in the background. Add per-space guidance to point it at what you care about.",
   },
   {
-    title: "Creative inspiration",
-    description:
-      "Art, typography, photography, fashion, video references.",
-    icon: (
-      <svg width="64" height="64" viewBox="0 0 48 48" fill="none" className="text-accent">
-        <path d="M38 6C48 16 48 34 36 40C26 46 12 40 8 30C4 22 10 12 18 10C24 8 30 14 30 20C30 25 26 28 23 27" stroke="currentColor" strokeWidth="0.8" opacity="0.45" strokeLinecap="round" fill="none" />
-        <line x1="4" y1="16" x2="44" y2="16" stroke="currentColor" strokeWidth="0.5" opacity="0.2" />
-        <line x1="4" y1="32" x2="44" y2="32" stroke="currentColor" strokeWidth="0.5" opacity="0.2" />
-        <line x1="16" y1="4" x2="16" y2="44" stroke="currentColor" strokeWidth="0.5" opacity="0.2" />
-        <line x1="32" y1="4" x2="32" y2="44" stroke="currentColor" strokeWidth="0.5" opacity="0.2" />
-        <circle cx="23" cy="27" r="2" fill="currentColor" opacity="0.12" />
-      </svg>
-    ),
+    title: "Find it by describing it",
+    body: "Search for an object, a layout, a mood. Nothing to tag, nothing to file, nothing to remember.",
   },
 ];
+
+const library = [
+  {
+    src: "/library/ui.webp",
+    alt: "A product interface with a sidebar, a conversation panel and a structured procedure editor",
+    title: "UI design",
+    body: "Patterns, flows, states, animations.",
+  },
+  {
+    src: "/library/interior.webp",
+    alt: "A living room with a slatted walnut feature wall, concealed lighting and a low black console",
+    title: "Home projects",
+    body: "Interiors, furniture, paint, layouts.",
+  },
+  {
+    src: "/library/creative.webp",
+    alt: "An abstract 3D composition of a sphere, slab and disc in warm and cool gradients",
+    title: "Creative reference",
+    body: "Art, typography, photography, film.",
+  },
+];
+
+const facts = [
+  { k: "Price", v: "Free. No trial, no paid tier." },
+  { k: "Storage", v: "Plain files in your Documents folder." },
+  { k: "Sync", v: "Your own iCloud, Mac to iPhone." },
+  { k: "Analysis", v: "Your own API key. You pay them, not us." },
+  { k: "Tracking", v: "None in the apps. No telemetry." },
+  { k: "Platforms", v: "macOS 15+, iOS 17+, iPhone and iPad." },
+];
+
+function AppleMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 384 512" fill="currentColor" aria-hidden className={className}>
+      <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z" />
+    </svg>
+  );
+}
+
+function GitHubMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden className={className}>
+      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
+    </svg>
+  );
+}
+
+function PrimaryCTA({ className = "" }: { className?: string }) {
+  return (
+    <a
+      href={APP_STORE}
+      className={`inline-flex items-center gap-2 rounded-[10px] bg-foreground px-4 py-2.5 text-sm font-medium text-background transition-colors hover:bg-white ${className}`}
+    >
+      <AppleMark className="h-[15px] w-[15px]" />
+      Download on the App Store
+    </a>
+  );
+}
+
+function SecondaryCTA({ className = "" }: { className?: string }) {
+  return (
+    <a
+      href={GITHUB}
+      className={`inline-flex items-center gap-2 rounded-[10px] border border-border px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:border-border-strong hover:bg-surface ${className}`}
+    >
+      <GitHubMark className="h-[15px] w-[15px]" />
+      View source
+    </a>
+  );
+}
 
 export default function Home() {
   return (
     <>
-      {/* ── Hero ──────────────────────────────────────── */}
-      <header className="relative">
-        <div className="relative z-20 px-6 pt-32 md:pt-44">
-          <div className="mx-auto max-w-6xl">
-            <p className="hero-text-1 font-mono text-xs uppercase tracking-[0.3em] text-accent">
-              Open source · Native · AI-powered
-            </p>
-            <h1 className="mt-8 pb-2 font-display text-[clamp(3rem,10vw,9rem)] leading-[0.85] tracking-tight">
-              <span className="hero-headline">Your inspiration</span>
-              <br />
-              <span className="hero-tagline-reveal italic text-accent">
-                organized by AI
-              </span>
-            </h1>
-            <p className="hero-text-3 mt-6 max-w-md text-lg text-muted md:text-xl">
-              Collect anything, search by what you see.
-              <br />An inspiration library for macOS and iOS.
-            </p>
-            <div className="hero-text-4 mt-10 flex items-center gap-3">
-              <a
-                href="https://apps.apple.com/us/app/snapwell/id6762541353"
-                className="inline-flex items-center gap-2 rounded-full border border-accent/50 px-6 py-3 text-sm font-medium text-accent transition-colors hover:border-accent hover:bg-accent/10"
-              >
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="opacity-60">
-                  <path d="M7 1v8.5M3.5 6L7 9.5 10.5 6" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
-                  <path d="M2 12h10" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
-                </svg>
-                Download
-              </a>
-              <a
-                href="https://github.com/gustavscirulis/snapwell"
-                className="rounded-full border border-border px-6 py-3 text-sm font-medium text-foreground transition-colors hover:bg-surface"
-              >
-                GitHub
-              </a>
-            </div>
-          </div>
-        </div>
-
-        <div className="relative z-10 mt-16 pb-16">
-          <div className="hero-bg-reveal absolute inset-0 overflow-hidden">
-            <Image
-              src="/hero/background.webp"
-              alt=""
-              fill
-              className="object-cover opacity-50"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-background via-background/50 to-background/20" />
-            <div className="absolute inset-0 bg-gradient-to-r from-background/40 via-transparent to-background/40" />
-          </div>
-
-          <div className="relative mx-auto max-w-5xl px-6 pt-8">
-            <div className="relative">
-              <div className="hero-mac relative z-10">
-                <ParallaxWrapper speed={0.5}>
-                  <Image
-                    src="/hero/mac.webp"
-                    alt="Snapwell on Mac — a grid of collected images with AI-generated tags and search"
-                    width={2556}
-                    height={1700}
-                    className="w-full drop-shadow-[0_32px_64px_rgba(0,0,0,0.4)]"
-                    priority
-                  />
-                </ParallaxWrapper>
-              </div>
-              <div className="hero-iphone absolute -bottom-[14%] right-[-6%] z-20 w-[30%] md:right-[-2%] md:w-[28%]">
-                <ParallaxWrapper speed={1.5}>
-                  <Image
-                    src="/hero/iphone.webp"
-                    alt="Snapwell on iOS — the same library synced to your phone"
-                    width={963}
-                    height={1701}
-                    className="w-full drop-shadow-[0_24px_48px_rgba(0,0,0,0.5)]"
-                  />
-                </ParallaxWrapper>
-              </div>
-            </div>
-          </div>
+      <header className="sticky top-0 z-50 border-b border-border bg-background/75 backdrop-blur-xl">
+        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
+          <Link href="/" className="flex items-center gap-2.5">
+            <Image src="/icon.png" alt="" width={64} height={64} className="h-[22px] w-[22px]" />
+            <span className="text-[15px] font-semibold tracking-[-0.01em]">Snapwell</span>
+          </Link>
+          <nav className="flex items-center gap-1">
+            <a
+              href={GITHUB}
+              className="rounded-[10px] px-3 py-1.5 text-sm text-muted transition-colors hover:bg-surface hover:text-foreground"
+            >
+              GitHub
+            </a>
+            <a
+              href={APP_STORE}
+              className="rounded-[10px] bg-foreground px-3.5 py-1.5 text-sm font-medium text-background transition-colors hover:bg-white"
+            >
+              Download
+            </a>
+          </nav>
         </div>
       </header>
 
       <main>
-        {/* ── How it works ──────────────────────────────── */}
-        <section className="px-6 py-32 md:py-40">
+        {/* ── Hero ──────────────────────────────────────────── */}
+        <section className="relative isolate px-6 pt-20 md:pt-28">
+          <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+            <Image
+              src="/hero/background.webp"
+              alt=""
+              fill
+              className="object-cover opacity-[0.16]"
+            />
+            <div className="absolute inset-0 bg-gradient-to-b from-background via-background/40 to-background" />
+          </div>
+
           <div className="mx-auto max-w-6xl">
-            <p className="font-mono text-xs uppercase tracking-[0.3em] text-accent">
-              How it works
+            <h1 className="rise t-display max-w-[16ch]" style={{ "--i": 0 } as React.CSSProperties}>
+              Everything you save, tagged automatically.
+            </h1>
+            <p
+              className="rise t-lead mt-6 text-muted"
+              style={{ "--i": 1 } as React.CSSProperties}
+            >
+              AI describes and tags every image and video you save —
+              automatically, in the background. Find anything by what&rsquo;s in
+              it, not what it&rsquo;s called. Native on Mac and iPhone.
             </p>
-            <div className="mt-12 grid gap-16 md:grid-cols-3 md:gap-12">
-              {[
-                {
-                  n: "01",
-                  t: "Import images and videos",
-                  d: "Screenshots, photos, video, web images. Drag in, paste, or share from any app.",
-                },
-                {
-                  n: "02",
-                  t: "AI tags everything",
-                  d: "Every image gets analyzed automatically. Add guidance to focus on what matters to you.",
-                },
-                {
-                  n: "03",
-                  t: "Search by what you see",
-                  d: "Describe an object, a layout, a mood. Snapwell finds the match\u2009—\u2009no tags or folders needed.",
-                },
-              ].map((step) => (
-                <div key={step.n}>
-                  <div className="h-px w-12 bg-accent" />
-                  <span className="mt-4 block font-display text-3xl italic text-accent">
-                    {step.n}
-                  </span>
-                  <h3 className="mt-3 text-lg font-semibold">{step.t}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-muted">
-                    {step.d}
-                  </p>
-                </div>
-              ))}
+            <div
+              className="rise mt-8 flex flex-wrap items-center gap-3"
+              style={{ "--i": 2 } as React.CSSProperties}
+            >
+              <PrimaryCTA />
+              <SecondaryCTA />
+            </div>
+            <p
+              className="rise mt-5 text-[13px] text-muted"
+              style={{ "--i": 3 } as React.CSSProperties}
+            >
+              Completely free · Open source · macOS 15+ · iOS 17+
+            </p>
+
+            <div
+              className="rise mt-14 md:mt-20"
+              style={{ "--i": 4 } as React.CSSProperties}
+            >
+              <HeroVideo />
             </div>
           </div>
         </section>
 
-        {/* ── Use cases ─────────────────────────────────── */}
-        <section className="px-6 py-24 md:py-32">
+        {/* ── How it works ──────────────────────────────────── */}
+        <section className="px-6 pt-24 md:pt-32">
           <div className="mx-auto max-w-6xl">
-            <p className="font-mono text-xs uppercase tracking-[0.3em] text-accent">
-              Use cases
-            </p>
-            <h2 className="mt-4 font-display text-3xl md:text-4xl">
-              Built for{" "}
-              <span className="italic text-accent">visual thinkers</span>
-            </h2>
-            <div className="mt-16 divide-y divide-border">
-              {useCases.map((uc) => (
-                <div
-                  key={uc.title}
-                  className="group flex flex-col gap-4 py-9 first:border-t first:border-border sm:flex-row sm:items-center sm:gap-10"
-                >
-                  <div className="shrink-0 transition-transform group-hover:scale-105">
-                    {uc.icon}
-                  </div>
-                  <h3 className="shrink-0 text-[22px] font-semibold leading-7 sm:w-[280px] md:w-[340px]">
-                    {uc.title}
-                  </h3>
-                  <p className="text-[15px] leading-relaxed text-muted">
-                    {uc.description}
-                  </p>
+            <h2 className="t-h2">How it works</h2>
+
+            <div className="mt-12 grid gap-10 border-t border-border pt-10 md:grid-cols-3 md:gap-12">
+              {steps.map((step) => (
+                <div key={step.title}>
+                  <h3 className="t-h3">{step.title}</h3>
+                  <p className="t-body mt-2.5 text-muted">{step.body}</p>
                 </div>
               ))}
             </div>
+
           </div>
         </section>
 
-        {/* ── Privacy & open source ─────────────────────── */}
-        <section className="bg-accent-soft px-6 py-32 md:py-48">
-          <div className="mx-auto max-w-4xl text-center">
-            <h2 className="font-display text-5xl italic leading-[1.1] md:text-7xl">
-              No subscription.
-              <br />
-              No account.
-              <br />
-              Open source.
-            </h2>
-            <div className="mx-auto mt-8 h-px w-16 bg-accent" />
-            <p className="mt-8 text-muted md:text-lg">
-              Your library lives on your devices and your iCloud — not our servers.
-              <br />
-              AI analysis goes directly to the provider you choose.
-            </p>
+        {/* ── iOS ───────────────────────────────────────────── */}
+        <section className="px-6 pt-24 md:pt-32">
+          <div className="mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-[1fr_auto] lg:gap-20">
+            <div>
+              <h2 className="t-h2">The same library, on your phone</h2>
+              <p className="t-body mt-5 text-muted">
+                Send images and video to Snapwell straight from the share sheet
+                in any app — Safari, Photos, Instagram, anywhere. Everything
+                moves over your own iCloud, so whatever you save on your phone
+                is already there the next time you open your Mac. Analysis runs
+                on iOS too.
+              </p>
+              <dl className="mt-8 flex flex-col gap-3 text-sm sm:flex-row sm:gap-10">
+                <div>
+                  <dt className="font-medium">Share extension</dt>
+                  <dd className="mt-0.5 text-muted">Save from any app</dd>
+                </div>
+                <div>
+                  <dt className="font-medium">iCloud sync</dt>
+                  <dd className="mt-0.5 text-muted">Your account, not ours</dd>
+                </div>
+                <div>
+                  <dt className="font-medium">iOS 17+</dt>
+                  <dd className="mt-0.5 text-muted">iPhone and iPad</dd>
+                </div>
+              </dl>
+            </div>
+
+            <Image
+              src="/hero/iphone.webp"
+              alt="Snapwell on iPhone — the same collected library, synced over iCloud"
+              width={742}
+              height={1512}
+              quality={90}
+              // The device is only 742px wide at source. Over-declaring sizes
+              // makes Next serve that full width in one hop, so the browser
+              // does a single clean downscale instead of resampling twice.
+              sizes="(min-width: 1024px) 380px, 300px"
+              className="w-[220px] justify-self-start drop-shadow-[0_28px_56px_rgba(0,0,0,0.85)] lg:w-[280px] lg:justify-self-end"
+            />
           </div>
         </section>
 
-        {/* ── CTA ───────────────────────────────────────── */}
-        <section className="px-6 py-32">
+        {/* ── What people keep in it ────────────────────────── */}
+        <section className="px-6 pt-24 md:pt-32">
           <div className="mx-auto max-w-6xl">
-            <div className="flex flex-col items-start gap-8 md:flex-row md:items-start md:justify-between">
-              <div>
-                <div className="flex items-start gap-6">
+            <h2 className="t-h2">What people keep in it</h2>
+
+            <div className="mt-12 grid gap-x-8 gap-y-12 sm:grid-cols-3">
+              {library.map((item) => (
+                <div key={item.title}>
                   <Image
-                    src="/icon.png"
-                    alt=""
-                    width={160}
-                    height={160}
-                    className="w-16 h-16 md:w-20 md:h-20 -mt-2 drop-shadow-[0_2px_20px_rgba(196,164,122,0.15)]"
+                    src={item.src}
+                    alt={item.alt}
+                    width={1200}
+                    height={900}
+                    quality={90}
+                    sizes="(min-width: 640px) 33vw, 100vw"
+                    className="aspect-[4/3] w-full rounded-xl border border-border object-cover"
                   />
-                  <div>
-                    <h2 className="font-display text-5xl md:text-6xl">
-                      Snapwell
-                    </h2>
-                    <p className="mt-2 text-sm text-muted">
-                      An open-source inspiration library for macOS and iOS. No account, no data collection.
-                    </p>
-                  </div>
+                  <h3 className="t-h3 mt-4">{item.title}</h3>
+                  <p className="t-body mt-1.5 text-muted">{item.body}</p>
                 </div>
-              </div>
-              <div className="flex items-center gap-3 md:mt-1">
-                <a
-                  href="https://apps.apple.com/us/app/snapwell/id6762541353"
-                  className="inline-flex items-center gap-2 rounded-full border border-accent/50 px-6 py-3 text-sm font-medium text-accent transition-colors hover:border-accent hover:bg-accent/10"
-                >
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="opacity-60">
-                    <path d="M7 1v8.5M3.5 6L7 9.5 10.5 6" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
-                    <path d="M2 12h10" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
-                  </svg>
-                  Download
-                </a>
-                <a
-                  href="https://github.com/gustavscirulis/snapwell"
-                  className="rounded-full border border-border px-6 py-3 text-sm font-medium transition-colors hover:bg-surface"
-                >
-                  GitHub
-                </a>
-              </div>
+              ))}
             </div>
+          </div>
+        </section>
+
+        {/* ── Custody ───────────────────────────────────────── */}
+        <section className="px-6 pt-24 md:pt-32">
+          <div className="mx-auto max-w-6xl">
+            <h2 className="t-h2">Free. No account. No subscription.</h2>
+            <p className="t-body mt-5 text-muted">
+              Nothing to cancel, and nothing anyone can take away. Bring your
+              own key for OpenAI, Claude, Gemini, or OpenRouter.
+            </p>
+
+            <dl className="mt-12 grid gap-x-10 border-t border-border lg:grid-cols-2">
+              {facts.map((fact) => (
+                <div
+                  key={fact.k}
+                  className="flex flex-col gap-1 border-b border-border py-5 sm:flex-row sm:gap-6"
+                >
+                  <dt className="shrink-0 text-sm font-medium sm:w-28">{fact.k}</dt>
+                  <dd className="text-sm leading-relaxed text-muted">{fact.v}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        </section>
+
+        {/* ── Close ─────────────────────────────────────────── */}
+        <section className="px-6 pt-24 pb-24 md:pt-32 md:pb-32">
+          <div className="mx-auto max-w-6xl border-t border-border pt-16">
+            <Image
+              src="/icon.png"
+              alt=""
+              width={160}
+              height={160}
+              className="h-16 w-16"
+            />
+            <h2 className="t-h2 mt-6 max-w-[20ch]">
+              Start with the images and videos you already have.
+            </h2>
+            <p className="t-body mt-4 text-muted">
+              Import them to Snapwell and AI will do the analysis.
+            </p>
+            <div className="mt-8 flex flex-wrap items-center gap-3">
+              <PrimaryCTA />
+              <SecondaryCTA />
+            </div>
+            <p className="mt-5 text-[13px] text-muted">
+              Free, with no account to create.
+            </p>
           </div>
         </section>
       </main>
 
-      {/* ── Footer ──────────────────────────────────────── */}
       <footer className="mt-auto border-t border-border px-6 py-8">
-        <div className="mx-auto flex max-w-6xl flex-col gap-4 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
+        <div className="mx-auto flex max-w-6xl flex-col gap-4 text-[13px] text-muted sm:flex-row sm:items-center sm:justify-between">
           <div className="flex gap-6">
-            <Link
-              href="/privacy"
-              className="transition-colors hover:text-foreground"
-            >
+            <Link href="/privacy" className="transition-colors hover:text-foreground">
               Privacy
             </Link>
-            <a
-              href="https://github.com/gustavscirulis/snapwell"
-              className="transition-colors hover:text-foreground"
-            >
+            <a href={GITHUB} className="transition-colors hover:text-foreground">
               GitHub
             </a>
           </div>

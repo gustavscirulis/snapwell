@@ -8,7 +8,8 @@ declare global {
   }
 }
 
-const HERO_ANIMATION_DURATION_MS = 6500;
+// Hold the widget back until the hero's one entrance animation has settled.
+const HERO_ANIMATION_DURATION_MS = 1500;
 
 export function IntercomWidget() {
   useEffect(() => {

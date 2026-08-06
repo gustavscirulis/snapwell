@@ -1,186 +1,144 @@
 @import "tailwindcss";
 
+/* ──────────────────────────────────────────────────────────────
+ * Palette: near-black cool ground, one lavender-grey accent taken
+ * from the app icon's shadow tones. No gold, no second hue.
+ * ────────────────────────────────────────────────────────────── */
 :root {
-  --background: #0c0b0a;
-  --foreground: #edebe8;
-  --muted: #78756e;
-  --border: #1f1e1a;
-  --surface: #16150f;
-  --accent: #c4a47a;
-  --accent-soft: #14120e;
+  --background: #09090b;
+  --surface: #131316;
+  --border: #232329;
+  --border-strong: #34343c;
+  --border-hover: #45454f;
+  --foreground: #f4f4f6;
+  --muted: #9c9ca6;
+  --accent: #b7b2ce;
+  --accent-strong: #8f86c9;
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-border-hover: var(--border-hover);
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
-  --color-border: var(--border);
-  --color-surface: var(--surface);
   --color-accent: var(--accent);
-  --color-accent-soft: var(--accent-soft);
+  --color-accent-strong: var(--accent-strong);
   --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-display: var(--font-display);
-}
-
-@property --headline-base {
-  syntax: "<color>";
-  initial-value: rgba(237, 235, 232, 0.5);
-  inherits: false;
 }
 
 html {
   scroll-behavior: smooth;
+  scrollbar-color: var(--border-strong) var(--background);
+  scrollbar-width: thin;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
+  caret-color: var(--accent-strong);
+  -webkit-font-smoothing: antialiased;
 }
 
-@keyframes heroFadeUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+/* Browser surfaces we didn't draw, themed from the palette. */
+::selection {
+  background: color-mix(in oklab, var(--accent-strong) 45%, transparent);
+  color: var(--foreground);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border: 3px solid var(--background);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-hover);
+}
+
+/* The outline follows each element's own radius; don't reshape the element. */
+:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 3px;
+}
+
+a {
+  text-underline-offset: 0.22em;
+  text-decoration-thickness: from-font;
+}
+
+/* ── Type scale ───────────────────────────────────────────────
+ * One family (Geist), four steps. Display capped at 5rem.
+ * ───────────────────────────────────────────────────────────── */
+.t-display {
+  font-size: clamp(2.5rem, 6.2vw, 5rem);
+  line-height: 1.02;
+  letter-spacing: -0.032em;
+  font-weight: 550;
+  text-wrap: balance;
+}
+
+.t-h2 {
+  font-size: clamp(1.625rem, 3.2vw, 2.375rem);
+  line-height: 1.1;
+  letter-spacing: -0.024em;
+  font-weight: 550;
+  text-wrap: balance;
+}
+
+.t-h3 {
+  font-size: 1.0625rem;
+  line-height: 1.4;
+  letter-spacing: -0.012em;
+  font-weight: 600;
+}
+
+.t-lead {
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  letter-spacing: -0.006em;
+  max-width: 44ch;
+}
+
+@media (min-width: 768px) {
+  .t-lead {
+    font-size: 1.1875rem;
   }
 }
 
-@keyframes heroBgReveal {
-  from {
-    opacity: 0;
-    transform: scale(1.04);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+.t-body {
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  max-width: 68ch;
 }
 
-@keyframes heroDeviceUp {
-  from {
-    opacity: 0;
-    transform: translateY(80px) scale(0.97);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes heroAnalysisSweep {
-  from {
-    background-position: 100% center;
-  }
-  to {
-    background-position: 0% center;
-  }
-}
-
-@keyframes heroHeadlineLightUp {
-  to {
-    --headline-base: #edebe8;
-  }
-}
-
-@keyframes heroUnlockScroll {
-  to {
-    overflow: auto;
-  }
-}
-
-@keyframes heroTaglineReveal {
-  from {
-    opacity: 0;
-    -webkit-mask-position: 100% center;
-    mask-position: 100% center;
-  }
-  30% {
-    opacity: 1;
-  }
-  to {
-    opacity: 1;
-    -webkit-mask-position: 0% center;
-    mask-position: 0% center;
-  }
-}
-
-/* ══════════════════════════════════════════════════════════════
- * HERO REVEAL STORYBOARD
- *
- *    0ms   "Your inspiration" at 50% brightness — sole element
- *  250ms   Shimmer sweep begins (2 × 1.3s = 2.6s)
- * 2850ms   Shimmer ends → headline lights up to full (0.4s)
- * 2900ms   "organized by AI" mask reveal (1.8s)
- * 3700ms   Tagline fades up                        ─┐
- * 3770ms   Subtitle fades up                  +70ms │
- * 3840ms   CTA buttons fade up               +70ms │ cascade
- * 3850ms   Background begins revealing              │
- * 3950ms   Mac screenshot slides up          +100ms │
- * 4150ms   iPhone screenshot slides up       +200ms ─┘
- * 4150ms   Scroll unlocks
- * ══════════════════════════════════════════════════════════════ */
+/* ── The one authored moment ──────────────────────────────────
+ * A single staggered entrance on first paint. No scroll lock, no
+ * per-section repeat. Content is visible by default without it.
+ * ───────────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: no-preference) {
-  html:not(.hero-played) {
-    overflow: hidden;
-    animation: heroUnlockScroll 0.01s ease-out 4.15s forwards;
+  .rise {
+    animation: rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: calc(var(--i, 0) * 65ms);
   }
+}
 
-  html:not(.hero-played) .hero-headline {
-    --headline-base: rgba(237, 235, 232, 0.5);
-    background: linear-gradient(
-      90deg,
-      var(--headline-base) 0%,
-      var(--headline-base) 30%,
-      #edebe8 45%,
-      #edebe8 55%,
-      var(--headline-base) 70%,
-      var(--headline-base) 100%
-    );
-    background-size: 400% 100%;
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    animation:
-      heroAnalysisSweep 1.3s ease-in-out 0.25s 2 both,
-      heroHeadlineLightUp 0.4s ease-out 2.85s 1 forwards;
-  }
-
-  html:not(.hero-played) .hero-tagline-reveal {
+@keyframes rise {
+  from {
     opacity: 0;
-    padding-right: 0.15em;
-    -webkit-mask-image: linear-gradient(to right, black 0%, black 40%, transparent 55%, transparent 100%);
-    mask-image: linear-gradient(to right, black 0%, black 40%, transparent 55%, transparent 100%);
-    -webkit-mask-size: 300% 100%;
-    mask-size: 300% 100%;
-    -webkit-mask-position: 100% center;
-    mask-position: 100% center;
-    animation: heroTaglineReveal 1.8s cubic-bezier(0.23, 1, 0.32, 1) 2.9s both;
+    transform: translateY(12px);
   }
-
-  html:not(.hero-played) .hero-text-1 {
-    animation: heroFadeUp 0.4s ease-out 3.7s both;
-  }
-  html:not(.hero-played) .hero-text-3 {
-    animation: heroFadeUp 0.4s ease-out 3.77s both;
-  }
-  html:not(.hero-played) .hero-text-4 {
-    animation: heroFadeUp 0.4s ease-out 3.84s both;
-  }
-
-  html:not(.hero-played) .hero-bg-reveal {
-    animation: heroBgReveal 1.2s ease-out 3.85s both;
-  }
-
-  html:not(.hero-played) .hero-mac {
-    animation: heroDeviceUp 1.4s cubic-bezier(0.16, 1, 0.3, 1) 3.95s both;
-  }
-
-  html:not(.hero-played) .hero-iphone {
-    animation: heroDeviceUp 1.4s cubic-bezier(0.16, 1, 0.3, 1) 4.15s both;
+  to {
+    opacity: 1;
+    transform: none;
   }
 }
