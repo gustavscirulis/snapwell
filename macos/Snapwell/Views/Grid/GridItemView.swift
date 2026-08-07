@@ -494,16 +494,8 @@ struct GridItemView: View, Equatable {
         #endif
     }
 
-    /// Circular hover-action button icon with a static dark background.
-    /// Glass effect was removed because it adapts to the underlying image,
-    /// causing a visible dark→transparent shift when the button appears on hover.
     private func hoverButtonIcon(_ systemName: String, size: CGFloat) -> some View {
-        Image(systemName: systemName)
-            .font(.system(size: size, weight: .bold))
-            .foregroundStyle(.white)
-            .frame(width: 24, height: 24)
-            .background(.ultraThinMaterial, in: Circle())
-            .environment(\.colorScheme, .dark)
+        HoverActionIcon(systemName: systemName, size: size)
     }
 
     /// Retry analysis badge with red-tinted glass on macOS 26+.

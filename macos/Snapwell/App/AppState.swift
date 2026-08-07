@@ -52,6 +52,16 @@ final class AppState {
     var isSettingsOpen: Bool = false
     var isDraggingFromApp: Bool = false
 
+    /// Session-only audio override for full-screen video. nil = follow the
+    /// persisted `videoAudioEnabled` setting. Deliberately not persisted —
+    /// hitting mute lasts for the session, then resets to the setting.
+    var videoAudioOverride: Bool?
+
+    /// Effective audio state for full-screen video playback.
+    var videoAudioEnabled: Bool {
+        videoAudioOverride ?? UserDefaults.standard.bool(forKey: "videoAudioEnabled")
+    }
+
     /// Items currently animating deletion (value 1). Absent entries are normal (stage 0).
     var deletingItemStages: [String: Int] = [:]
 

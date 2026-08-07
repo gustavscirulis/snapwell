@@ -253,4 +253,67 @@ struct AppStateTests {
         state.zoomOut()
         #expect(state.thumbnailSize == .small)
     }
+
+    // MARK: - Video Audio
+
+    /// Runs `body` with `videoAudioEnabled` set to `setting`, restoring whatever
+    /// was there before so the suite doesn't leak into other tests.
+    private func withAudioSetting(_ setting: Bool, _ body: () -> Void) {
+        let key = "videoAudioEnabled"
+        let previous = UserDefaults.standard.object(forKey: key)
+        UserDefaults.standard.set(setting, forKey: key)
+        defer {
+            if let previous {
+                UserDefaults.standard.set(previous, forKey: key)
+            } else {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+        }
+        body()
+    }
+
+    @Test("No override follows the setting when muted")
+    func audioFollowsSettingOff() {
+        withAudioSetting(false) {
+            let state = AppState()
+            #expect(state.videoAudioOverride == nil)
+            #expect(state.videoAudioEnabled == false)
+        }
+    }
+
+    @Test("No override follows the setting when sound is on")
+    func audioFollowsSettingOn() {
+        withAudioSetting(true) {
+            let state = AppState()
+            #expect(state.videoAudioEnabled == true)
+        }
+    }
+
+    @Test("Override to on wins over a muted setting")
+    func audioOverrideOnWins() {
+        withAudioSetting(false) {
+            let state = AppState()
+            state.videoAudioOverride = true
+            #expect(state.videoAudioEnabled == true)
+        }
+    }
+
+    @Test("Override to off wins over a sound-on setting")
+    func audioOverrideOffWins() {
+        withAudioSetting(true) {
+            let state = AppState()
+            state.videoAudioOverride = false
+            #expect(state.videoAudioEnabled == false)
+        }
+    }
+
+    @Test("Clearing the override falls back to the setting")
+    func audioOverrideClearFallsBack() {
+        withAudioSetting(true) {
+            let state = AppState()
+            state.videoAudioOverride = false
+            state.videoAudioOverride = nil
+            #expect(state.videoAudioEnabled == true)
+        }
+    }
 }
