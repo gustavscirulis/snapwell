@@ -35,6 +35,7 @@ struct GeneralSettingsTab: View {
     @AppStorage("anthropicModel") private var anthropicModel: String = ModelDiscoveryService.autoModelValue
     @AppStorage("geminiModel") private var geminiModel: String = ModelDiscoveryService.autoModelValue
     @AppStorage("openrouterModel") private var openrouterModel: String = "openai/gpt-4o"
+    @AppStorage("videoAudioEnabled") private var videoAudioEnabled: Bool = false
 
     @State private var apiKeyInput: String = ""
     @State private var hasKey: Bool = false
@@ -115,6 +116,9 @@ struct GeneralSettingsTab: View {
                 modelPicker
             }
 
+            Section("Video") {
+                Toggle("Play video with sound", isOn: $videoAudioEnabled)
+            }
         }
         .formStyle(.grouped)
         .onAppear {

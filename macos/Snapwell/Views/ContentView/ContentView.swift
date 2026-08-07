@@ -142,7 +142,7 @@ struct ContentView: View {
                 }
 
                 // Floating video layer — grid hover previews only
-                FloatingVideoLayer()
+                FloatingVideoLayer(onDelete: { ids in deleteItems(ids) })
 
                 // Selection badge
                 if !appState.selectedIds.isEmpty && appState.detailItem == nil {

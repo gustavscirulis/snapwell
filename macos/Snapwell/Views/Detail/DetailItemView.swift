@@ -303,10 +303,6 @@ struct DetailItemView: View {
             VStack(spacing: 0) {
                 Spacer()
                     .frame(height: heroFrame.minY)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        if isZoomed { resetZoom() } else { triggerClose() }
-                    }
 
                 Group {
                     if currentItem.isVideo {
@@ -346,7 +342,14 @@ struct DetailItemView: View {
                 .animation(SnapSpring.fast, value: isZoomed)
             }
             .frame(maxWidth: .infinity)
+            // Covers the gutters beside the media and the gaps around the
+            // metadata. Sits behind the content, so the image, video controls
+            // and metadata still get first claim on a click.
+            .background { backgroundCloseTap }
         }
+        // Covers whatever viewport is left when the content is shorter than
+        // the window — the VStack background only spans the content itself.
+        .background { backgroundCloseTap }
         .scrollDisabled(isZoomed)
         .scrollIndicators(.automatic)
         .defaultScrollAnchor(.top)
@@ -359,6 +362,18 @@ struct DetailItemView: View {
         } action: { _, newOffset in
             scrollOffset = newOffset
         }
+    }
+
+    /// Click-through-to-dismiss layer for the empty space around the media.
+    /// Kept transparent and always placed behind content — video playback
+    /// controls own their own clicks, so the surrounding background is the
+    /// only place left to click to close.
+    private var backgroundCloseTap: some View {
+        Color.clear
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if isZoomed { resetZoom() } else { triggerClose() }
+            }
     }
 
     // MARK: - Close
@@ -435,7 +450,7 @@ struct DetailItemView: View {
         cleanupVideo()
         let url = MediaStorageService.shared.mediaURL(filename: item.filename)
         let player = AVPlayer(url: url)
-        player.isMuted = false
+        player.isMuted = !appState.videoAudioEnabled
         videoPlayer = player
 
         videoLoopObserver = NotificationCenter.default.addObserver(
