@@ -53,8 +53,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: co.snapwell
-        MARKETING_VERSION: "1.0.3"
-        CURRENT_PROJECT_VERSION: 7
+        MARKETING_VERSION: "1.0.4"
+        CURRENT_PROJECT_VERSION: 8
         CODE_SIGN_ENTITLEMENTS: Snapwell/Resources/Snapwell.entitlements
         SWIFT_STRICT_CONCURRENCY: complete
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
