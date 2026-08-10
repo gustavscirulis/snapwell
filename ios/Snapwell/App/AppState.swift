@@ -34,6 +34,7 @@ final class AppState {
     var isImporting = false
     var itemToDelete: MediaItem?
     var shareItem: URL?
+    var activeNudge: Nudge?
 
     func queuePatternSearch(_ pattern: String) {
         pendingSearchPattern = pattern

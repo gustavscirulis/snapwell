@@ -10,6 +10,13 @@ struct SnapwellApp: App {
 
     init() {
         let defaults = UserDefaults.standard
+
+        // Must run before the flags below are written — their presence is what
+        // tells us someone was already using the app before this build.
+        let isReturningUser = defaults.object(forKey: Self.multiSpaceStoreResetKey) != nil
+            || defaults.object(forKey: "settings_defaults_v2") != nil
+        NudgeStore(defaults: defaults).stampFirstLaunchIfNeeded(now: Date(), isReturningUser: isReturningUser)
+
         defaults.register(defaults: [
             "settings_provider": "none",
             "settings_apiKey": "",

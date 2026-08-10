@@ -24,6 +24,8 @@ struct MainView: View {
     @State private var renameSpaceName = ""
     @State private var renameSpaceId: String?
     @State private var gridItemRects: [String: CGRect] = [:]
+    @State private var nudgeMetrics = NudgeSheetMetrics()
+    private let nudges = NudgeStore()
 
     // MARK: - Filtering
 
@@ -198,6 +200,9 @@ struct MainView: View {
                     .presentationDetents([.medium, .large])
             }
         }
+        .sheet(item: $appState.activeNudge) { nudge in
+            NudgeSheetView(nudge: nudge, metrics: nudgeMetrics)
+        }
         .alert("Delete this item?", isPresented: Binding(
             get: { appState.itemToDelete != nil },
             set: { if !$0 { appState.itemToDelete = nil } }
@@ -236,6 +241,15 @@ struct MainView: View {
         } message: {
             Text(analysisCoordinator.analysisAlertError ?? "")
         }
+        #if DEBUG
+        .overlay {
+            DebugDialOverlay(
+                metrics: $nudgeMetrics,
+                onShowNudge: { appState.activeNudge = $0 },
+                onResetNudges: { nudges.resetAll() }
+            )
+        }
+        #endif
     }
 
     // MARK: - Tab Content
@@ -611,6 +625,8 @@ struct MainView: View {
 
         analysisCoordinator.analyzeUnanalyzed(allItems: allItems)
 
+        Task { await evaluateNudges() }
+
         if skipped > 0 && !hasAttemptedRescan && (FileSystemManager.shared?.isUsingiCloud ?? false) {
             hasAttemptedRescan = true
             print("[MainView] \(skipped) files pending iCloud download, will re-scan in 15s")
@@ -620,6 +636,38 @@ struct MainView: View {
                 await loadContent()
             }
         }
+    }
+
+    // MARK: - Nudges
+
+    /// Offers at most one one-time prompt, if the library is idle enough to
+    /// interrupt. Runs after every load, which covers launch, returning to the
+    /// foreground, and finishing an import.
+    private func evaluateNudges() async {
+        // SwiftUI drops a sheet presented in the same run loop as another one is
+        // tearing down, and the API key nudge lands right as the picker closes.
+        try? await Task.sleep(for: .milliseconds(500))
+
+        guard !isLoading,
+              appState.activeNudge == nil,
+              appState.itemToDelete == nil,
+              appState.shareItem == nil,
+              !appState.showOverlay,
+              !appState.showPhotosPicker,
+              !appState.showFilesPicker,
+              !appState.isImporting
+        else { return }
+
+        guard let nudge = nudges.nextNudge(
+            now: Date(),
+            hasMedia: !allItems.isEmpty,
+            hasAPIKey: keySyncService.isUnlocked
+        ) else { return }
+
+        // Marked on present, not on dismiss, so a force-quit can't resurface it.
+        nudges.markSeen(nudge)
+        appState.activeNudge = nudge
+        print("[Nudge] Showing \(nudge.rawValue)")
     }
 
     private func handleRetryAnalysis(_ item: MediaItem) {
