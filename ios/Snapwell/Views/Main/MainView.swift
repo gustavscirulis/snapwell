@@ -162,6 +162,9 @@ struct MainView: View {
                 searchService.buildIndex(items: allItems)
             }
         }
+        .onChange(of: keySyncService.isUnlocked) { _, isUnlocked in
+            appState.dismissAPIKeyNudgeIfConfigured(isUnlocked: isUnlocked)
+        }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
                 if let rootURL = fileSystem.rootURL {
@@ -192,6 +195,10 @@ struct MainView: View {
                 handlePickedImages(images)
             }
         }
+        .sheet(isPresented: $appState.showAISettings) {
+            AISettingsView()
+                .presentationDetents([.large])
+        }
         .sheet(isPresented: Binding(
             get: { appState.shareItem != nil },
             set: { if !$0 { appState.shareItem = nil } }
@@ -201,8 +208,14 @@ struct MainView: View {
                     .presentationDetents([.medium, .large])
             }
         }
-        .sheet(item: $appState.activeNudge) { nudge in
-            NudgeSheetView(nudge: nudge, metrics: nudgeMetrics)
+        .sheet(item: $appState.activeNudge, onDismiss: handleNudgeDismissed) { nudge in
+            NudgeSheetView(
+                nudge: nudge,
+                metrics: nudgeMetrics,
+                onOpenAISettings: {
+                    appState.opensAISettingsAfterNudge = true
+                }
+            )
         }
         .alert("Delete this item?", isPresented: Binding(
             get: { appState.itemToDelete != nil },
@@ -306,6 +319,7 @@ struct MainView: View {
             onDeleteItem: { item in appState.itemToDelete = item },
             onAssignToSpace: handleAssignToSpace,
             onLoadContent: loadContent,
+            onShowAISettings: { appState.showAISettings = true },
             addImagesMenu: addImagesMenu
         )
     }
@@ -641,6 +655,15 @@ struct MainView: View {
 
     // MARK: - Nudges
 
+    private func handleNudgeDismissed() {
+        guard appState.opensAISettingsAfterNudge else { return }
+        appState.opensAISettingsAfterNudge = false
+        Task { @MainActor in
+            await Task.yield()
+            appState.showAISettings = true
+        }
+    }
+
     /// Offers at most one one-time prompt, if the library is idle enough to
     /// interrupt. Runs after every load, which covers launch, returning to the
     /// foreground, and finishing an import.
@@ -656,6 +679,7 @@ struct MainView: View {
               !appState.showOverlay,
               !appState.showPhotosPicker,
               !appState.showFilesPicker,
+              !appState.showAISettings,
               !appState.isImporting
         else { return }
 

@@ -89,6 +89,28 @@ struct NudgeStoreTests {
         #expect(store.nextNudge(now: now, hasMedia: true, hasAPIKey: false) == .macApp)
     }
 
+    @Test("Saving a key clears an API-key nudge queued behind settings")
+    @MainActor func savingKeyClearsQueuedNudge() {
+        let state = AppState()
+        state.activeNudge = .apiKey
+
+        state.dismissAPIKeyNudgeIfConfigured(isUnlocked: true)
+
+        #expect(state.activeNudge == nil)
+    }
+
+    @Test("Unrelated nudges and missing keys are preserved")
+    @MainActor func nudgeCancellationIsScopedToConfiguredAPIKey() {
+        let state = AppState()
+        state.activeNudge = .apiKey
+        state.dismissAPIKeyNudgeIfConfigured(isUnlocked: false)
+        #expect(state.activeNudge == .apiKey)
+
+        state.activeNudge = .macApp
+        state.dismissAPIKeyNudgeIfConfigured(isUnlocked: true)
+        #expect(state.activeNudge == .macApp)
+    }
+
     // MARK: - Seen state
 
     @Test("Each nudge is shown at most once")

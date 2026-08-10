@@ -53,8 +53,8 @@ final class AnalysisCoordinator {
             return
         }
 
-        let model = keySyncService.activeModel ?? provider.defaultModel
-        let resolvedModel = (model == "auto") ? provider.defaultModel : model
+        let storedModel = keySyncService.activeModel ?? ModelDiscoveryService.autoModelValue
+        let usesRecommendedModel = storedModel == ModelDiscoveryService.autoModelValue
 
         guard !items.isEmpty else {
             print("[Analysis] No items to analyze")
@@ -66,6 +66,11 @@ final class AnalysisCoordinator {
         analysisAlertError = nil
         analysisTask?.cancel()
         analysisTask = Task {
+            var rejectedRecommendedModels: Set<String> = []
+            var resolvedModel = usesRecommendedModel
+                ? await ModelDiscoveryService.shared.resolveAutoModel(for: provider)
+                : storedModel
+
             for item in items {
                 guard !Task.isCancelled else { break }
 
@@ -74,20 +79,29 @@ final class AnalysisCoordinator {
                     let (guidance, spaceContext) = SpaceGuidanceResolver.resolve(for: item)
 
                     let result: AnalysisResult
-                    if item.isVideo {
-                        let frames = try extractVideoFrames(for: item, rootURL: rootURL)
-                        result = try await AIAnalysisService.shared.analyzeVideo(
-                            frames: frames,
+                    do {
+                        result = try await runAnalysis(
+                            item,
+                            rootURL: rootURL,
                             provider: provider,
                             model: resolvedModel,
                             apiKey: apiKey,
                             guidance: guidance,
                             spaceContext: spaceContext
                         )
-                    } else {
-                        let image = try loadImage(for: item, rootURL: rootURL)
-                        result = try await AIAnalysisService.shared.analyze(
-                            image: image,
+                    } catch let error as AIAnalysisService.AnalysisError
+                        where usesRecommendedModel && Self.indicatesUnusableModel(error) {
+                        rejectedRecommendedModels.insert(resolvedModel)
+                        ModelDiscoveryService.shared.clearCache(for: provider)
+                        let fallback = await ModelDiscoveryService.shared.resolveAutoModel(
+                            for: provider,
+                            excluding: rejectedRecommendedModels
+                        )
+                        guard fallback != resolvedModel else { throw error }
+                        resolvedModel = fallback
+                        result = try await runAnalysis(
+                            item,
+                            rootURL: rootURL,
                             provider: provider,
                             model: resolvedModel,
                             apiKey: apiKey,
@@ -130,6 +144,43 @@ final class AnalysisCoordinator {
     }
 
     // MARK: - Private Helpers
+
+    nonisolated static func indicatesUnusableModel(_ error: AIAnalysisService.AnalysisError) -> Bool {
+        guard case .apiError(let code, _, _) = error else { return false }
+        return code == 400 || code == 404
+    }
+
+    private func runAnalysis(
+        _ item: MediaItem,
+        rootURL: URL,
+        provider: AIProvider,
+        model: String,
+        apiKey: String,
+        guidance: String?,
+        spaceContext: String?
+    ) async throws -> AnalysisResult {
+        if item.isVideo {
+            let frames = try extractVideoFrames(for: item, rootURL: rootURL)
+            return try await AIAnalysisService.shared.analyzeVideo(
+                frames: frames,
+                provider: provider,
+                model: model,
+                apiKey: apiKey,
+                guidance: guidance,
+                spaceContext: spaceContext
+            )
+        }
+
+        let image = try loadImage(for: item, rootURL: rootURL)
+        return try await AIAnalysisService.shared.analyze(
+            image: image,
+            provider: provider,
+            model: model,
+            apiKey: apiKey,
+            guidance: guidance,
+            spaceContext: spaceContext
+        )
+    }
 
     private func loadImage(for item: MediaItem, rootURL: URL) throws -> UIImage {
         let fileURL = rootURL.appendingPathComponent("images/\(item.filename)")

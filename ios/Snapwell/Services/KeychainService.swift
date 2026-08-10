@@ -8,6 +8,11 @@ enum KeychainService {
 
     private static let serviceName = "co.snapwell.apikeys"
 
+    #if targetEnvironment(simulator)
+    nonisolated(unsafe) private static var simulatorFallback: [String: String] = [:]
+    private static let simulatorFallbackLock = NSLock()
+    #endif
+
     static func set(key: String, forService service: String) throws {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -26,6 +31,11 @@ enum KeychainService {
         let status = SecItemAdd(addQuery as CFDictionary, nil)
         if status != errSecSuccess {
             logger.error("Keychain write failed for \(service, privacy: .public): \(status)")
+            #if targetEnvironment(simulator)
+            simulatorFallbackLock.lock()
+            simulatorFallback[service] = key
+            simulatorFallbackLock.unlock()
+            #endif
         }
     }
 
@@ -49,7 +59,14 @@ enum KeychainService {
             logger.error("Keychain read failed for \(service, privacy: .public): \(status)")
         }
 
+        #if targetEnvironment(simulator)
+        simulatorFallbackLock.lock()
+        let fallback = simulatorFallback[service]
+        simulatorFallbackLock.unlock()
+        return fallback
+        #else
         return nil
+        #endif
     }
 
     static func delete(service: String) throws {
@@ -64,6 +81,12 @@ enum KeychainService {
         if status != errSecSuccess && status != errSecItemNotFound {
             logger.error("Keychain delete failed for \(service, privacy: .public): \(status)")
         }
+
+        #if targetEnvironment(simulator)
+        simulatorFallbackLock.lock()
+        simulatorFallback.removeValue(forKey: service)
+        simulatorFallbackLock.unlock()
+        #endif
     }
 
     static func exists(service: String) -> Bool {

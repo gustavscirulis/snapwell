@@ -79,8 +79,14 @@ enum KeySyncService {
                 return
             }
 
-            for (providerRaw, key) in payload.keys where !key.isEmpty {
-                try KeychainService.set(key: key, forService: providerRaw)
+            // The payload is a complete key snapshot. Remove entries that are absent so
+            // deleting one provider on iOS does not leave a stale credential on the Mac.
+            for provider in AIProvider.allCases {
+                if let key = payload.keys[provider.rawValue], !key.isEmpty {
+                    try KeychainService.set(key: key, forService: provider.keychainService)
+                } else {
+                    try KeychainService.delete(service: provider.keychainService)
+                }
             }
 
             UserDefaults.standard.set(payload.provider, forKey: "aiProvider")

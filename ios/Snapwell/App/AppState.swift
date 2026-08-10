@@ -35,6 +35,13 @@ final class AppState {
     var itemToDelete: MediaItem?
     var shareItem: URL?
     var activeNudge: Nudge?
+    var showAISettings = false
+    var opensAISettingsAfterNudge = false
+
+    func dismissAPIKeyNudgeIfConfigured(isUnlocked: Bool) {
+        guard isUnlocked, activeNudge == .apiKey else { return }
+        activeNudge = nil
+    }
 
     func queuePatternSearch(_ pattern: String) {
         pendingSearchPattern = pattern

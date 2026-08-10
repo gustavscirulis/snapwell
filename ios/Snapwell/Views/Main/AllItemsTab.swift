@@ -15,6 +15,7 @@ struct AllItemsTab<AddMenu: View>: View {
     let onDeleteItem: (MediaItem) -> Void
     let onAssignToSpace: (String, String?) -> Void
     let onLoadContent: () async -> Void
+    let onShowAISettings: () -> Void
     let addImagesMenu: AddMenu
 
     var body: some View {
@@ -59,6 +60,12 @@ struct AllItemsTab<AddMenu: View>: View {
             .navigationTitle("All media")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(action: onShowAISettings) {
+                        Label("AI Settings", systemImage: "gearshape")
+                    }
+                }
+
                 ToolbarItem(placement: .topBarTrailing) {
                     addImagesMenu
                 }

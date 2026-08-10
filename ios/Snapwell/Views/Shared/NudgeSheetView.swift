@@ -16,9 +16,9 @@ struct NudgeSheetMetrics: Codable, Equatable {
 struct NudgeSheetView: View {
     let nudge: Nudge
     var metrics = NudgeSheetMetrics()
+    var onOpenAISettings: () -> Void = {}
 
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.openURL) private var openURL
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -142,12 +142,10 @@ struct NudgeSheetView: View {
 
         case .apiKey:
             Button {
-                if let url = URL(string: UIApplication.openSettingsURLString) {
-                    openURL(url)
-                }
+                onOpenAISettings()
                 dismiss()
             } label: {
-                Text("Open Settings")
+                Text("Set Up AI")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
