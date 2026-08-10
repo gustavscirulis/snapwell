@@ -16,6 +16,8 @@ enum AIProvider: String, CaseIterable, Codable, Sendable {
         }
     }
 
+    var keychainService: String { rawValue }
+
     var defaultModel: String {
         switch self {
         case .openai: return "gpt-5.6-luna"

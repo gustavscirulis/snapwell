@@ -64,11 +64,13 @@
 		A100000081 /* NudgeSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000081 /* NudgeSheetView.swift */; };
 		A100000082 /* DebugDialOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000082 /* DebugDialOverlay.swift */; };
 		A100000083 /* DialKit in Frameworks */ = {isa = PBXBuildFile; productRef = D200000001 /* DialKit */; };
-		A100000070 /* Settings.bundle in Resources */ = {isa = PBXBuildFile; fileRef = B100000070 /* Settings.bundle */; };
 		A1MIGR0001 /* LocalToiCloudMigrationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1MIGR0001 /* LocalToiCloudMigrationService.swift */; };
 		A200000001 /* GridPreferenceKeyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000001 /* GridPreferenceKeyTests.swift */; };
 		A200000099 /* MasonryLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000099 /* MasonryLayoutTests.swift */; };
 		A200000100 /* NudgeStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000100 /* NudgeStoreTests.swift */; };
+		A300000001 /* ModelDiscoveryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000001 /* ModelDiscoveryService.swift */; };
+		A300000002 /* AISettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000002 /* AISettingsView.swift */; };
+		A300000003 /* ModelDiscoveryScoringTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000003 /* ModelDiscoveryScoringTests.swift */; };
 		C325B2DE9C4EBB590CE9AA5B /* MediaItemTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BC6070D4921036591CAB048 /* MediaItemTests.swift */; };
 		E34FCD416FC123E6A9B6418F /* ImageImportServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7283BD792D4DC7DA66FA0273 /* ImageImportServiceTests.swift */; };
 		E740BF023E205C121824CCB6 /* TestTags.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC1856679647210724D1E66B /* TestTags.swift */; };
@@ -167,11 +169,13 @@
 		B100000052 /* SpaceCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpaceCardView.swift; sourceTree = "<group>"; };
 		B100000053 /* SpaceDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpaceDetailView.swift; sourceTree = "<group>"; };
 		B100000060 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		B100000070 /* Settings.bundle */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.plug-in"; path = Settings.bundle; sourceTree = "<group>"; };
 		B1MIGR0001 /* LocalToiCloudMigrationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalToiCloudMigrationService.swift; sourceTree = "<group>"; };
 		B200000001 /* GridPreferenceKeyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GridPreferenceKeyTests.swift; sourceTree = "<group>"; };
 		B200000099 /* MasonryLayoutTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MasonryLayoutTests.swift; sourceTree = "<group>"; };
 		B200000100 /* NudgeStoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NudgeStoreTests.swift; sourceTree = "<group>"; };
+		B300000001 /* ModelDiscoveryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelDiscoveryService.swift; sourceTree = "<group>"; };
+		B300000002 /* AISettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AISettingsView.swift; sourceTree = "<group>"; };
+		B300000003 /* ModelDiscoveryScoringTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ModelDiscoveryScoringTests.swift; sourceTree = "<group>"; };
 		C100000001 /* Snapwell.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Snapwell.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CC1856679647210724D1E66B /* TestTags.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TestTags.swift; sourceTree = "<group>"; };
 		D03B2C30D0292058D69AC3B2 /* ShareImportServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShareImportServiceTests.swift; sourceTree = "<group>"; };
@@ -262,6 +266,7 @@
 				B200000001 /* GridPreferenceKeyTests.swift */,
 				B200000099 /* MasonryLayoutTests.swift */,
 				B200000100 /* NudgeStoreTests.swift */,
+				B300000003 /* ModelDiscoveryScoringTests.swift */,
 			);
 			path = SnapwellTests;
 			sourceTree = "<group>";
@@ -328,6 +333,7 @@
 				E100000013 /* Detail */,
 				E100000014 /* Shared */,
 				E100000060 /* Debug */,
+				E100000070 /* Settings */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -351,6 +357,7 @@
 				B100000043 /* AnalysisCoordinator.swift */,
 				B100000044 /* SidecarWriteService.swift */,
 				B100000080 /* NudgeStore.swift */,
+				B300000001 /* ModelDiscoveryService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -372,7 +379,6 @@
 				B100000023 /* Snapwell.entitlements */,
 				B100000024 /* Info.plist */,
 				B100000060 /* PrivacyInfo.xcprivacy */,
-				B100000070 /* Settings.bundle */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -427,6 +433,14 @@
 				B100000082 /* DebugDialOverlay.swift */,
 			);
 			path = Debug;
+			sourceTree = "<group>";
+		};
+		E100000070 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				B300000002 /* AISettingsView.swift */,
+			);
+			path = Settings;
 			sourceTree = "<group>";
 		};
 		E100000050 /* Spaces */ = {
@@ -574,7 +588,6 @@
 				A100000019 /* Assets.xcassets in Resources */,
 				A100000022 /* AppIcon.icon in Resources */,
 				A100000060 /* PrivacyInfo.xcprivacy in Resources */,
-				A100000070 /* Settings.bundle in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -603,6 +616,7 @@
 				A200000001 /* GridPreferenceKeyTests.swift in Sources */,
 				A200000099 /* MasonryLayoutTests.swift in Sources */,
 				A200000100 /* NudgeStoreTests.swift in Sources */,
+				A300000003 /* ModelDiscoveryScoringTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -661,6 +675,8 @@
 				A100000080 /* NudgeStore.swift in Sources */,
 				A100000081 /* NudgeSheetView.swift in Sources */,
 				A100000082 /* DebugDialOverlay.swift in Sources */,
+				A300000001 /* ModelDiscoveryService.swift in Sources */,
+				A300000002 /* AISettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

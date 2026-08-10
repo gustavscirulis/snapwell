@@ -17,19 +17,6 @@ struct SnapwellApp: App {
             || defaults.object(forKey: "settings_defaults_v2") != nil
         NudgeStore(defaults: defaults).stampFirstLaunchIfNeeded(now: Date(), isReturningUser: isReturningUser)
 
-        defaults.register(defaults: [
-            "settings_provider": "none",
-            "settings_apiKey": "",
-            "settings_model": "auto"
-        ])
-
-        if !defaults.bool(forKey: "settings_defaults_v2") {
-            if (defaults.string(forKey: "settings_model") ?? "").isEmpty {
-                defaults.set("auto", forKey: "settings_model")
-            }
-            defaults.set(true, forKey: "settings_defaults_v2")
-        }
-
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let snapwellDir = appSupport.appendingPathComponent("Snapwell", isDirectory: true)
         try? FileManager.default.createDirectory(at: snapwellDir, withIntermediateDirectories: true)

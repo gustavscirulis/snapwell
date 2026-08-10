@@ -164,6 +164,34 @@ struct AIAnalysisParsingTests {
         #expect(service.isRetryable(error) == false)
     }
 
+    @Test("Recommended-model fallback accepts model rejection statuses", arguments: [400, 404])
+    func recommendedModelFallbackStatuses(_ code: Int) {
+        let error = AIAnalysisService.AnalysisError.apiError(
+            statusCode: code,
+            message: "error",
+            provider: .openai
+        )
+        #expect(AnalysisCoordinator.indicatesUnusableModel(error))
+    }
+
+    @Test("Recommended-model fallback excludes auth, quota, rate-limit, and server statuses",
+          arguments: [401, 403, 429, 500])
+    func recommendedModelFallbackExcludedStatuses(_ code: Int) {
+        let error = AIAnalysisService.AnalysisError.apiError(
+            statusCode: code,
+            message: "error",
+            provider: .openai
+        )
+        #expect(!AnalysisCoordinator.indicatesUnusableModel(error))
+    }
+
+    @Test("Non-API failures do not trigger a model substitution")
+    func recommendedModelFallbackIgnoresParsingFailures() {
+        #expect(AnalysisCoordinator.indicatesUnusableModel(.invalidResponse) == false)
+        #expect(AnalysisCoordinator.indicatesUnusableModel(.parseFailed) == false)
+        #expect(AnalysisCoordinator.indicatesUnusableModel(.imageConversionFailed) == false)
+    }
+
     // MARK: - AIProvider enum properties
 
     @Test("All providers have non-empty displayName",

@@ -3,7 +3,7 @@ import Foundation
 import CryptoKit
 @testable import Snapwell
 
-@Suite("KeySyncService", .tags(.crypto))
+@Suite("KeySyncService", .serialized, .tags(.crypto))
 struct KeySyncServiceTests {
 
     // MARK: - KeySyncPayload roundtrip
@@ -134,7 +134,7 @@ struct KeySyncServiceTests {
         #expect(placeholderNames[1] == ".apikeys.encrypted.icloud")
     }
 
-    // MARK: - Settings.bundle key reading
+    // MARK: - Legacy Settings.bundle migration
 
     private func cleanupDefaults(_ defaults: UserDefaults) {
         defaults.removeObject(forKey: "settings_apiKey")
@@ -142,6 +142,12 @@ struct KeySyncServiceTests {
         defaults.removeObject(forKey: "settings_model")
         defaults.removeObject(forKey: "settings_lastSyncedKeyHash")
         defaults.removeObject(forKey: "settings_defaults_v2")
+        defaults.removeObject(forKey: "inAppAISettingsMigration_v1")
+        defaults.removeObject(forKey: "keySyncLastImportedAt")
+        defaults.removeObject(forKey: KeySyncService.providerDefaultsKey)
+        for provider in AIProvider.allCases {
+            defaults.removeObject(forKey: KeySyncService.modelDefaultsKey(for: provider))
+        }
     }
 
     private func cleanupKeychain() {
@@ -150,9 +156,11 @@ struct KeySyncServiceTests {
         }
     }
 
-    @Test("Settings.bundle non-empty key unlocks service")
-    @MainActor func settingsBundleUnlocks() async {
+    @Test("Legacy non-empty key unlocks service")
+    @MainActor func legacyKeyUnlocks() async {
         let defaults = UserDefaults.standard
+        cleanupDefaults(defaults)
+        cleanupKeychain()
         defer { cleanupDefaults(defaults); cleanupKeychain() }
 
         defaults.set("test-ant-key-123", forKey: "settings_apiKey")
@@ -163,15 +171,17 @@ struct KeySyncServiceTests {
         service.checkForSettingsKeys()
 
         #expect(service.isUnlocked == true)
-        #expect(service.keySource == .settingsBundle)
+        #expect(service.keySource == .local)
         #expect(service.activeProvider == "anthropic")
-        #expect(service.activeModel == nil)
+        #expect(service.activeModel == "auto")
         #expect(service.activeAPIKey() == "test-ant-key-123")
     }
 
-    @Test("Settings.bundle empty key does not unlock")
-    @MainActor func settingsBundleEmptyKey() async {
+    @Test("Legacy empty key does not unlock")
+    @MainActor func legacyEmptyKey() async {
         let defaults = UserDefaults.standard
+        cleanupDefaults(defaults)
+        cleanupKeychain()
         defer { cleanupDefaults(defaults); cleanupKeychain() }
 
         defaults.set("", forKey: "settings_apiKey")
@@ -184,9 +194,11 @@ struct KeySyncServiceTests {
         #expect(service.keySource == .none)
     }
 
-    @Test("Settings.bundle whitespace-only key treated as empty")
-    @MainActor func settingsBundleWhitespaceKey() async {
+    @Test("Legacy whitespace-only key is treated as empty")
+    @MainActor func legacyWhitespaceKey() async {
         let defaults = UserDefaults.standard
+        cleanupDefaults(defaults)
+        cleanupKeychain()
         defer { cleanupDefaults(defaults); cleanupKeychain() }
 
         defaults.set("   ", forKey: "settings_apiKey")
@@ -199,9 +211,11 @@ struct KeySyncServiceTests {
         #expect(service.keySource == .none)
     }
 
-    @Test("Settings.bundle unknown provider is rejected")
-    @MainActor func settingsBundleUnknownProvider() async {
+    @Test("Legacy unknown provider is rejected")
+    @MainActor func legacyUnknownProvider() async {
         let defaults = UserDefaults.standard
+        cleanupDefaults(defaults)
+        cleanupKeychain()
         defer { cleanupDefaults(defaults); cleanupKeychain() }
 
         defaults.set("test-key-123", forKey: "settings_apiKey")
@@ -214,9 +228,11 @@ struct KeySyncServiceTests {
         #expect(service.keySource == .none)
     }
 
-    @Test("Settings.bundle with model sets activeModel")
-    @MainActor func settingsBundleWithModel() async {
+    @Test("Legacy concrete model is preserved")
+    @MainActor func legacyConcreteModel() async {
         let defaults = UserDefaults.standard
+        cleanupDefaults(defaults)
+        cleanupKeychain()
         defer { cleanupDefaults(defaults); cleanupKeychain() }
 
         defaults.set("test-key-123", forKey: "settings_apiKey")
@@ -230,9 +246,11 @@ struct KeySyncServiceTests {
         #expect(service.activeModel == "gpt-4o-mini")
     }
 
-    @Test("Settings.bundle provider 'none' does not unlock")
-    @MainActor func settingsBundleNoneProvider() async {
+    @Test("Legacy provider 'none' does not unlock")
+    @MainActor func legacyNoneProvider() async {
         let defaults = UserDefaults.standard
+        cleanupDefaults(defaults)
+        cleanupKeychain()
         defer { cleanupDefaults(defaults); cleanupKeychain() }
 
         defaults.set("test-key-123", forKey: "settings_apiKey")
@@ -245,9 +263,11 @@ struct KeySyncServiceTests {
         #expect(service.keySource == .none)
     }
 
-    @Test("Settings.bundle key is replaced with masked placeholder after read")
-    @MainActor func settingsBundleWritesPlaceholder() async {
+    @Test("Legacy plaintext key is removed after migration")
+    @MainActor func legacyMigrationRemovesPlaintext() async {
         let defaults = UserDefaults.standard
+        cleanupDefaults(defaults)
+        cleanupKeychain()
         defer { cleanupDefaults(defaults); cleanupKeychain() }
 
         defaults.set("test-key-xyz", forKey: "settings_apiKey")
@@ -256,13 +276,14 @@ struct KeySyncServiceTests {
         let service = KeySyncService.shared
         service.checkForSettingsKeys()
 
-        let remaining = defaults.string(forKey: "settings_apiKey") ?? ""
-        #expect(remaining == String(repeating: "•", count: 48))
+        #expect(defaults.object(forKey: "settings_apiKey") == nil)
     }
 
-    @Test("Settings.bundle masked placeholder is ignored on subsequent reads")
-    @MainActor func settingsBundlePlaceholderIgnored() async {
+    @Test("Legacy masked placeholder is ignored on subsequent reads")
+    @MainActor func legacyPlaceholderIgnored() async {
         let defaults = UserDefaults.standard
+        cleanupDefaults(defaults)
+        cleanupKeychain()
         defer { cleanupDefaults(defaults); cleanupKeychain() }
 
         defaults.set("test-key-abc", forKey: "settings_apiKey")
@@ -274,16 +295,17 @@ struct KeySyncServiceTests {
         #expect(service.isUnlocked == true)
         #expect(service.activeAPIKey() == "test-key-abc")
 
-        let placeholderValue = defaults.string(forKey: "settings_apiKey") ?? ""
-        #expect(placeholderValue == String(repeating: "•", count: 48))
+        #expect(defaults.object(forKey: "settings_apiKey") == nil)
 
         service.checkForSettingsKeys()
         #expect(service.isUnlocked == true)
     }
 
-    @Test("Settings.bundle model 'auto' sets activeModel to auto")
-    @MainActor func settingsBundleAutoModel() async {
+    @Test("Legacy model 'auto' sets activeModel to auto")
+    @MainActor func legacyAutoModel() async {
         let defaults = UserDefaults.standard
+        cleanupDefaults(defaults)
+        cleanupKeychain()
         defer { cleanupDefaults(defaults); cleanupKeychain() }
 
         defaults.set("test-key-123", forKey: "settings_apiKey")
@@ -295,5 +317,93 @@ struct KeySyncServiceTests {
 
         #expect(service.isUnlocked == true)
         #expect(service.activeModel == "auto")
+    }
+
+    @Test("Migration is idempotent and preserves the first imported key")
+    @MainActor func migrationIsIdempotent() async {
+        let defaults = UserDefaults.standard
+        cleanupDefaults(defaults)
+        cleanupKeychain()
+        defer { cleanupDefaults(defaults); cleanupKeychain() }
+
+        defaults.set("first-key", forKey: "settings_apiKey")
+        defaults.set("openai", forKey: "settings_provider")
+
+        let service = KeySyncService.shared
+        service.checkForSettingsKeys()
+
+        defaults.set("second-key", forKey: "settings_apiKey")
+        service.checkForSettingsKeys()
+
+        #expect(service.activeAPIKey() == "first-key")
+        #expect(defaults.object(forKey: "settings_apiKey") == nil)
+    }
+
+    @Test("Provider switching retains independent keys and models")
+    @MainActor func providerSwitchRetainsSettings() async throws {
+        let defaults = UserDefaults.standard
+        cleanupDefaults(defaults)
+        cleanupKeychain()
+        defer { cleanupDefaults(defaults); cleanupKeychain() }
+
+        let service = KeySyncService.shared
+        service.checkForSettingsKeys()
+        try service.saveAPIKey("openai-key", for: .openai, rootURL: nil)
+        service.setModel("gpt-4o", for: .openai, rootURL: nil)
+        try service.saveAPIKey("anthropic-key", for: .anthropic, rootURL: nil)
+        service.setModel("claude-sonnet-5", for: .anthropic, rootURL: nil)
+
+        #expect(service.activeProvider == "anthropic")
+        #expect(service.activeAPIKey() == "anthropic-key")
+        #expect(service.activeModel == "claude-sonnet-5")
+
+        service.selectProvider(.openai, rootURL: nil)
+
+        #expect(service.activeAPIKey() == "openai-key")
+        #expect(service.activeModel == "gpt-4o")
+        #expect(service.hasAPIKey(for: .anthropic))
+    }
+
+    @Test("Removing the selected key disables analysis without deleting other providers")
+    @MainActor func removeSelectedKeyRetainsOthers() async throws {
+        let defaults = UserDefaults.standard
+        cleanupDefaults(defaults)
+        cleanupKeychain()
+        defer { cleanupDefaults(defaults); cleanupKeychain() }
+
+        let service = KeySyncService.shared
+        service.checkForSettingsKeys()
+        try service.saveAPIKey("openai-key", for: .openai, rootURL: nil)
+        try service.saveAPIKey("gemini-key", for: .gemini, rootURL: nil)
+        try service.removeAPIKey(for: .gemini, rootURL: nil)
+
+        #expect(service.activeProvider == "gemini")
+        #expect(service.isUnlocked == false)
+        #expect(service.activeAPIKey() == nil)
+        #expect(service.hasAPIKey(for: .openai))
+    }
+
+    @Test("Local edits reject older iCloud payloads and allow newer ones")
+    @MainActor func localEditAdvancesSyncWatermark() async {
+        let defaults = UserDefaults.standard
+        cleanupDefaults(defaults)
+        cleanupKeychain()
+        defer { cleanupDefaults(defaults); cleanupKeychain() }
+
+        let service = KeySyncService.shared
+        service.checkForSettingsKeys()
+        let beforeEdit = Date.now
+        service.setModel("gpt-4o", for: .openai, rootURL: nil)
+
+        let watermark = defaults.double(forKey: "keySyncLastImportedAt")
+        #expect(watermark >= beforeEdit.timeIntervalSince1970)
+        #expect(KeySyncService.shouldImport(
+            payloadUpdatedAt: Date(timeIntervalSince1970: watermark - 1),
+            lastImportedAt: watermark
+        ) == false)
+        #expect(KeySyncService.shouldImport(
+            payloadUpdatedAt: Date(timeIntervalSince1970: watermark + 1),
+            lastImportedAt: watermark
+        ) == true)
     }
 }
