@@ -167,20 +167,13 @@ struct GridItemView: View {
                 Button {
                     onRetryAnalysis?()
                 } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.caption2)
-                        Text("Retry")
-                            .font(.caption2.weight(.medium))
-                    }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(.red.opacity(0.7))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .frame(minWidth: 44, minHeight: 44, alignment: .bottomLeading)
-                    .contentShape(Rectangle())
+                    retryBadge
                 }
+                .buttonStyle(.plain)
+                .frame(minWidth: 44, minHeight: 44, alignment: .bottomLeading)
+                .contentShape(Rectangle())
+                .accessibilityLabel("Retry analysis")
+                .accessibilityHint("Analyzes this item again")
                 .padding(8)
                 .transition(.opacity.combined(with: .scale(scale: 0.8)))
             }
@@ -261,6 +254,18 @@ struct GridItemView: View {
                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
                 .environment(\.colorScheme, .dark)
         }
+    }
+
+    private var retryBadge: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "arrow.clockwise")
+            Text("Retry")
+        }
+        .font(.caption2.weight(.medium))
+        .foregroundStyle(.white)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(.red, in: RoundedRectangle(cornerRadius: 10))
     }
 
     private func loadThumbnail(isRetry: Bool = false) async {
