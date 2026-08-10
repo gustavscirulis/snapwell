@@ -82,6 +82,7 @@ struct FullScreenImageOverlay: View {
     var onHeroSettledChanged: ((Bool) -> Void)?
     var onClose: () -> Void
     var onSearchPattern: ((String) -> Void)?
+    var onRetryAnalysis: ((MediaItem) -> Void)?
     var onDelete: ((MediaItem) -> Void)?
 
     @Environment(\.colorScheme) private var colorScheme
@@ -177,6 +178,7 @@ struct FullScreenImageOverlay: View {
         onHeroSettledChanged: ((Bool) -> Void)? = nil,
         onClose: @escaping () -> Void,
         onSearchPattern: ((String) -> Void)? = nil,
+        onRetryAnalysis: ((MediaItem) -> Void)? = nil,
         onDelete: ((MediaItem) -> Void)? = nil
     ) {
         _items = State(initialValue: items)
@@ -192,6 +194,7 @@ struct FullScreenImageOverlay: View {
         self.onHeroSettledChanged = onHeroSettledChanged
         self.onClose = onClose
         self.onSearchPattern = onSearchPattern
+        self.onRetryAnalysis = onRetryAnalysis
         self.onDelete = onDelete
         let clampedStart = items.indices.contains(startIndex) ? startIndex : 0
         _currentIndex = State(initialValue: clampedStart)
@@ -509,9 +512,12 @@ struct FullScreenImageOverlay: View {
                 }
                 .frame(width: screen.width, height: finalFrame.height)
 
-                DetailMetadataSection(item: item, stage: metadataStage) { pattern in
-                    searchAndClose(pattern: pattern)
-                }
+                DetailMetadataSection(
+                    item: item,
+                    stage: metadataStage,
+                    onRetryAnalysis: { onRetryAnalysis?(item) },
+                    onSearchPattern: { pattern in searchAndClose(pattern: pattern) }
+                )
                 .id(item.id)
                 .frame(width: screen.width)
                 .background(
@@ -519,7 +525,7 @@ struct FullScreenImageOverlay: View {
                         Color.clear.preference(key: MetadataHeightKey.self, value: proxy.size.height)
                     }
                 )
-                .padding(.top, 32)
+                .padding(.top, item.isAnalyzing || item.analysisError != nil ? 16 : 32)
                 .padding(.bottom, 50)
                 .opacity(isDeleting ? 0 : (isZoomed ? 0 : metadataOpacity * metadataDismissOpacity))
                 .offset(y: dismissVisualProgress * 24)
@@ -608,6 +614,7 @@ struct FullScreenImageOverlay: View {
 
     /// Metadata starts very faded, becomes readable as user scrolls up
     private var metadataOpacity: Double {
+        if item.isAnalyzing || item.analysisError != nil { return 1.0 }
         let base = 0.15
         let progress = min(contentOffset / 80, 1.0)
         return base + (1.0 - base) * progress

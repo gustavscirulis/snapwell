@@ -5,6 +5,7 @@ import SwiftUI
 struct DetailMetadataSection: View {
     let item: MediaItem
     let stage: Int
+    let onRetryAnalysis: () -> Void
     var onSearchPattern: ((String) -> Void)?
 
     var body: some View {
@@ -19,15 +20,8 @@ struct DetailMetadataSection: View {
                 }
                 .stageReveal(stage: stage, threshold: 1)
             } else if item.analysisError != nil {
-                HStack(spacing: 6) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .font(.footnote)
-                        .foregroundStyle(.red.opacity(0.8))
-                    Text("Analysis failed")
-                        .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.6))
-                }
-                .stageReveal(stage: stage, threshold: 1)
+                AnalysisFailureView(onRetry: onRetryAnalysis)
+                    .stageReveal(stage: stage, threshold: 1)
             } else if let result = item.analysisResult {
                 if !result.patterns.isEmpty {
                     patternPillsGrid(result.patterns)
@@ -140,6 +134,69 @@ struct DetailMetadataSection: View {
                     value: stage
                 )
         }
+    }
+}
+
+// MARK: - Analysis Failure
+
+private struct AnalysisFailureView: View {
+    let onRetry: () -> Void
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) {
+                failureLabel
+                Spacer(minLength: 8)
+                retryButton
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                failureLabel
+                retryButton
+            }
+        }
+        .padding(12)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .environment(\.colorScheme, .dark)
+        .accessibilityElement(children: .contain)
+    }
+
+    private var failureLabel: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.headline)
+                .foregroundStyle(.red)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Analysis failed")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+
+                Text("Analysis couldn’t be completed.")
+                    .font(.footnote)
+                    .foregroundStyle(.white.opacity(0.6))
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var retryButton: some View {
+        Button {
+            onRetry()
+        } label: {
+            Label("Try Again", systemImage: "arrow.clockwise")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.white)
+        }
+        .buttonStyle(.borderedProminent)
+        .buttonBorderShape(.capsule)
+        .controlSize(.small)
+        .tint(.red)
+        .frame(minWidth: 44, minHeight: 44, alignment: .leading)
+        .contentShape(Rectangle())
+        .accessibilityLabel("Retry analysis")
+        .accessibilityHint("Analyzes this item again")
     }
 }
 

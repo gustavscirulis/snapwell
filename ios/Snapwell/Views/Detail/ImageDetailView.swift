@@ -42,6 +42,7 @@ struct MediaDetailModal: View {
     @Binding var thumbnailImage: UIImage?
     @Binding var gridItemRects: [String: CGRect]
     let onSearchPattern: (String) -> Void
+    let onRetryAnalysis: (MediaItem) -> Void
     let onDelete: (MediaItem) -> Void
     let onOverlayClosed: () -> Void
 
@@ -113,6 +114,7 @@ struct MediaDetailModal: View {
                                 },
                                 onClose: handleOverlayClosed,
                                 onSearchPattern: onSearchPattern,
+                                onRetryAnalysis: onRetryAnalysis,
                                 onDelete: onDelete
                             )
                         }

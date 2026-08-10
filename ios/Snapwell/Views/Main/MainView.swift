@@ -114,6 +114,7 @@ struct MainView: View {
                         thumbnailImage: $appState.thumbnailImage,
                         gridItemRects: $gridItemRects,
                         onSearchPattern: handleSearchPattern,
+                        onRetryAnalysis: handleRetryAnalysis,
                         onDelete: handleItemDeleted,
                         onOverlayClosed: handleOverlayClosed
                     )
