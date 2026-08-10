@@ -25,7 +25,9 @@ All apps read/write the same structure. iOS syncs via iCloud.
 
 ## iOS app
 
-Syncs media and spaces via iCloud. Can run AI analysis and write results back to sidecars. Zero external dependencies.
+Syncs media and spaces via iCloud. Can run AI analysis and write results back to sidecars. The only external dependency is [DialKit](https://github.com/mikelikesdesign/dialkit-ios) (pinned to 0.3.0), a **DEBUG-only** dev tool — every reference lives inside `#if DEBUG`, isolated to `Views/Debug/DebugDialOverlay.swift`. Its floating panel triggers the nudge sheets on demand and tunes their layout live; Release builds reference no DialKit symbols.
+
+Note the iOS project does **not** use XcodeGen — `ios/Snapwell.xcodeproj/project.pbxproj` is hand-maintained, so a new Swift file needs a `PBXFileReference`, a `PBXBuildFile`, a group `children` entry, and a `Sources` build-phase entry. Files added inside `Assets.xcassets` need no pbxproj edit.
 
 **iCloud handling is critical** — files may exist as `.icloud` placeholders. All loading code must detect placeholders, trigger downloads with `startDownloadingUbiquitousItem()`, and wait for completion.
 
@@ -54,6 +56,8 @@ Bundle ID: `co.snapwell`.
 **SwiftData saves**: Use `modelContext.saveOrLog()` (not `try? modelContext.save()`). The `saveOrLog()` extension logs errors and asserts in DEBUG to prevent silent data loss.
 
 **`isAnalyzing` is transient** — it's persisted on `MediaItem` but represents in-flight state. Both apps reset stuck flags on launch. Don't add more persisted transient flags; track ephemeral state on coordinators instead.
+
+**One-time nudges (iOS)**: eligibility and "already seen" state live in `NudgeStore` (pure logic over `UserDefaults`, injectable for tests); `MainView.evaluateNudges()` runs after every `loadContent()` and presents at most one. Add new nudges as `Nudge` cases with a rule in `nextNudge`, ordered by priority — never stack two modals.
 
 ## Testing
 
