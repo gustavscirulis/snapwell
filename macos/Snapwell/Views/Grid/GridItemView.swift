@@ -12,6 +12,9 @@ struct GridItemView: View, Equatable {
     /// `==` invalidates cells whose captured closures have gone stale.
     let itemsFingerprint: Int
     let activeSpaceId: String?
+    /// True while this cell is the source/destination of the detail hero. Passed explicitly so
+    /// the EquatableView cannot leave the source thumbnail visible underneath the moving hero.
+    let isDetailSource: Bool
     let onSelect: (CGRect) -> Void
     let onToggleSelect: () -> Void
     let onShiftSelect: () -> Void
@@ -48,12 +51,27 @@ struct GridItemView: View, Equatable {
         isSelected && selectedCount > 1 ? appState.selectedIds : [item.id]
     }
 
-    init(item: MediaItem, width: CGFloat, orderedItems: @escaping () -> [MediaItem], itemsFingerprint: Int, activeSpaceId: String?, onSelect: @escaping (CGRect) -> Void, onToggleSelect: @escaping () -> Void, onShiftSelect: @escaping () -> Void, onDelete: @escaping (Set<String>) -> Void, onChangeSpaceMembership: @escaping (Set<String>, SpaceMembershipAction) -> Void, onRetryAnalysis: @escaping (Set<String>) -> Void, onShare: @escaping (Set<String>, CGRect) -> Void) {
+    init(
+        item: MediaItem,
+        width: CGFloat,
+        orderedItems: @escaping () -> [MediaItem],
+        itemsFingerprint: Int,
+        activeSpaceId: String?,
+        isDetailSource: Bool,
+        onSelect: @escaping (CGRect) -> Void,
+        onToggleSelect: @escaping () -> Void,
+        onShiftSelect: @escaping () -> Void,
+        onDelete: @escaping (Set<String>) -> Void,
+        onChangeSpaceMembership: @escaping (Set<String>, SpaceMembershipAction) -> Void,
+        onRetryAnalysis: @escaping (Set<String>) -> Void,
+        onShare: @escaping (Set<String>, CGRect) -> Void
+    ) {
         self.item = item
         self.width = width
         self.orderedItems = orderedItems
         self.itemsFingerprint = itemsFingerprint
         self.activeSpaceId = activeSpaceId
+        self.isDetailSource = isDetailSource
         self.onSelect = onSelect
         self.onToggleSelect = onToggleSelect
         self.onShiftSelect = onShiftSelect
@@ -76,6 +94,7 @@ struct GridItemView: View, Equatable {
         lhs.item === rhs.item
             && lhs.width == rhs.width
             && lhs.activeSpaceId == rhs.activeSpaceId
+            && lhs.isDetailSource == rhs.isDetailSource
             && lhs.itemsFingerprint == rhs.itemsFingerprint
             && lhs.itemAspectRatio == rhs.itemAspectRatio
             && lhs.itemIsVideo == rhs.itemIsVideo
@@ -97,10 +116,6 @@ struct GridItemView: View, Equatable {
         if item.analysisError != nil { parts.append("Analysis failed") }
         if loadFailed { parts.append("Preview unavailable, click to retry") }
         return parts.joined(separator: ", ")
-    }
-
-    private var gridItemOpacity: Double {
-        item.id == appState.detailItem ? 0 : 1
     }
 
     private var deleteStage: Int {
@@ -157,11 +172,10 @@ struct GridItemView: View, Equatable {
             } label: {
                 Group {
                     if let thumbnail {
-                        Image(nsImage: thumbnail)
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(width: width, height: height)
-                            .clipped()
+                        TopCroppedImage(
+                            image: thumbnail,
+                            size: CGSize(width: width, height: height)
+                        )
                     } else if loadFailed {
                         Rectangle()
                             .fill(Color.snapMuted)
@@ -385,7 +399,9 @@ struct GridItemView: View, Equatable {
         .overlay {
             dragSourceOverlay
         }
-        .opacity(isDeleting ? 0 : gridItemOpacity)
+        // Match iOS's shared-element handoff: there must only ever be one visible copy of the
+        // selected image. The hero occupies this exact hole until it returns on close.
+        .opacity(isDeleting || isDetailSource ? 0 : 1)
         .onGeometryChange(for: CGRect.self) { proxy in
             proxy.frame(in: .global)
         } action: { newValue in
