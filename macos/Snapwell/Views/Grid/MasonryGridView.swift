@@ -91,6 +91,7 @@ struct MasonryGridView: View {
                                         orderedItems: { items },
                                         itemsFingerprint: fingerprint,
                                         activeSpaceId: activeSpaceId,
+                                        isDetailSource: appState.detailItem == item.id,
                                         onSelect: { frame in onSelect(item.id, frame) },
                                         onToggleSelect: { onToggleSelect(item.id) },
                                         onShiftSelect: { onShiftSelect(item.id) },
