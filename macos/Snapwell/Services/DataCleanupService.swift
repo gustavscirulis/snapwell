@@ -51,9 +51,16 @@ enum DataCleanupService {
 
     /// Remove SwiftData records whose media files no longer exist on disk.
     @MainActor
-    static func cleanOrphanedRecords(context: ModelContext) {
-        let storage = MediaStorageService.shared
+    static func cleanOrphanedRecords(
+        context: ModelContext,
+        storage: MediaStorageService = .shared
+    ) {
         let fm = FileManager.default
+
+        guard !storage.isUsingiCloud else {
+            print("[DataCleanup] Skipped orphaned record deletion for iCloud storage")
+            return
+        }
 
         guard let items = try? context.fetch(FetchDescriptor<MediaItem>()) else { return }
 
@@ -98,9 +105,13 @@ enum DataCleanupService {
 
     /// Remove sidecar JSON files from metadata/ whose media file no longer exists.
     /// This prevents "Media file not found" warnings on every launch.
-    static func cleanOrphanedSidecars() {
-        let storage = MediaStorageService.shared
+    static func cleanOrphanedSidecars(storage: MediaStorageService = .shared) {
         let fm = FileManager.default
+
+        guard !storage.isUsingiCloud else {
+            print("[DataCleanup] Skipped orphaned sidecar deletion for iCloud storage")
+            return
+        }
 
         guard let files = try? fm.contentsOfDirectory(
             at: storage.metadataDir,

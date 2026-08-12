@@ -173,38 +173,48 @@ final class SyncService {
         return d
     }()
 
+    private let isUsingiCloudOverride: Bool?
+    private let downloadRequester: any DownloadRequesting
+
+    init(
+        isUsingiCloud: Bool? = nil,
+        downloadRequester: any DownloadRequesting = DownloadRequester.shared
+    ) {
+        isUsingiCloudOverride = isUsingiCloud
+        self.downloadRequester = downloadRequester
+    }
+
     /// Full sync from disk to SwiftData. Call on app launch and when returning to foreground.
     /// Returns the number of iCloud files that were still downloading (skipped).
     @discardableResult
     func sync(rootURL: URL, context: ModelContext) async -> Int {
         let metadataDir = rootURL.appendingPathComponent("metadata")
         let imagesDir = rootURL.appendingPathComponent("images")
-        let fm = FileManager.default
+        let isUsingiCloud = isUsingiCloudOverride ?? FileSystemManager.shared?.isUsingiCloud ?? false
 
         // Phase 1: Import spaces
-        syncSpaces(rootURL: rootURL, context: context)
+        let spacesURL = rootURL.appendingPathComponent("spaces.json")
+        let spacesState = ICloudFile.downloadState(of: spacesURL, isUsingiCloud: isUsingiCloud)
+        if spacesState == .downloading {
+            downloadRequester.requestDownload(for: spacesURL)
+        } else if spacesState == .downloaded {
+            syncSpaces(rootURL: rootURL, context: context)
+        }
 
-        // Phase 2: Scan metadata files
-        guard let contents = try? fm.contentsOfDirectory(
-            at: metadataDir,
-            includingPropertiesForKeys: [.ubiquitousItemDownloadingStatusKey],
-            options: []
+        // Phase 2: Scan metadata and media once each. Placeholder names are
+        // canonicalized by the shared scanner used by macOS as well.
+        guard let metadataFiles = ContainerScanner.scanMetadata(
+            metadataDir,
+            isUsingiCloud: isUsingiCloud
         ) else {
             print("[SyncService] Cannot read metadata directory")
             return 0
         }
-
-        let isUsingiCloud = FileSystemManager.shared?.isUsingiCloud ?? false
-
-        let jsonFiles = contents.filter { url in
-            let name = url.lastPathComponent
-            if isUsingiCloud {
-                return name.hasSuffix(".json") || name.hasSuffix(".json.icloud")
-            }
-            return name.hasSuffix(".json")
-        }
-
-        print("[SyncService] Found \(jsonFiles.count) metadata files")
+        let mediaFiles = ContainerScanner.scanMedia(
+            imagesDir,
+            isUsingiCloud: isUsingiCloud
+        ) ?? [:]
+        print("[SyncService] Found \(metadataFiles.count) metadata files")
 
         // Phase 3: Load existing items from SwiftData for diffing
         let existingItems = (try? context.fetch(FetchDescriptor<MediaItem>())) ?? []
@@ -213,63 +223,35 @@ final class SyncService {
             existingById[item.id] = item
         }
 
-        var seenIds = Set<String>()
         var skipped = 0
         var imported = 0
 
-        for url in jsonFiles {
-            let fileName = url.lastPathComponent
-
-            // iCloud placeholder — trigger download, skip
-            if isUsingiCloud && fileName.hasSuffix(".json.icloud") {
-                var realName = String(fileName.dropLast(".icloud".count))
-                if realName.hasPrefix(".") { realName = String(realName.dropFirst()) }
-                let realURL = url.deletingLastPathComponent().appendingPathComponent(realName)
-                try? fm.startDownloadingUbiquitousItem(at: realURL)
+        for metadataFile in metadataFiles.values.sorted(by: { $0.id < $1.id }) {
+            let id = metadataFile.id
+            guard metadataFile.state == .downloaded else {
+                downloadRequester.requestDownload(for: metadataFile.url)
                 skipped += 1
                 continue
             }
 
-            // Check if JSON is downloaded (iCloud only)
-            if isUsingiCloud,
-               let rv = try? url.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey]),
-               let status = rv.ubiquitousItemDownloadingStatus,
-               status != .current {
-                try? fm.startDownloadingUbiquitousItem(at: url)
-                skipped += 1
+            guard let data = try? Data(contentsOf: metadataFile.url) else {
+                if isUsingiCloud {
+                    downloadRequester.requestDownload(for: metadataFile.url)
+                    skipped += 1
+                }
                 continue
             }
-
-            guard let data = try? Data(contentsOf: url) else { continue }
             guard let sidecar = try? Self.decoder.decode(SidecarMetadata.self, from: data) else { continue }
 
-            let id = url.deletingPathExtension().lastPathComponent
-            seenIds.insert(id)
-
-            // Check media file exists (locally or as iCloud placeholder)
-            let ext = sidecar.type == "video" ? "mp4" : "png"
-            let mediaFilename = "\(id).\(ext)"
-            let mediaURL = imagesDir.appendingPathComponent(mediaFilename)
-            let iCloudPlaceholder = imagesDir.appendingPathComponent(".\(id).\(ext).icloud")
-
-            if !fm.fileExists(atPath: mediaURL.path) {
-                if isUsingiCloud {
-                    // iCloud: check for placeholder and trigger download
-                    if fm.fileExists(atPath: iCloudPlaceholder.path) {
-                        try? fm.startDownloadingUbiquitousItem(at: mediaURL)
-                    } else if let rv = try? mediaURL.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey]),
-                              rv.ubiquitousItemDownloadingStatus != nil {
-                        if rv.ubiquitousItemDownloadingStatus != .current {
-                            try? fm.startDownloadingUbiquitousItem(at: mediaURL)
-                        }
-                    } else {
-                        continue // Orphaned sidecar
-                    }
-                } else {
-                    // Local mode: no media file means orphaned sidecar
-                    continue
-                }
+            guard let mediaFile = mediaFiles[id] else {
+                if isUsingiCloud { skipped += 1 }
+                continue
             }
+            if mediaFile.state == .downloading {
+                downloadRequester.requestDownload(for: mediaFile.url)
+                skipped += 1
+            }
+            let mediaFilename = mediaFile.url.lastPathComponent
 
             // Upsert into SwiftData
             if let existing = existingById[id] {
@@ -318,13 +300,16 @@ final class SyncService {
             }
         }
 
-        // Phase 4: Remove orphaned SwiftData items (sidecar was deleted on Mac)
-        for (_, orphan) in existingById {
+        // Phase 4: Remove items only when the sidecar is genuinely absent. A
+        // present-but-pending placeholder must protect its SwiftData record.
+        var removed = 0
+        for (id, orphan) in existingById where metadataFiles[id] == nil {
             context.delete(orphan)
+            removed += 1
         }
 
         context.saveOrLog()
-        print("[SyncService] Sync complete: \(imported) new, \(skipped) pending iCloud, \(existingById.count) removed")
+        print("[SyncService] Sync complete: \(imported) new, \(skipped) pending iCloud, \(removed) removed")
         return skipped
     }
 

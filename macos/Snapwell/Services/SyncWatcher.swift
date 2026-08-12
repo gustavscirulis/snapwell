@@ -10,22 +10,33 @@ import AppKit
 @MainActor
 final class SyncWatcher {
     private var metadataSource: DispatchSourceFileSystemObject?
+    private var mediaSource: DispatchSourceFileSystemObject?
     private var spacesSource: DispatchSourceFileSystemObject?
     private var metadataFD: Int32 = -1
+    private var mediaFD: Int32 = -1
     private var spacesFD: Int32 = -1
     private var debounceTask: Task<Void, Never>?
     private var spacesDebounceTask: Task<Void, Never>?
+    private var pendingRetryTask: Task<Void, Never>?
+    private var pendingRetryAttempt = 0
     private var knownSidecarIds: [String: Date] = [:]
+    private var pendingSidecarIds = Set<String>()
     private var context: ModelContext?
     /// When true, ignore file-system events (we caused them ourselves).
     private var suppressingLocalChanges = false
 
     let storage: MediaStorageService
     let sidecarService: MetadataSidecarService
+    let downloadRequester: any DownloadRequesting
 
-    init(storage: MediaStorageService = .shared, sidecarService: MetadataSidecarService = .shared) {
+    init(
+        storage: MediaStorageService = .shared,
+        sidecarService: MetadataSidecarService = .shared,
+        downloadRequester: any DownloadRequesting = DownloadRequester.shared
+    ) {
         self.storage = storage
         self.sidecarService = sidecarService
+        self.downloadRequester = downloadRequester
     }
 
     /// Called when new items without analysis are imported via sync.
@@ -39,7 +50,7 @@ final class SyncWatcher {
         let sidecar: SidecarMetadata
         let mediaType: MediaType
         let filename: String
-        let mediaFileFound: Bool
+        let mediaState: DownloadState
         let needsThumbnail: Bool
     }
 
@@ -64,7 +75,7 @@ final class SyncWatcher {
     /// Call AFTER local mutations complete. Updates known state so the watcher
     /// won't react to our own file changes when suppression ends.
     func endLocalChange() {
-        knownSidecarIds = Self.currentSidecarIdsWithDatesFromDisk(storage: storage)
+        updateKnownSidecars(Self.currentSidecarIdsWithDatesFromDisk(storage: storage))
         // Keep suppressed briefly to outlast any DispatchSource events
         // that are already queued from our write.
         Task { @MainActor [weak self] in
@@ -77,7 +88,7 @@ final class SyncWatcher {
         stopWatching()
         self.context = context
 
-        knownSidecarIds = Self.currentSidecarIdsWithDatesFromDisk(storage: storage)
+        updateKnownSidecars(Self.currentSidecarIdsWithDatesFromDisk(storage: storage))
 
         // Watch metadata/ directory — use main queue so event handler is
         // already on the main thread, avoiding cross-isolation captures.
@@ -100,6 +111,27 @@ final class SyncWatcher {
             metadataSource = source
         }
 
+        // Media materialization does not touch the sidecar, so it needs its own
+        // watcher to re-evaluate pending imports immediately.
+        mediaFD = open(storage.mediaDir.path, O_EVTONLY)
+        if mediaFD >= 0 {
+            let source = DispatchSource.makeFileSystemObjectSource(
+                fileDescriptor: mediaFD,
+                eventMask: .write,
+                queue: .main
+            )
+            source.setEventHandler { [weak self] in
+                guard let self else { return }
+                Task { @MainActor [weak self] in
+                    self?.scheduleSync()
+                }
+            }
+            let fd = mediaFD
+            source.setCancelHandler { close(fd) }
+            source.resume()
+            mediaSource = source
+        }
+
         // Watch base directory for spaces.json changes
         spacesFD = open(storage.baseURL.path, O_EVTONLY)
         if spacesFD >= 0 {
@@ -119,23 +151,34 @@ final class SyncWatcher {
             source.resume()
             spacesSource = source
         }
+
+        schedulePendingRetryIfNeeded()
     }
 
     func stopWatching() {
         metadataSource?.cancel()
         metadataSource = nil
         metadataFD = -1
+        mediaSource?.cancel()
+        mediaSource = nil
+        mediaFD = -1
         spacesSource?.cancel()
         spacesSource = nil
         spacesFD = -1
         debounceTask?.cancel()
         spacesDebounceTask?.cancel()
+        pendingRetryTask?.cancel()
+        pendingRetryTask = nil
         context = nil
     }
 
     /// Perform an initial sync on launch — picks up items that arrived via iCloud while the app was closed.
     func initialSync(context: ModelContext) async {
         self.context = context
+        iCloudDownloadManager.shared.ensureIndexDownloaded(
+            storage: storage,
+            downloadRequester: downloadRequester
+        )
         await syncSpaces()          // Spaces FIRST so items can resolve space IDs
         await syncMetadataAsync()
     }
@@ -145,6 +188,11 @@ final class SyncWatcher {
     /// that DispatchSource may have missed.
     func resyncFromDisk() async {
         knownSidecarIds = [:]
+        iCloudDownloadManager.shared.ensureIndexDownloaded(
+            storage: storage,
+            downloadRequester: downloadRequester
+        )
+        await syncSpaces()
         await syncMetadata()
     }
 
@@ -170,6 +218,47 @@ final class SyncWatcher {
         }
     }
 
+    private func requestDownloads(_ urls: [URL]) {
+        for url in Set(urls) {
+            downloadRequester.requestDownload(for: url)
+        }
+    }
+
+    private func updateKnownSidecars(_ currentDates: [String: Date]) {
+        knownSidecarIds = currentDates.filter { !pendingSidecarIds.contains($0.key) }
+    }
+
+    private func finishSync(currentDates: [String: Date], pendingIds: Set<String>) {
+        pendingSidecarIds = pendingIds
+        updateKnownSidecars(currentDates)
+
+        if pendingIds.isEmpty {
+            pendingRetryTask?.cancel()
+            pendingRetryTask = nil
+            pendingRetryAttempt = 0
+        } else {
+            schedulePendingRetryIfNeeded()
+        }
+    }
+
+    private func schedulePendingRetryIfNeeded() {
+        guard !pendingSidecarIds.isEmpty, pendingRetryTask == nil, context != nil else { return }
+        let delays: [Duration] = [.seconds(5), .seconds(10), .seconds(20), .seconds(30)]
+        let delay = delays[min(pendingRetryAttempt, delays.count - 1)]
+        pendingRetryAttempt += 1
+
+        pendingRetryTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled, let self else { return }
+            self.pendingRetryTask = nil
+            guard !self.suppressingLocalChanges else {
+                self.schedulePendingRetryIfNeeded()
+                return
+            }
+            await self.syncMetadata()
+        }
+    }
+
     // MARK: - Metadata Sync
 
     /// Result of gathering file changes on a background thread.
@@ -178,20 +267,38 @@ final class SyncWatcher {
         let updates: [SidecarUpdateData]
         let deletedIds: Set<String>
         let currentDates: [String: Date]
+        let pendingIds: Set<String>
+        let downloadURLs: [URL]
     }
 
     /// Shared Phase 1: Gather all file-derived changes on a background thread.
-    /// When `detectDeletions` is true (ongoing sync), also reports IDs that disappeared from disk.
-    private func gatherChangesFromDisk(detectDeletions: Bool) async -> GatheredChanges {
+    ///
+    /// Deletions are detected by diffing the persisted SwiftData records against disk rather
+    /// than against `knownSidecarIds`, which is in-memory only and therefore empty on launch
+    /// and after `resyncFromDisk()`. Diffing the store is what lets a deletion made on another
+    /// device while this app was closed be noticed at all. Mirrors `SyncService.sync` on iOS.
+    private func gatherChangesFromDisk() async -> GatheredChanges {
         let knownDates = knownSidecarIds
         let storage = self.storage
         let sidecarService = self.sidecarService
+        let persistedIds = persistedItemIds()
 
         return await Task.detached(priority: .userInitiated) {
-            let currentDates = Self.currentSidecarIdsWithDatesFromDisk(storage: storage)
+            let scannedMetadata = ContainerScanner.scanMetadata(
+                storage.metadataDir,
+                isUsingiCloud: storage.isUsingiCloud
+            )
+            let metadataFiles = scannedMetadata ?? [:]
+            let mediaFiles = ContainerScanner.scanMedia(
+                storage.mediaDir,
+                isUsingiCloud: storage.isUsingiCloud
+            ) ?? [:]
+            let currentDates = metadataFiles.mapValues(\.modDate)
             let currentIds = Set(currentDates.keys)
             let knownIds = Set(knownDates.keys)
             let newIds = currentIds.subtracting(knownIds)
+            var pendingIds = Set<String>()
+            var downloadURLs: [URL] = []
 
             // Detect modified sidecars (existing IDs whose mod date changed)
             var modifiedIds: Set<String> = []
@@ -206,13 +313,41 @@ final class SyncWatcher {
             var newItems: [SidecarImportData] = []
             newItems.reserveCapacity(newIds.count)
             for id in newIds {
-                if let data = Self.gatherSidecarData(id: id, storage: storage, sidecarService: sidecarService) {
-                    newItems.append(data)
+                guard let metadataFile = metadataFiles[id] else { continue }
+                guard metadataFile.state == .downloaded else {
+                    pendingIds.insert(id)
+                    downloadURLs.append(metadataFile.url)
+                    continue
                 }
+                guard let mediaFile = mediaFiles[id] else {
+                    pendingIds.insert(id)
+                    continue
+                }
+                if mediaFile.state == .downloading {
+                    downloadURLs.append(mediaFile.url)
+                }
+                guard let data = Self.gatherSidecarData(
+                    id: id,
+                    mediaFile: mediaFile,
+                    storage: storage,
+                    sidecarService: sidecarService
+                ) else {
+                    if storage.isUsingiCloud {
+                        pendingIds.insert(id)
+                        downloadURLs.append(metadataFile.url)
+                    }
+                    continue
+                }
+                newItems.append(data)
             }
 
             var updates: [SidecarUpdateData] = []
             for id in modifiedIds {
+                guard metadataFiles[id]?.state == .downloaded else {
+                    pendingIds.insert(id)
+                    if let url = metadataFiles[id]?.url { downloadURLs.append(url) }
+                    continue
+                }
                 if let sidecar = sidecarService.readSidecar(id: id) {
                     updates.append(SidecarUpdateData(
                         id: id,
@@ -226,20 +361,24 @@ final class SyncWatcher {
                 }
             }
 
-            // Filter out items moved to local trash (not truly deleted by remote)
+            // Any persisted item whose sidecar is gone from disk was deleted elsewhere. A
+            // present-but-still-downloading placeholder is in `currentIds`, so it protects its
+            // own record. `.trash/` counts as gone: it lives inside the shared container, so a
+            // sidecar sitting there was trashed by *some* device — a local delete already
+            // removed its own record under change suppression, and undo restores the sidecar
+            // to `metadata/` before re-inserting. A nil scan means the directory was unreadable
+            // rather than emptied; acting on that would wipe the whole library.
             var deletedIds: Set<String> = []
-            if detectDeletions {
-                let rawDeletedIds = knownIds.subtracting(currentIds)
-                for id in rawDeletedIds {
-                    if !Self.isInTrash(id: id, storage: storage) {
-                        deletedIds.insert(id)
-                    }
-                }
+            if scannedMetadata != nil {
+                deletedIds = persistedIds.subtracting(currentIds)
+            } else if !persistedIds.isEmpty {
+                print("[SyncWatcher] metadata/ unreadable — skipping deletion pass for \(persistedIds.count) records")
             }
 
             return GatheredChanges(
                 newItems: newItems, updates: updates,
-                deletedIds: deletedIds, currentDates: currentDates
+                deletedIds: deletedIds, currentDates: currentDates,
+                pendingIds: pendingIds, downloadURLs: downloadURLs
             )
         }.value
     }
@@ -248,18 +387,18 @@ final class SyncWatcher {
     private func syncMetadataAsync() async {
         guard context != nil else { return }
 
-        let changes = await gatherChangesFromDisk(detectDeletions: false)
-        knownSidecarIds = changes.currentDates
-
-        guard !changes.newItems.isEmpty || !changes.updates.isEmpty else { return }
+        let changes = await gatherChangesFromDisk()
+        requestDownloads(changes.downloadURLs)
+        var pendingIds = changes.pendingIds
 
         // Apply to SwiftData on main actor, in batches
         if !changes.newItems.isEmpty {
             print("[SyncWatcher] Initial sync: importing \(changes.newItems.count) items...")
             var count = 0
             for data in changes.newItems {
-                applyImport(data)
-                count += 1
+                let result = applyImport(data)
+                if !result.fullyApplied { pendingIds.insert(data.id) }
+                if result.inserted { count += 1 }
                 if count % 20 == 0 {
                     context?.saveOrLog()
                     await Task.yield()
@@ -272,20 +411,28 @@ final class SyncWatcher {
             applySpaceUpdate(update)
         }
 
+        for id in changes.deletedIds {
+            removeItemFromContext(id: id)
+        }
+
         context?.saveOrLog()
+        finishSync(currentDates: changes.currentDates, pendingIds: pendingIds)
     }
 
     /// Ongoing sync — triggered by DispatchSource after debounce.
     private func syncMetadata() async {
         guard context != nil else { return }
 
-        let changes = await gatherChangesFromDisk(detectDeletions: true)
-        knownSidecarIds = changes.currentDates
+        let changes = await gatherChangesFromDisk()
+        requestDownloads(changes.downloadURLs)
+        var pendingIds = changes.pendingIds
 
         var unanalyzedIds: [String] = []
         for data in changes.newItems {
-            applyImport(data)
-            if data.sidecar.imageContext == nil || (data.sidecar.imageContext?.isEmpty ?? true) {
+            let result = applyImport(data)
+            if !result.fullyApplied { pendingIds.insert(data.id) }
+            if result.inserted,
+               data.sidecar.imageContext == nil || (data.sidecar.imageContext?.isEmpty ?? true) {
                 unanalyzedIds.append(data.id)
             }
         }
@@ -305,11 +452,18 @@ final class SyncWatcher {
         if !unanalyzedIds.isEmpty {
             onNewUnanalyzedItems?(unanalyzedIds)
         }
+
+        finishSync(currentDates: changes.currentDates, pendingIds: pendingIds)
     }
 
     /// Apply pre-gathered sidecar data to SwiftData. No file I/O — only model operations.
-    private func applyImport(_ data: SidecarImportData) {
-        guard let context else { return }
+    private struct ImportResult {
+        let fullyApplied: Bool
+        let inserted: Bool
+    }
+
+    private func applyImport(_ data: SidecarImportData) -> ImportResult {
+        guard let context else { return ImportResult(fullyApplied: false, inserted: false) }
 
         let dataId = data.id
         let descriptor = FetchDescriptor<MediaItem>(predicate: #Predicate { $0.id == dataId })
@@ -322,12 +476,15 @@ final class SyncWatcher {
             if existingItem.sourceURL == nil, let sourceURL = data.sidecar.sourceURL {
                 existingItem.sourceURL = sourceURL
             }
-            return
+            if data.mediaState == .downloaded, data.needsThumbnail {
+                generateThumbnail(for: data)
+            }
+            return ImportResult(fullyApplied: data.mediaState == .downloaded, inserted: false)
         }
 
-        guard data.mediaFileFound else {
+        guard data.mediaState != .notPresent else {
             print("[SyncWatcher] Media file not found for \(data.id), skipping")
-            return
+            return ImportResult(fullyApplied: false, inserted: false)
         }
 
         let item = MediaItem(
@@ -358,22 +515,38 @@ final class SyncWatcher {
 
         context.insert(item)
 
-        if data.needsThumbnail {
-            let filename = data.filename
-            let mediaType = data.mediaType
-            let id = data.id
-            Task.detached { [storage] in
-                if mediaType == .video {
-                    if let posterFrame = try? await VideoFrameExtractor.extractPosterFrame(from: storage.mediaURL(filename: filename)) {
-                        _ = try? ThumbnailService.generateThumbnail(from: posterFrame, id: id)
-                    }
-                } else {
-                    _ = try? await ThumbnailService.generateThumbnail(from: storage.mediaURL(filename: filename), id: id)
-                }
-            }
+        if data.mediaState == .downloaded, data.needsThumbnail {
+            generateThumbnail(for: data)
         }
 
         print("[SyncWatcher] Imported \(data.id) from iCloud")
+        return ImportResult(fullyApplied: data.mediaState == .downloaded, inserted: true)
+    }
+
+    private func generateThumbnail(for data: SidecarImportData) {
+        let filename = data.filename
+        let mediaType = data.mediaType
+        let id = data.id
+        Task.detached { [storage] in
+            if mediaType == .video {
+                if let posterFrame = try? await VideoFrameExtractor.extractPosterFrame(from: storage.mediaURL(filename: filename)) {
+                    _ = try? ThumbnailService.generateThumbnail(from: posterFrame, id: id, storage: storage)
+                }
+            } else {
+                _ = try? await ThumbnailService.generateThumbnail(
+                    from: storage.mediaURL(filename: filename),
+                    id: id,
+                    storage: storage
+                )
+            }
+        }
+    }
+
+    /// IDs of every persisted item, used as the durable "last seen" set for deletion detection.
+    private func persistedItemIds() -> Set<String> {
+        guard let context,
+              let items = try? context.fetch(FetchDescriptor<MediaItem>()) else { return [] }
+        return Set(items.map(\.id))
     }
 
     /// Remove a SwiftData item by ID. No file I/O.
@@ -447,6 +620,19 @@ final class SyncWatcher {
     private func syncSpaces() async {
         guard let context else { return }
 
+        let spacesURL = storage.baseURL.appendingPathComponent("spaces.json")
+        switch ICloudFile.downloadState(of: spacesURL, isUsingiCloud: storage.isUsingiCloud) {
+        case .downloading:
+            downloadRequester.requestDownload(for: spacesURL)
+            return
+        case .notPresent where storage.isUsingiCloud:
+            // A temporarily incomplete iCloud directory listing must not be
+            // interpreted as an authoritative empty spaces index.
+            return
+        case .downloaded, .notPresent:
+            break
+        }
+
         // Phase 1: Read JSON on background thread (use wrapper format for all-space guidance)
         let sidecarService = self.sidecarService
         let spacesFile = await Task.detached {
@@ -503,30 +689,16 @@ final class SyncWatcher {
 
     /// Gather all file-derived data for a single sidecar on a background thread.
     /// Reads JSON, checks media file existence, triggers iCloud downloads. No SwiftData access.
-    private nonisolated static func gatherSidecarData(id: String, storage: MediaStorageService, sidecarService: MetadataSidecarService) -> SidecarImportData? {
+    private nonisolated static func gatherSidecarData(
+        id: String,
+        mediaFile: ScannedFile,
+        storage: MediaStorageService,
+        sidecarService: MetadataSidecarService
+    ) -> SidecarImportData? {
         guard let sidecar = sidecarService.readSidecar(id: id) else { return nil }
 
         let mediaType: MediaType = sidecar.type == "video" ? .video : .image
-        let ext = mediaType == .video ? "mp4" : "png"
-        let filename = "\(id).\(ext)"
-
-        let mediaURL = storage.mediaDir.appendingPathComponent(filename)
-        let fm = FileManager.default
-        var mediaFileFound = true
-
-        if !fm.fileExists(atPath: mediaURL.path) {
-            let placeholderName = ".\(filename).icloud"
-            let placeholderURL = storage.mediaDir.appendingPathComponent(placeholderName)
-            if fm.fileExists(atPath: placeholderURL.path) {
-                try? fm.startDownloadingUbiquitousItem(at: mediaURL)
-            } else {
-                let altExt = mediaType == .video ? "mov" : "jpg"
-                let altFilename = "\(id).\(altExt)"
-                if !fm.fileExists(atPath: storage.mediaDir.appendingPathComponent(altFilename).path) {
-                    mediaFileFound = false
-                }
-            }
-        }
+        let filename = mediaFile.url.lastPathComponent
 
         let needsThumbnail = !storage.thumbnailExists(id: id)
 
@@ -535,30 +707,16 @@ final class SyncWatcher {
             sidecar: sidecar,
             mediaType: mediaType,
             filename: filename,
-            mediaFileFound: mediaFileFound,
+            mediaState: mediaFile.state,
             needsThumbnail: needsThumbnail
         )
     }
 
     /// List sidecar IDs with their modification dates from disk. Safe to call from any thread.
     private nonisolated static func currentSidecarIdsWithDatesFromDisk(storage: MediaStorageService = .shared) -> [String: Date] {
-        let metadataDir = storage.metadataDir
-        let files = (try? FileManager.default.contentsOfDirectory(
-            at: metadataDir,
-            includingPropertiesForKeys: [.contentModificationDateKey]
-        )) ?? []
-        var result: [String: Date] = [:]
-        for file in files where file.pathExtension == "json" {
-            let id = file.deletingPathExtension().lastPathComponent
-            let modDate = (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
-            result[id] = modDate
-        }
-        return result
-    }
-
-    /// Check whether a sidecar was moved to trash (not deleted by remote). Safe to call from any thread.
-    private nonisolated static func isInTrash(id: String, storage: MediaStorageService = .shared) -> Bool {
-        let trashURL = storage.trashMetadataDir.appendingPathComponent("\(id).json")
-        return FileManager.default.fileExists(atPath: trashURL.path)
+        (ContainerScanner.scanMetadata(
+            storage.metadataDir,
+            isUsingiCloud: storage.isUsingiCloud
+        ) ?? [:]).mapValues(\.modDate)
     }
 }

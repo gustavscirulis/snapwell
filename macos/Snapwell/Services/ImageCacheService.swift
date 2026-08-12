@@ -1,5 +1,11 @@
 import AppKit
 
+enum ThumbnailLoadState: Sendable {
+    case loaded(NSImage)
+    case downloading
+    case unavailable
+}
+
 /// In-memory thumbnail cache to avoid repeated disk reads.
 /// Uses NSCache which automatically evicts under memory pressure.
 final class ImageCacheService: @unchecked Sendable {
@@ -34,37 +40,67 @@ final class ImageCacheService: @unchecked Sendable {
     /// When no pre-generated thumbnail exists, generates and persists one from the
     /// original file to avoid caching full-resolution images in memory.
     func loadThumbnail(id: String, filename: String) async -> NSImage? {
+        if case .loaded(let image) = await loadThumbnailState(id: id, filename: filename) {
+            return image
+        }
+        return nil
+    }
+
+    /// Loads the shared thumbnail first. When either the thumbnail or original
+    /// is an iCloud placeholder, requests it and reports a transient state so
+    /// grid cells can keep waiting instead of presenting a permanent failure.
+    func loadThumbnailState(id: String, filename: String) async -> ThumbnailLoadState {
         if let cached = image(forKey: id) {
-            return cached
+            return .loaded(cached)
         }
 
-        let loaded: NSImage? = await Task.detached(priority: .utility) {
+        let result: ThumbnailLoadState = await Task.detached(priority: .utility) {
             let storage = MediaStorageService.shared
+            let requester = DownloadRequester.shared
+            let thumbnailURL = storage.thumbnailURL(id: id)
 
-            // Fast path: pre-generated thumbnail exists on disk
-            if storage.thumbnailExists(id: id) {
-                return NSImage(contentsOf: storage.thumbnailURL(id: id))
+            switch ICloudFile.downloadState(of: thumbnailURL, isUsingiCloud: storage.isUsingiCloud) {
+            case .downloaded:
+                if let thumbnail = NSImage(contentsOf: thumbnailURL) {
+                    return .loaded(thumbnail)
+                }
+            case .downloading:
+                requester.requestDownload(for: thumbnailURL)
+                return .downloading
+            case .notPresent:
+                break
             }
 
-            // Slow path: load original, generate + persist a thumbnail, return that
             let mediaURL = storage.mediaURL(filename: filename)
-            guard let original = NSImage(contentsOf: mediaURL) else { return nil }
+            switch ICloudFile.downloadState(of: mediaURL, isUsingiCloud: storage.isUsingiCloud) {
+            case .downloading:
+                requester.requestDownload(for: mediaURL)
+                return .downloading
+            case .notPresent:
+                return .unavailable
+            case .downloaded:
+                break
+            }
+
+            guard let original = NSImage(contentsOf: mediaURL) else { return .unavailable }
 
             if let _ = try? ThumbnailService.generateThumbnail(from: original, id: id, storage: storage) {
-                // Return the newly saved thumbnail (smaller, JPEG-compressed)
-                return NSImage(contentsOf: storage.thumbnailURL(id: id))
+                if let thumbnail = NSImage(contentsOf: thumbnailURL) {
+                    return .loaded(thumbnail)
+                }
             }
 
-            // Last resort: generate in-memory thumbnail (not persisted)
             if let thumbData = original.thumbnailData(maxWidth: 800, quality: 0.9) {
-                return NSImage(data: thumbData)
+                if let thumbnail = NSImage(data: thumbData) {
+                    return .loaded(thumbnail)
+                }
             }
-            return nil
+            return .unavailable
         }.value
 
-        if let loaded {
+        if case .loaded(let loaded) = result {
             setImage(loaded, forKey: id)
         }
-        return loaded
+        return result
     }
 }

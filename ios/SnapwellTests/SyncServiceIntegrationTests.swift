@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 import SwiftData
 @testable import Snapwell
@@ -49,6 +50,68 @@ struct SyncServiceIntegrationTests {
 
         let items = try context.fetch(FetchDescriptor<MediaItem>())
         #expect(items.isEmpty)
+    }
+
+    @Test("Media placeholder imports with its real extension and requests download")
+    @MainActor func syncImportsMediaPlaceholder() async throws {
+        let sidecar = IntegrationTestSupport.makeSidecar(id: "placeholder-media")
+        try IntegrationTestSupport.writeSidecarJSON(sidecar, to: tempRoot)
+        try IntegrationTestSupport.writeMediaPlaceholder(id: "placeholder-media", ext: "webp", to: tempRoot)
+        let spy = SpyDownloadRequester()
+
+        let service = SyncService(isUsingiCloud: true, downloadRequester: spy)
+        let skipped = await service.sync(rootURL: tempRoot, context: context)
+
+        let item = try #require(try context.fetch(FetchDescriptor<MediaItem>()).first)
+        #expect(item.filename == "placeholder-media.webp")
+        #expect(skipped == 1)
+        #expect(spy.requestedURLs.contains(
+            tempRoot.appendingPathComponent("images/placeholder-media.webp").standardizedFileURL
+        ))
+    }
+
+    @Test("Sidecar placeholder is requested and imports after materialization")
+    @MainActor func syncRetriesSidecarPlaceholder() async throws {
+        try IntegrationTestSupport.writeSidecarPlaceholder(id: "placeholder-sidecar", to: tempRoot)
+        let spy = SpyDownloadRequester()
+        let service = SyncService(isUsingiCloud: true, downloadRequester: spy)
+
+        #expect(await service.sync(rootURL: tempRoot, context: context) == 1)
+        #expect(try context.fetch(FetchDescriptor<MediaItem>()).isEmpty)
+        #expect(spy.requestedURLs.contains(
+            tempRoot.appendingPathComponent("metadata/placeholder-sidecar.json").standardizedFileURL
+        ))
+
+        try FileManager.default.removeItem(
+            at: tempRoot.appendingPathComponent("metadata/.placeholder-sidecar.json.icloud")
+        )
+        try IntegrationTestSupport.writeSidecarJSON(
+            IntegrationTestSupport.makeSidecar(id: "placeholder-sidecar"),
+            to: tempRoot
+        )
+        try IntegrationTestSupport.createDummyMedia(id: "placeholder-sidecar", ext: "gif", in: tempRoot)
+        _ = await service.sync(rootURL: tempRoot, context: context)
+
+        let item = try #require(try context.fetch(FetchDescriptor<MediaItem>()).first)
+        #expect(item.filename == "placeholder-sidecar.gif")
+    }
+
+    @Test(
+        "Media extensions are resolved from the shared container scan",
+        arguments: ["heic", "webp", "gif", "m4v", "mov"]
+    )
+    @MainActor func syncResolvesMediaExtension(ext: String) async throws {
+        let id = "disk-extension-\(ext)"
+        try IntegrationTestSupport.writeSidecarJSON(
+            IntegrationTestSupport.makeSidecar(id: id, type: ["m4v", "mov"].contains(ext) ? "video" : "image"),
+            to: tempRoot
+        )
+        try IntegrationTestSupport.createDummyMedia(id: id, ext: ext, in: tempRoot)
+
+        _ = await SyncService().sync(rootURL: tempRoot, context: context)
+
+        let item = try #require(try context.fetch(FetchDescriptor<MediaItem>()).first)
+        #expect(item.filename == "\(id).\(ext)")
     }
 
     @Test("Sidecar with analysis fields creates AnalysisResult")
