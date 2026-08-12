@@ -49,6 +49,9 @@ struct DetailItemView: View {
     @State private var items: [MediaItem]
     @State private var currentIndex: Int
     @State private var image: NSImage?
+    /// Full-res bitmap that finished loading mid-hero. Held until the spring lands — see
+    /// `loadFullResImageFor`.
+    @State private var pendingFullResImage: NSImage?
     @State private var isLoadingFullRes = false
     @State private var swipeOffset: CGFloat = 0
     @State private var isNavigating = false
@@ -141,6 +144,12 @@ struct DetailItemView: View {
                 height: closeTargetFrame.size.height
             )
             let currentFrame = isExpanded ? finalFrame : localCloseTarget
+            // Keep one bitmap slice for both endpoints. The image scales uniformly while the
+            // animated frame reveals it from the top, instead of morphing between two crops.
+            let heroCropBasis = TopCroppedImage.tallestBox(
+                localCloseTarget.size,
+                finalFrame.size
+            )
 
             ZStack {
                 // Adjacent images for swipe navigation (only in settled phase)
@@ -163,11 +172,11 @@ struct DetailItemView: View {
                 } else if let image {
                     // HERO PHASE: Image springs from source position to final position.
                     // Uses .position() — NOT inside ScrollView, so frame animates cleanly.
-                    Image(nsImage: image)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: currentFrame.width, height: currentFrame.height)
-                        .clipped()
+                    TopCroppedImage(
+                        image: image,
+                        size: currentFrame.size,
+                        cropBasis: heroCropBasis
+                    )
                         .clipShape(RoundedRectangle(cornerRadius: isExpanded ? 16 : 12))
                         .overlay(alignment: .bottomTrailing) { loadingIndicator }
                         .onTapGesture { triggerClose() }
@@ -286,6 +295,10 @@ struct DetailItemView: View {
         } completion: {
             // Switch to settled layout (same image at same position — invisible)
             heroComplete = true
+            if let pendingFullResImage {
+                image = pendingFullResImage
+                self.pendingFullResImage = nil
+            }
             startMetadataReveal()
         }
 
@@ -381,6 +394,7 @@ struct DetailItemView: View {
     private func resetViewState() {
         metadataStage = 0
         scrollOffset = 0
+        pendingFullResImage = nil
         isZoomed = false
         zoomScale = 1.0
         zoomPanDelta = .zero
@@ -583,11 +597,7 @@ struct DetailItemView: View {
         let adjImage = adjacentImages[item.id] ?? ImageCacheService.shared.image(forKey: item.id)
 
         if let adjImage {
-            Image(nsImage: adjImage)
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-                .frame(width: frame.width, height: frame.height)
-                .clipped()
+            TopCroppedImage(image: adjImage, size: frame.size)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
                 .position(x: windowSize.width / 2, y: windowSize.height / 2)
         } else {
@@ -750,7 +760,14 @@ struct DetailItemView: View {
             return NSImage(contentsOf: MediaStorageService.shared.mediaURL(filename: filename))
         }.value
         if let loaded, !Task.isCancelled, items[currentIndex].id == item.id {
-            self.image = loaded
+            // Swapping a many-megapixel bitmap in while the hero spring is still running forces
+            // a re-raster mid-flight and visibly hitches it. Decode in parallel as before, but
+            // hold the swap until the animation lands.
+            if heroComplete {
+                self.image = loaded
+            } else {
+                self.pendingFullResImage = loaded
+            }
         }
     }
 
