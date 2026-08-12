@@ -30,6 +30,7 @@ struct GridItemView: View, Equatable {
     @State private var isHovered = false
     @State private var thumbnail: NSImage?
     @State private var loadFailed = false
+    @State private var isDownloading = false
     @State private var globalFrame: CGRect = .zero
     @State private var hoverTask: Task<Void, Never>?
     /// Suppresses the first `.onHover(false)` after a video preview starts.
@@ -114,6 +115,7 @@ struct GridItemView: View, Equatable {
         parts.append("\(item.width) by \(item.height)")
         if item.isAnalyzing { parts.append("Analyzing") }
         if item.analysisError != nil { parts.append("Analysis failed") }
+        if isDownloading { parts.append("Downloading preview") }
         if loadFailed { parts.append("Preview unavailable, click to retry") }
         return parts.joined(separator: ", ")
     }
@@ -176,6 +178,15 @@ struct GridItemView: View, Equatable {
                             image: thumbnail,
                             size: CGSize(width: width, height: height)
                         )
+                    } else if isDownloading {
+                        Rectangle()
+                            .fill(Color.snapMuted)
+                            .frame(width: width, height: height)
+                            .overlay {
+                                ProgressView()
+                                    .controlSize(.small)
+                                    .foregroundStyle(Color.snapMutedForeground)
+                            }
                     } else if loadFailed {
                         Rectangle()
                             .fill(Color.snapMuted)
@@ -465,6 +476,7 @@ struct GridItemView: View, Equatable {
         .onReceive(NotificationCenter.default.publisher(for: .thumbnailsRegenerated)) { _ in
             thumbnail = nil
             loadFailed = false
+            isDownloading = false
             Task { await loadThumbnail() }
         }
     }
@@ -556,18 +568,20 @@ struct GridItemView: View, Equatable {
         return globalFrame.contains(swiftUIPoint)
     }
 
-    private func loadThumbnail(isRetry: Bool = false) async {
-        if let loaded = await ImageCacheService.shared.loadThumbnail(id: item.id, filename: item.filename) {
-            self.thumbnail = loaded
-            return
-        }
-
-        // Auto-retry once — an iCloud file may arrive just after the first attempt.
-        if !isRetry {
+    private func loadThumbnail() async {
+        switch await ImageCacheService.shared.loadThumbnailState(id: item.id, filename: item.filename) {
+        case .loaded(let loaded):
+            thumbnail = loaded
+            isDownloading = false
+            loadFailed = false
+        case .downloading:
+            isDownloading = true
+            loadFailed = false
             try? await Task.sleep(for: .seconds(3))
             guard !Task.isCancelled else { return }
-            await loadThumbnail(isRetry: true)
-        } else {
+            await loadThumbnail()
+        case .unavailable:
+            isDownloading = false
             loadFailed = true
         }
     }

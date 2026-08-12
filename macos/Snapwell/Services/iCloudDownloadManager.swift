@@ -25,9 +25,10 @@ final class iCloudDownloadManager {
         downloadedFiles = 0
 
         let storage = MediaStorageService.shared
-        let dirs = [storage.mediaDir, storage.thumbnailDir]
+        let dirs = [storage.mediaDir, storage.thumbnailDir, storage.metadataDir]
+        let files = [storage.baseURL.appendingPathComponent("spaces.json")]
 
-        let evictedURLs = findEvictedFiles(in: dirs)
+        let evictedURLs = findEvictedFiles(in: dirs, including: files)
         totalFiles = evictedURLs.count
 
         if evictedURLs.isEmpty {
@@ -47,7 +48,7 @@ final class iCloudDownloadManager {
                 try? await Task.sleep(for: .seconds(2))
                 guard !Task.isCancelled else { break }
 
-                let remaining = findEvictedFiles(in: dirs)
+                let remaining = findEvictedFiles(in: dirs, including: files)
                 downloadedFiles = totalFiles - remaining.count
 
                 if remaining.isEmpty {
@@ -69,14 +70,39 @@ final class iCloudDownloadManager {
     func countEvicted() -> Int {
         guard MediaStorageService.shared.isUsingiCloud else { return 0 }
         let storage = MediaStorageService.shared
-        return findEvictedFiles(in: [storage.mediaDir, storage.thumbnailDir]).count
+        return findEvictedFiles(
+            in: [storage.mediaDir, storage.thumbnailDir, storage.metadataDir],
+            including: [storage.baseURL.appendingPathComponent("spaces.json")]
+        ).count
+    }
+
+    /// Metadata and spaces form the sync index and must always be local, even
+    /// when the user has not opted to retain full-resolution media.
+    func ensureIndexDownloaded(
+        storage: MediaStorageService = .shared,
+        downloadRequester: any DownloadRequesting = DownloadRequester.shared
+    ) {
+        guard storage.isUsingiCloud else { return }
+
+        let metadata = ContainerScanner.scanMetadata(
+            storage.metadataDir,
+            isUsingiCloud: true
+        ) ?? [:]
+        for file in metadata.values where file.state != .downloaded {
+            downloadRequester.requestDownload(for: file.url)
+        }
+
+        let spacesURL = storage.baseURL.appendingPathComponent("spaces.json")
+        if ICloudFile.downloadState(of: spacesURL, isUsingiCloud: true) == .downloading {
+            downloadRequester.requestDownload(for: spacesURL)
+        }
     }
 
     // MARK: - Private
 
     /// Find files that are not downloaded locally using URLResourceValues.
     /// Checks both real files (ubiquitousItemDownloadingStatus) and .icloud placeholders.
-    private nonisolated func findEvictedFiles(in directories: [URL]) -> [URL] {
+    private nonisolated func findEvictedFiles(in directories: [URL], including files: [URL]) -> [URL] {
         let fm = FileManager.default
         let keys: Set<URLResourceKey> = [.ubiquitousItemDownloadingStatusKey, .isUbiquitousItemKey]
         var evicted: [URL] = []
@@ -114,6 +140,12 @@ final class iCloudDownloadManager {
                         }
                     }
                 }
+            }
+        }
+
+        for file in files where ICloudFile.downloadState(of: file, isUsingiCloud: true) == .downloading {
+            if !evicted.contains(file) {
+                evicted.append(file)
             }
         }
 

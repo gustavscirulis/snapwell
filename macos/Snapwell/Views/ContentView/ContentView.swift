@@ -318,12 +318,12 @@ struct ContentView: View {
 
             MediaStorageService.shared.emptyOldTrash()
             MigrationService.migrateIfNeeded(context: modelContext)
-            DataCleanupService.cleanOrphanedRecords(context: modelContext)
-            DataCleanupService.cleanOrphanedSidecars()
             await DataCleanupService.migrateVideoDimensions(context: modelContext)
 
             // Sync items that arrived via iCloud while app was closed
             await syncWatcher.initialSync(context: modelContext)
+            DataCleanupService.cleanOrphanedRecords(context: modelContext)
+            DataCleanupService.cleanOrphanedSidecars()
             syncWatcher.startWatching(context: modelContext)
 
             // Auto-download evicted iCloud files if user has opted in

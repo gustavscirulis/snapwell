@@ -16,12 +16,24 @@ fileTypes:
 
 settings:
   base:
+    ALWAYS_SEARCH_USER_PATHS: NO
     SWIFT_VERSION: "6.0"
     MACOSX_DEPLOYMENT_TARGET: "15.0"
     DEVELOPMENT_TEAM: "HJ4HYUU2Y6"
     CODE_SIGN_IDENTITY: "Apple Development"
     CODE_SIGN_STYLE: Automatic
     ENABLE_HARDENED_RUNTIME: YES
+  configs:
+    Debug:
+      ENABLE_TESTABILITY: YES
+      GCC_OPTIMIZATION_LEVEL: 0
+      ONLY_ACTIVE_ARCH: YES
+      SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
+      SWIFT_OPTIMIZATION_LEVEL: "-Onone"
+    Release:
+      ENABLE_NS_ASSERTIONS: NO
+      SWIFT_COMPILATION_MODE: wholemodule
+      SWIFT_OPTIMIZATION_LEVEL: "-O"
 
 targets:
   Snapwell:
@@ -32,6 +44,9 @@ targets:
       ProvisioningStyle: Automatic
     sources:
       - path: Snapwell
+        excludes:
+          - "**/.DS_Store"
+      - path: ../Shared
         excludes:
           - "**/.DS_Store"
     info:
@@ -52,7 +67,13 @@ targets:
             NSUbiquitousContainerName: Snapwell
     settings:
       base:
+        PRODUCT_NAME: Snapwell
+        PRODUCT_MODULE_NAME: Snapwell
         PRODUCT_BUNDLE_IDENTIFIER: co.snapwell
+        COMBINE_HIDPI_IMAGES: YES
+        LD_RUNPATH_SEARCH_PATHS:
+          - "$(inherited)"
+          - "@executable_path/../Frameworks"
         MARKETING_VERSION: "1.0.4"
         CURRENT_PROJECT_VERSION: 9
         CODE_SIGN_ENTITLEMENTS: Snapwell/Resources/Snapwell.entitlements
@@ -82,6 +103,8 @@ targets:
       - target: Snapwell
     settings:
       base:
+        PRODUCT_NAME: SnapwellTests
+        PRODUCT_MODULE_NAME: SnapwellTests
         SWIFT_VERSION: "6.0"
         MACOSX_DEPLOYMENT_TARGET: "15.0"
         BUNDLE_LOADER: "$(TEST_HOST)"
@@ -89,3 +112,8 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: co.snapwell.tests
         SWIFT_STRICT_CONCURRENCY: complete
         GENERATE_INFOPLIST_FILE: "YES"
+        COMBINE_HIDPI_IMAGES: YES
+        LD_RUNPATH_SEARCH_PATHS:
+          - "$(inherited)"
+          - "@executable_path/../Frameworks"
+          - "@loader_path/../Frameworks"

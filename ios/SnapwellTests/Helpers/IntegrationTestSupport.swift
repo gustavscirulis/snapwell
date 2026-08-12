@@ -43,6 +43,11 @@ enum IntegrationTestSupport {
         try data.write(to: url, options: .atomic)
     }
 
+    static func writeSidecarPlaceholder(id: String, to rootURL: URL) throws {
+        let url = rootURL.appendingPathComponent("metadata/.\(id).json.icloud")
+        try Data().write(to: url)
+    }
+
     /// Write a spaces.json file (wrapper format with guidance).
     static func writeSpacesJSON(_ file: SidecarSpacesFile, to rootURL: URL) throws {
         let url = rootURL.appendingPathComponent("spaces.json")
@@ -80,6 +85,11 @@ enum IntegrationTestSupport {
     static func createDummyMedia(id: String, ext: String = "png", in rootURL: URL) throws {
         let url = rootURL.appendingPathComponent("images/\(id).\(ext)")
         try dummyPNGData.write(to: url, options: .atomic)
+    }
+
+    static func writeMediaPlaceholder(id: String, ext: String, to rootURL: URL) throws {
+        let url = rootURL.appendingPathComponent("images/.\(id).\(ext).icloud")
+        try Data().write(to: url)
     }
 
     /// Create a dummy thumbnail in the temp thumbnails directory.
@@ -120,5 +130,18 @@ enum IntegrationTestSupport {
             sourceURL: sourceURL,
             analyzedAt: analyzedAt
         )
+    }
+}
+
+final class SpyDownloadRequester: DownloadRequesting, @unchecked Sendable {
+    private let lock = NSLock()
+    private var urls: [URL] = []
+
+    var requestedURLs: [URL] {
+        lock.withLock { urls }
+    }
+
+    func requestDownload(for url: URL) {
+        lock.withLock { urls.append(url.standardizedFileURL) }
     }
 }

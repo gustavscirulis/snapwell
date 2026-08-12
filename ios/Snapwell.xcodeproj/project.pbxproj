@@ -7,6 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D500000001 /* ICloudFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = E500000001 /* ICloudFile.swift */; };
+		D500000002 /* ContainerScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = E500000002 /* ContainerScanner.swift */; };
+		D500000003 /* DownloadRequester.swift in Sources */ = {isa = PBXBuildFile; fileRef = E500000003 /* DownloadRequester.swift */; };
+		D500000011 /* IntegrationTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = E500000011 /* IntegrationTestSupport.swift */; };
+		D500000012 /* SyncServiceIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E500000012 /* SyncServiceIntegrationTests.swift */; };
 		00B9B3A1CE6741B63334035B /* AIAnalysisParsingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DD0DAB918AE6C43203687B1 /* AIAnalysisParsingTests.swift */; };
 		11C0F4AB839DF43E22D65B9A /* KeySyncCryptoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98D2D2CB68835763A39B0B88 /* KeySyncCryptoTests.swift */; };
 		2D5F5E408DB2900D5E4EB16A /* GuidanceFallbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB2E6651487D0EFEE5E52932 /* GuidanceFallbackTests.swift */; };
@@ -112,6 +117,11 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		E500000001 /* ICloudFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ICloudFile.swift; sourceTree = "<group>"; };
+		E500000002 /* ContainerScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContainerScanner.swift; sourceTree = "<group>"; };
+		E500000003 /* DownloadRequester.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadRequester.swift; sourceTree = "<group>"; };
+		E500000011 /* IntegrationTestSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = IntegrationTestSupport.swift; sourceTree = "<group>"; };
+		E500000012 /* SyncServiceIntegrationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SyncServiceIntegrationTests.swift; sourceTree = "<group>"; };
 		0D3694D12FDBE22980A4E2CF /* KeySyncServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = KeySyncServiceTests.swift; sourceTree = "<group>"; };
 		0E95904BD87CF150598C8CF4 /* ModelRelationshipTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ModelRelationshipTests.swift; sourceTree = "<group>"; };
 		2BC6070D4921036591CAB048 /* MediaItemTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MediaItemTests.swift; sourceTree = "<group>"; };
@@ -232,6 +242,7 @@
 		32C93C83CDA2B19AF3A644AF /* Helpers */ = {
 			isa = PBXGroup;
 			children = (
+				E500000011 /* IntegrationTestSupport.swift */,
 				8DF1DFAA1BB8E9D39744CFA9 /* SwiftDataTestSupport.swift */,
 				CC1856679647210724D1E66B /* TestTags.swift */,
 			);
@@ -250,6 +261,7 @@
 			isa = PBXGroup;
 			children = (
 				32C93C83CDA2B19AF3A644AF /* Helpers */,
+				E500000012 /* SyncServiceIntegrationTests.swift */,
 				6DD0DAB918AE6C43203687B1 /* AIAnalysisParsingTests.swift */,
 				98D2D2CB68835763A39B0B88 /* KeySyncCryptoTests.swift */,
 				54ADC2195271038AAEE8E275 /* SidecarCodableTests.swift */,
@@ -282,12 +294,24 @@
 		E100000001 = {
 			isa = PBXGroup;
 			children = (
+				F500000001 /* Shared Sync */,
 				E100000002 /* Snapwell */,
 				A0E9D3D12F7328AC00E35403 /* ShareExtension */,
 				E100000099 /* Products */,
 				38055792990F5A76CD3DAFEE /* Frameworks */,
 				8BB7A292A37E87DADFE5B213 /* SnapwellTests */,
 			);
+			sourceTree = "<group>";
+		};
+		F500000001 /* Shared Sync */ = {
+			isa = PBXGroup;
+			children = (
+				E500000001 /* ICloudFile.swift */,
+				E500000002 /* ContainerScanner.swift */,
+				E500000003 /* DownloadRequester.swift */,
+			);
+			name = "Shared Sync";
+			path = ../Shared/Sync;
 			sourceTree = "<group>";
 		};
 		E100000002 /* Snapwell */ = {
@@ -598,6 +622,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D500000011 /* IntegrationTestSupport.swift in Sources */,
+				D500000012 /* SyncServiceIntegrationTests.swift in Sources */,
 				00B9B3A1CE6741B63334035B /* AIAnalysisParsingTests.swift in Sources */,
 				8448C11DC4344A2F90D8BD6F /* SwiftDataTestSupport.swift in Sources */,
 				E740BF023E205C121824CCB6 /* TestTags.swift in Sources */,
@@ -631,6 +657,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D500000001 /* ICloudFile.swift in Sources */,
+				D500000002 /* ContainerScanner.swift in Sources */,
+				D500000003 /* DownloadRequester.swift in Sources */,
 				A100000001 /* SnapwellApp.swift in Sources */,
 				A100000002 /* ContentView.swift in Sources */,
 				A100000004 /* Space.swift in Sources */,

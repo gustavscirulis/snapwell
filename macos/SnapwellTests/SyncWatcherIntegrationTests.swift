@@ -308,8 +308,8 @@ struct SyncWatcherIntegrationTests {
         #expect(items.count <= 1)
     }
 
-    @Test("resync does not delete item when sidecar is in .trash/")
-    @MainActor func resyncSkipsTrashSidecar() async throws {
+    @Test("resync deletes item when sidecar is in .trash/")
+    @MainActor func resyncRemovesTrashedSidecar() async throws {
         let sidecar = IntegrationTestSupport.makeSidecar(id: "trash-mac-1")
         try IntegrationTestSupport.writeSidecarJSON(sidecar, to: tempRoot)
         try IntegrationTestSupport.createDummyMedia(id: "trash-mac-1", in: tempRoot)
@@ -317,15 +317,16 @@ struct SyncWatcherIntegrationTests {
         let watcher = makeWatcher()
         await watcher.initialSync(context: context)
 
-        // Move sidecar to trash (not a remote deletion)
+        // `.trash/` lives inside the shared container, so a sidecar landing there was
+        // trashed by some device — including iOS — and must be removed here too. A
+        // local delete already removes its own record before the watcher ever sees this.
         let src = tempRoot.appendingPathComponent("metadata/trash-mac-1.json")
         let dst = tempRoot.appendingPathComponent(".trash/metadata/trash-mac-1.json")
         try FileManager.default.moveItem(at: src, to: dst)
 
         await watcher.resyncFromDisk()
 
-        let items = try context.fetch(FetchDescriptor<MediaItem>())
-        #expect(items.count == 1) // Should NOT be deleted
+        #expect(try context.fetch(FetchDescriptor<MediaItem>()).isEmpty)
     }
 
     // MARK: - Spaces Sync
