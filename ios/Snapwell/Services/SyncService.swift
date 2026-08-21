@@ -407,6 +407,8 @@ final class SyncService {
                     model: "icloud-sync"
                 )
             }
+
+            item.analysisError = nil
         }
     }
 

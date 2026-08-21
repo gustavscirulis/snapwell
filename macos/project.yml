@@ -31,6 +31,7 @@ settings:
       SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
       SWIFT_OPTIMIZATION_LEVEL: "-Onone"
     Release:
+      DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
       ENABLE_NS_ASSERTIONS: NO
       SWIFT_COMPILATION_MODE: wholemodule
       SWIFT_OPTIMIZATION_LEVEL: "-O"
@@ -74,8 +75,8 @@ targets:
         LD_RUNPATH_SEARCH_PATHS:
           - "$(inherited)"
           - "@executable_path/../Frameworks"
-        MARKETING_VERSION: "1.0.4"
-        CURRENT_PROJECT_VERSION: 9
+        MARKETING_VERSION: "1.0.5"
+        CURRENT_PROJECT_VERSION: 10
         CODE_SIGN_ENTITLEMENTS: Snapwell/Resources/Snapwell.entitlements
         SWIFT_STRICT_CONCURRENCY: complete
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
