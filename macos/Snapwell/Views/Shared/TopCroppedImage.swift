@@ -23,13 +23,21 @@ struct TopCroppedImage: View {
 
     var body: some View {
         let source = Self.topSlice(of: image, covering: cropBasis ?? size)
-        let drawSize = Self.fillSize(for: source.size, in: size)
+        let drawRect = Self.drawRect(for: source.size, in: size)
 
-        Image(nsImage: source)
-            .resizable()
-            .frame(width: drawSize.width, height: drawSize.height)
-            .frame(width: size.width, height: size.height, alignment: .top)
+        Color.clear
+            .frame(width: size.width, height: size.height)
+            .overlay(alignment: .topLeading) {
+                Image(nsImage: source)
+                    .resizable()
+                    .frame(width: drawRect.width, height: drawRect.height)
+                    .offset(x: drawRect.minX, y: drawRect.minY)
+                    // Clipping only affects drawing. Keep the overflowing image out of hit
+                    // testing so it cannot cover neighboring masonry cells.
+                    .allowsHitTesting(false)
+            }
             .clipped()
+            .contentShape(.interaction, Rectangle())
     }
 
     /// Returns the box with the greatest height-to-width ratio.
@@ -57,6 +65,21 @@ struct TopCroppedImage: View {
 
         let scale = max(box.width / imageSize.width, box.height / imageSize.height)
         return CGSize(width: imageSize.width * scale, height: imageSize.height * scale)
+    }
+
+    /// The scaled image's placement inside its fixed clipping box.
+    ///
+    /// Vertical overflow always starts at the box's top edge. Horizontal overflow remains
+    /// centered, matching aspect-fill behavior for wide images without exposing the oversized
+    /// image's bounds to layout or hit testing.
+    nonisolated static func drawRect(for imageSize: CGSize, in box: CGSize) -> CGRect {
+        let drawSize = fillSize(for: imageSize, in: box)
+        return CGRect(
+            x: (box.width - drawSize.width) / 2,
+            y: 0,
+            width: drawSize.width,
+            height: drawSize.height
+        )
     }
 
     /// Trims a very tall image to just the top region `box` can actually show, returning the

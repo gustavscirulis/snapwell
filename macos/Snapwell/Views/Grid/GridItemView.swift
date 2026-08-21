@@ -330,6 +330,9 @@ struct GridItemView: View, Equatable {
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        // Keep hover, clicks, and drags inside the visible card. Image content can be larger than
+        // this frame to implement aspect-fill, and clipping alone does not constrain hit testing.
+        .contentShape(.interaction, RoundedRectangle(cornerRadius: 12))
         .scaleEffect(isDeleting ? DeleteAnim.targetScale : 1.0)
         .overlay(
             RoundedRectangle(cornerRadius: 12)

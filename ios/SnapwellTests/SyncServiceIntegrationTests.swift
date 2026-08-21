@@ -279,6 +279,38 @@ struct SyncServiceIntegrationTests {
         #expect(item.analysisResult?.patterns.count == 1)
     }
 
+    @Test("Successful remote analysis clears stale local analysis error")
+    @MainActor func syncClearsStaleErrorWhenRemoteAnalysisSucceeds() async throws {
+        let analysisDate = Date()
+        let item = MediaItem(id: "analysis-retry-sync", mediaType: .image, filename: "analysis-retry-sync.png", width: 800, height: 600)
+        item.analysisResult = AnalysisResult(
+            imageContext: "Analysis completed on Mac",
+            imageSummary: "Successful retry",
+            patterns: [],
+            analyzedAt: analysisDate,
+            provider: "synced",
+            model: "icloud-sync"
+        )
+        item.analysisError = "Analysis failed on this device"
+        context.insert(item)
+        context.saveOrLog()
+
+        let sidecar = IntegrationTestSupport.makeSidecar(
+            id: item.id,
+            imageContext: "Analysis completed on Mac",
+            imageSummary: "Successful retry",
+            analyzedAt: analysisDate
+        )
+        try IntegrationTestSupport.writeSidecarJSON(sidecar, to: tempRoot)
+        try IntegrationTestSupport.createDummyMedia(id: item.id, in: tempRoot)
+
+        let service = SyncService()
+        await service.sync(rootURL: tempRoot, context: context)
+
+        #expect(item.analysisResult?.imageContext == "Analysis completed on Mac")
+        #expect(item.analysisError == nil)
+    }
+
     @Test("Keeps local analysis when it's newer than remote")
     @MainActor func syncKeepsLocalAnalysisWhenNewer() async throws {
         let newerDate = Date()
