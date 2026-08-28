@@ -8,14 +8,25 @@ import UniformTypeIdentifiers
 final class ImportService {
 
     let storage: MediaStorageService
-    private let analysisService = AIAnalysisService.shared
+    private let analysisService: AIAnalysisService
+    private let providerOverride: AIProvider?
+    private let modelOverride: String?
     let sidecarService: MetadataSidecarService
 
     var analysisAlertError: String?
 
-    init(storage: MediaStorageService = .shared, sidecarService: MetadataSidecarService = .shared) {
+    init(
+        storage: MediaStorageService = .shared,
+        sidecarService: MetadataSidecarService = .shared,
+        analysisService: AIAnalysisService = .shared,
+        providerOverride: AIProvider? = nil,
+        modelOverride: String? = nil
+    ) {
         self.storage = storage
         self.sidecarService = sidecarService
+        self.analysisService = analysisService
+        self.providerOverride = providerOverride
+        self.modelOverride = modelOverride
     }
 
     private let imageTypes = SupportedMedia.imageExtensions
@@ -167,13 +178,17 @@ final class ImportService {
         }
 
         // Check for API key
-        let provider = AIProvider(rawValue: UserDefaults.standard.string(forKey: "aiProvider") ?? "openai") ?? .openai
-        guard KeychainService.exists(service: provider.keychainService) else {
+        let provider = providerOverride
+            ?? AIProvider(rawValue: UserDefaults.standard.string(forKey: "aiProvider") ?? "openai")
+            ?? .openai
+        guard !provider.requiresAPIKey || KeychainService.exists(service: provider.keychainService) else {
             print("[Analysis] No API key for \(provider.rawValue), skipping")
             return true
         }
 
-        let storedModel = UserDefaults.standard.string(forKey: "\(provider.rawValue)Model") ?? ModelDiscoveryService.autoModelValue
+        let storedModel = modelOverride
+            ?? UserDefaults.standard.string(forKey: "\(provider.rawValue)Model")
+            ?? ModelDiscoveryService.autoModelValue
         let isAutoResolved = storedModel == ModelDiscoveryService.autoModelValue
         let model: String
         if isAutoResolved {
@@ -198,7 +213,7 @@ final class ImportService {
 
             do {
                 result = try await runAnalysis(item, storage: storage, provider: provider, model: model, guidance: guidance, spaceContext: spaceContext)
-            } catch let error as AIAnalysisService.AnalysisError where isAutoResolved && Self.indicatesUnusableModel(error) {
+            } catch where isAutoResolved && Self.indicatesUnusableModel(error) {
                 // An auto-picked model the provider rejects outright is most likely retired,
                 // so drop it and re-resolve rather than surfacing a dead end to the user.
                 ModelDiscoveryService.shared.clearCache(for: provider)
@@ -247,8 +262,12 @@ final class ImportService {
     /// True for the statuses that mean "this model cannot serve this request" — a bad or
     /// retired model ID (404) or a body the model won't accept (400). Auth, quota and rate
     /// limits are deliberately excluded: swapping models cannot fix those.
-    static func indicatesUnusableModel(_ error: AIAnalysisService.AnalysisError) -> Bool {
-        guard case .apiError(let code, _, _) = error else { return false }
+    static func indicatesUnusableModel(_ error: Error) -> Bool {
+        if let ollamaError = error as? OllamaError {
+            return ollamaError == .modelNotInstalled
+        }
+        guard let analysisError = error as? AIAnalysisService.AnalysisError,
+              case .apiError(let code, _, _) = analysisError else { return false }
         return code == 400 || code == 404
     }
 
@@ -262,6 +281,26 @@ final class ImportService {
             if !success { break }
             try? await Task.sleep(for: .milliseconds(300))
         }
+    }
+
+    /// Retry the affected items first. Only after every retry succeeds do we resume the
+    /// untouched queue; a repeated failure remains on that item and stops the batch again.
+    func retryFailedItems(
+        _ items: [MediaItem],
+        continuingWith allItems: [MediaItem],
+        context: ModelContext
+    ) async {
+        for item in items {
+            item.analysisError = nil
+            item.analysisResult = nil
+        }
+        context.saveOrLog()
+
+        for item in items {
+            guard await analyzeItem(item, context: context) else { return }
+        }
+
+        await analyzeUnanalyzedItems(from: allItems, context: context)
     }
 
     /// Import media from an X / Twitter post URL — resolves the tweet to a direct

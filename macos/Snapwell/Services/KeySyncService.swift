@@ -16,7 +16,7 @@ enum KeySyncService {
         let url = MediaStorageService.shared.baseURL.appendingPathComponent(fileName)
 
         var keys: [String: String] = [:]
-        for provider in AIProvider.allCases {
+        for provider in AIProvider.credentialProviders {
             if let key = try? KeychainService.get(service: provider.keychainService), !key.isEmpty {
                 keys[provider.rawValue] = key
             }
@@ -70,7 +70,7 @@ enum KeySyncService {
             }
 
             if payload.provider == "none" {
-                for provider in AIProvider.allCases {
+                for provider in AIProvider.credentialProviders {
                     try? KeychainService.delete(service: provider.keychainService)
                 }
                 UserDefaults.standard.set(payloadTimestamp, forKey: lastImportedAtKey)
@@ -81,7 +81,7 @@ enum KeySyncService {
 
             // The payload is a complete key snapshot. Remove entries that are absent so
             // deleting one provider on iOS does not leave a stale credential on the Mac.
-            for provider in AIProvider.allCases {
+            for provider in AIProvider.credentialProviders {
                 if let key = payload.keys[provider.rawValue], !key.isEmpty {
                     try KeychainService.set(key: key, forService: provider.keychainService)
                 } else {

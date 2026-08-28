@@ -21,6 +21,7 @@ final class KeySyncService: ObservableObject {
     private static let lastImportedAtKey = "keySyncLastImportedAt"
 
     @Published private(set) var isUnlocked = false
+    @Published private(set) var isConfigured = false
     @Published private(set) var activeProvider: String?
     @Published private(set) var activeModel: String?
     @Published private(set) var keySource: KeySource = .none
@@ -32,19 +33,51 @@ final class KeySyncService: ObservableObject {
 
     // MARK: - Main sync entry points
 
-    func checkForKeys(rootURL: URL) {
+    @discardableResult
+    func checkForKeys(rootURL: URL) -> Bool {
         migrateLegacySettingsIfNeeded()
 
         if let payload = readiCloudPayload(rootURL: rootURL),
            Self.shouldImport(
                payloadUpdatedAt: payload.updatedAt,
                lastImportedAt: UserDefaults.standard.double(forKey: Self.lastImportedAtKey)
-           ) {
+        ) {
             importPayload(payload)
-            return
+            return true
         }
 
         reloadLocalState(source: .local)
+        return false
+    }
+
+    /// iCloud may expose an older downloaded revision or a placeholder when the app first
+    /// becomes active. Request the latest file and retry briefly so settings written on the
+    /// Mac are imported without requiring another foreground cycle.
+    func refreshFromiCloud(
+        rootURL: URL,
+        retryDelays: [Duration] = [
+            .milliseconds(350),
+            .seconds(1),
+            .seconds(2),
+            .seconds(4),
+            .seconds(8),
+            .seconds(15)
+        ]
+    ) async {
+        requestiCloudDownload(rootURL: rootURL)
+        if checkForKeys(rootURL: rootURL) { return }
+
+        for delay in retryDelays {
+            do {
+                try await Task.sleep(for: delay)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+
+            requestiCloudDownload(rootURL: rootURL)
+            if checkForKeys(rootURL: rootURL) { return }
+        }
     }
 
     /// Retained as a compatibility entry point for launches without a resolved library URL.
@@ -70,6 +103,7 @@ final class KeySyncService: ObservableObject {
     }
 
     func saveAPIKey(_ key: String, for provider: AIProvider, rootURL: URL?) throws {
+        guard provider.requiresAPIKey else { return }
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
@@ -83,12 +117,13 @@ final class KeySyncService: ObservableObject {
     }
 
     func removeAPIKey(for provider: AIProvider, rootURL: URL?) throws {
+        guard provider.requiresAPIKey else { return }
         try KeychainService.delete(service: provider.keychainService)
         persistLocalEdit(rootURL: rootURL)
     }
 
     func hasAPIKey(for provider: AIProvider) -> Bool {
-        KeychainService.exists(service: provider.keychainService)
+        provider.requiresAPIKey && KeychainService.exists(service: provider.keychainService)
     }
 
     func modelSelection(for provider: AIProvider) -> String {
@@ -143,7 +178,8 @@ final class KeySyncService: ObservableObject {
                     forKey: Self.modelDefaultsKey(for: provider)
                 )
             }
-            if let legacyKey,
+            if provider.requiresAPIKey,
+               let legacyKey,
                !legacyKey.isEmpty,
                legacyKey != Self.maskedPlaceholder {
                 try? KeychainService.set(key: legacyKey, forService: provider.keychainService)
@@ -174,7 +210,7 @@ final class KeySyncService: ObservableObject {
 
     private func loadAllKeysFromKeychain() -> [String: String] {
         var keys: [String: String] = [:]
-        for provider in AIProvider.allCases {
+        for provider in AIProvider.credentialProviders {
             if let key = try? KeychainService.get(service: provider.keychainService), !key.isEmpty {
                 keys[provider.rawValue] = key
             }
@@ -188,8 +224,9 @@ final class KeySyncService: ObservableObject {
         decryptedKeys = keys
         activeProvider = provider.rawValue
         activeModel = modelSelection(for: provider)
-        isUnlocked = keys[provider.rawValue]?.isEmpty == false
-        keySource = keys.isEmpty ? .none : source
+        isUnlocked = provider.canAnalyzeOnCurrentPlatform && keys[provider.rawValue]?.isEmpty == false
+        isConfigured = provider == .ollama || isUnlocked
+        keySource = isConfigured || !keys.isEmpty ? source : .none
         logger.info("Using \(source.rawValue, privacy: .public) settings — provider: \(provider.rawValue, privacy: .private)")
     }
 
@@ -202,7 +239,7 @@ final class KeySyncService: ObservableObject {
         } else if let provider = AIProvider(rawValue: payload.provider) {
             // The payload contains the complete key set. Deleting absent entries propagates
             // provider-specific key removal instead of resurrecting stale local credentials.
-            for candidate in AIProvider.allCases {
+            for candidate in AIProvider.credentialProviders {
                 if let key = payload.keys[candidate.rawValue], !key.isEmpty {
                     try? KeychainService.set(key: key, forService: candidate.keychainService)
                 } else {
@@ -226,7 +263,7 @@ final class KeySyncService: ObservableObject {
     }
 
     private func clearKeychainKeys() {
-        for provider in AIProvider.allCases {
+        for provider in AIProvider.credentialProviders {
             try? KeychainService.delete(service: provider.keychainService)
         }
     }
@@ -267,15 +304,7 @@ final class KeySyncService: ObservableObject {
         let fileManager = FileManager.default
 
         if !fileManager.fileExists(atPath: fileURL.path) {
-            let directory = fileURL.deletingLastPathComponent()
-            for name in [".\(fileName).icloud", "\(fileName).icloud"] {
-                let placeholderURL = directory.appendingPathComponent(name)
-                if fileManager.fileExists(atPath: placeholderURL.path) {
-                    try? fileManager.startDownloadingUbiquitousItem(at: fileURL)
-                    logger.info("Encrypted file is an iCloud placeholder; triggered download")
-                    break
-                }
-            }
+            requestiCloudDownload(rootURL: rootURL)
             return nil
         }
 
@@ -289,5 +318,10 @@ final class KeySyncService: ObservableObject {
             logger.error("Decryption failed: \(error.localizedDescription, privacy: .public)")
             return nil
         }
+    }
+
+    private func requestiCloudDownload(rootURL: URL) {
+        let fileURL = rootURL.appendingPathComponent(fileName)
+        try? FileManager.default.startDownloadingUbiquitousItem(at: fileURL)
     }
 }

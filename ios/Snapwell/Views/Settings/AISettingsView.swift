@@ -28,6 +28,10 @@ struct AISettingsView: View {
         )
     }
 
+    private var providerOptions: [AIProvider] {
+        AIProvider.allCases.filter { $0.canAnalyzeOnCurrentPlatform || $0 == provider }
+    }
+
     private var modelBinding: Binding<String> {
         Binding(
             get: { keySyncService.modelSelection(for: provider) },
@@ -43,6 +47,7 @@ struct AISettingsView: View {
         case .anthropic: "sk-ant-..."
         case .gemini: "AIza..."
         case .openrouter: "sk-or-..."
+        case .ollama: ""
         }
     }
 
@@ -51,53 +56,69 @@ struct AISettingsView: View {
             Form {
                 Section {
                     Picker("Provider", selection: providerBinding) {
-                        ForEach(AIProvider.allCases, id: \.rawValue) { provider in
-                            Text(provider.displayName).tag(provider.rawValue)
+                        ForEach(providerOptions, id: \.rawValue) { option in
+                            Text(option == .ollama ? "Ollama — Mac only" : option.displayName)
+                                .tag(option.rawValue)
                         }
                     }
                 } header: {
                     Text("Provider")
                 } footer: {
-                    Text("Snapwell sends media directly to the provider you choose. Your API key is stored securely in Keychain.")
-                }
-
-                Section("API Key") {
-                    if hasKey {
-                        Label("API Key Saved", systemImage: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                            .accessibilityLabel("\(provider.displayName) API key saved")
-
-                        Button("Remove API Key", role: .destructive) {
-                            showsRemoveConfirmation = true
-                        }
+                    if provider == .ollama {
+                        Text("Ollama was selected on your Mac. Choose a cloud provider here if you want this device to analyze new items immediately.")
                     } else {
-                        SecureField(keyPlaceholder, text: $apiKeyInput)
-                            .textContentType(.password)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .onSubmit(saveAPIKey)
-
-                        Button("Save API Key") {
-                            saveAPIKey()
-                        }
-                        .disabled(apiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    }
-
-                    if let keyWarning {
-                        Label(keyWarning, systemImage: "exclamationmark.triangle.fill")
-                            .font(.footnote)
-                            .foregroundStyle(.orange)
-                    }
-
-                    if let saveError {
-                        Label(saveError, systemImage: "xmark.circle.fill")
-                            .font(.footnote)
-                            .foregroundStyle(.red)
+                        Text("Snapwell sends media directly to the provider you choose. Your API key is stored securely in Keychain.")
                     }
                 }
 
-                if hasKey {
-                    modelSection
+                if provider == .ollama {
+                    Section {
+                        Label("Analyzed on your Mac", systemImage: "desktopcomputer")
+                        LabeledContent("Model", value: ollamaModelLabel)
+                    } header: {
+                        Text("Local Analysis")
+                    } footer: {
+                        Text("Ollama runs on your Mac. Items you save on this device will be analyzed after they sync to Snapwell on your Mac.")
+                    }
+                } else {
+                    Section("API Key") {
+                        if hasKey {
+                            Label("API Key Saved", systemImage: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                                .accessibilityLabel("\(provider.displayName) API key saved")
+
+                            Button("Remove API Key", role: .destructive) {
+                                showsRemoveConfirmation = true
+                            }
+                        } else {
+                            SecureField(keyPlaceholder, text: $apiKeyInput)
+                                .textContentType(.password)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .onSubmit(saveAPIKey)
+
+                            Button("Save API Key") {
+                                saveAPIKey()
+                            }
+                            .disabled(apiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
+
+                        if let keyWarning {
+                            Label(keyWarning, systemImage: "exclamationmark.triangle.fill")
+                                .font(.footnote)
+                                .foregroundStyle(.orange)
+                        }
+
+                        if let saveError {
+                            Label(saveError, systemImage: "xmark.circle.fill")
+                                .font(.footnote)
+                                .foregroundStyle(.red)
+                        }
+                    }
+
+                    if hasKey {
+                        modelSection
+                    }
                 }
             }
             .navigationTitle("AI Settings")
@@ -109,6 +130,13 @@ struct AISettingsView: View {
             }
         }
         .task(id: provider) {
+            guard provider != .ollama else {
+                hasKey = false
+                discoveredModels = []
+                discoveryError = nil
+                isLoadingModels = false
+                return
+            }
             hasKey = keySyncService.hasAPIKey(for: provider)
             apiKeyInput = ""
             keyWarning = nil
@@ -206,6 +234,11 @@ struct AISettingsView: View {
         }
     }
 
+    private var ollamaModelLabel: String {
+        let model = keySyncService.activeModel ?? ModelDiscoveryService.autoModelValue
+        return model == ModelDiscoveryService.autoModelValue ? "Recommended" : model
+    }
+
     private func saveAPIKey() {
         let key = apiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else { return }
@@ -279,6 +312,8 @@ struct AISettingsView: View {
             "Gemini keys typically start with “AIza”."
         case .openrouter where !key.hasPrefix("sk-or-"):
             "OpenRouter keys typically start with “sk-or-”."
+        case .ollama:
+            nil
         default:
             nil
         }

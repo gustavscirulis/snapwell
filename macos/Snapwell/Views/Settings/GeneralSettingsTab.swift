@@ -35,12 +35,14 @@ struct GeneralSettingsTab: View {
     @AppStorage("anthropicModel") private var anthropicModel: String = ModelDiscoveryService.autoModelValue
     @AppStorage("geminiModel") private var geminiModel: String = ModelDiscoveryService.autoModelValue
     @AppStorage("openrouterModel") private var openrouterModel: String = "openai/gpt-4o"
+    @AppStorage("ollamaModel") private var ollamaModel: String = ModelDiscoveryService.autoModelValue
     @AppStorage("videoAudioEnabled") private var videoAudioEnabled: Bool = false
 
     @State private var apiKeyInput: String = ""
     @State private var hasKey: Bool = false
     @State private var saveError: String?
     @State private var keyWarning: String?
+    @State private var discoveryError: String?
     @State private var discoveredModels: [DiscoveredModel] = []
     @State private var isLoadingModels = false
 
@@ -54,6 +56,7 @@ struct GeneralSettingsTab: View {
         case .anthropic: return "sk-ant-..."
         case .gemini: return "AIza..."
         case .openrouter: return "sk-or-..."
+        case .ollama: return ""
         }
     }
 
@@ -76,44 +79,50 @@ struct GeneralSettingsTab: View {
                     }
                 }
 
-                if hasKey {
-                    LabeledContent("API Key") {
-                        Button("Remove", role: .destructive) {
-                            try? KeychainService.delete(service: provider.keychainService)
-                            hasKey = false
-                            apiKeyInput = ""
-                            discoveredModels = []
-                            KeySyncService.syncToiCloud()
-                        }
-                    }
+                if provider == .ollama {
+                    ollamaSettings
                 } else {
-                    HStack {
-                        SecureField("API Key", text: $apiKeyInput, prompt: Text(keyPlaceholder))
-                            .textFieldStyle(.roundedBorder)
-                        Button("Save") {
-                            saveApiKey()
+                    if hasKey {
+                        LabeledContent("API Key") {
+                            Button("Remove", role: .destructive) {
+                                try? KeychainService.delete(service: provider.keychainService)
+                                hasKey = false
+                                apiKeyInput = ""
+                                discoveredModels = []
+                                KeySyncService.syncToiCloud()
+                            }
                         }
-                        .disabled(apiKeyInput.isEmpty)
+                    } else {
+                        HStack {
+                            SecureField("API Key", text: $apiKeyInput, prompt: Text(keyPlaceholder))
+                                .textFieldStyle(.roundedBorder)
+                            Button("Save") {
+                                saveApiKey()
+                            }
+                            .disabled(apiKeyInput.isEmpty)
+                        }
+
+                        Text("Snapwell sends media directly to your chosen AI provider. Your API key is stored securely in Keychain.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
 
-                    Text("Snapwell uses AI vision models to analyze and describe your images. Bring your own API key from any supported provider to enable this feature.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                    if let keyWarning {
+                        Text(keyWarning)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
 
-                if let keyWarning {
-                    Text(keyWarning)
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                }
+                    if let saveError {
+                        Text(saveError)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
 
-                if let saveError {
-                    Text(saveError)
-                        .font(.caption)
-                        .foregroundStyle(.red)
+                    if hasKey {
+                        modelPicker
+                    }
                 }
-
-                modelPicker
             }
 
             Section("Video") {
@@ -128,13 +137,64 @@ struct GeneralSettingsTab: View {
         .onChange(of: selectedProvider) {
             checkForKey()
             discoveredModels = []
+            discoveryError = nil
             Task { await loadModels() }
-            KeySyncService.syncToiCloud()
+            configurationChanged()
         }
-        .onChange(of: openaiModel) { KeySyncService.syncToiCloud() }
-        .onChange(of: anthropicModel) { KeySyncService.syncToiCloud() }
-        .onChange(of: geminiModel) { KeySyncService.syncToiCloud() }
-        .onChange(of: openrouterModel) { KeySyncService.syncToiCloud() }
+        .onChange(of: openaiModel) { configurationChanged() }
+        .onChange(of: anthropicModel) { configurationChanged() }
+        .onChange(of: geminiModel) { configurationChanged() }
+        .onChange(of: openrouterModel) { configurationChanged() }
+        .onChange(of: ollamaModel) { configurationChanged() }
+    }
+
+    // MARK: - Ollama
+
+    @ViewBuilder
+    private var ollamaSettings: some View {
+        if isLoadingModels {
+            HStack {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Checking Ollama…")
+                    .foregroundStyle(.secondary)
+            }
+            .accessibilityElement(children: .combine)
+        } else if let discoveryError {
+            Label(discoveryError, systemImage: "exclamationmark.triangle.fill")
+                .font(.callout)
+                .foregroundStyle(.orange)
+
+            HStack {
+                Link("Get Ollama", destination: URL(string: "https://ollama.com/download")!)
+                Button("Check Again") {
+                    ModelDiscoveryService.shared.clearCache(for: .ollama)
+                    Task { await loadModels() }
+                }
+            }
+        } else if discoveredModels.isEmpty {
+            Label("No installed vision models found.", systemImage: "exclamationmark.triangle.fill")
+                .font(.callout)
+                .foregroundStyle(.orange)
+
+            Text("Run `ollama pull gemma3:4b` in Terminal, then check again.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+
+            Button("Check Again") {
+                ModelDiscoveryService.shared.clearCache(for: .ollama)
+                Task { await loadModels() }
+            }
+        } else {
+            Label("Connected to Ollama", systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+            modelPicker
+        }
+
+        Text("Ollama runs models locally on this Mac. Items saved on iPhone or iPad are analyzed after they sync here.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
     }
 
     // MARK: - Model Picker
@@ -143,9 +203,7 @@ struct GeneralSettingsTab: View {
     private var modelPicker: some View {
         let binding = modelBinding(for: provider)
 
-        if !hasKey {
-            EmptyView()
-        } else if isLoadingModels {
+        if isLoadingModels {
             HStack {
                 ProgressView()
                     .controlSize(.small)
@@ -155,10 +213,17 @@ struct GeneralSettingsTab: View {
         } else if !discoveredModels.isEmpty {
             Picker("Model", selection: binding) {
                 if provider != .openrouter {
-                    Text("Use latest (\(discoveredModels.first?.id ?? "…"))")
+                    let recommended = ModelDiscoveryService.shared.preferredModel(from: discoveredModels, for: provider)
+                        ?? discoveredModels.first
+                    Text("Recommended (\(recommended?.displayName ?? provider.defaultModel))")
                         .tag(ModelDiscoveryService.autoModelValue)
                 }
                 Divider()
+                let current = binding.wrappedValue
+                if current != ModelDiscoveryService.autoModelValue,
+                   !discoveredModels.contains(where: { $0.id == current }) {
+                    Text("\(current) (Unavailable)").tag(current)
+                }
                 ForEach(discoveredModels) { model in
                     Text(modelPickerLabel(for: model))
                         .tag(model.id)
@@ -171,7 +236,7 @@ struct GeneralSettingsTab: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
-        } else {
+        } else if provider != .ollama {
             TextField("Model ID", text: binding)
                 .textFieldStyle(.roundedBorder)
         }
@@ -185,6 +250,7 @@ struct GeneralSettingsTab: View {
         case .anthropic: return $anthropicModel
         case .gemini: return $geminiModel
         case .openrouter: return $openrouterModel
+        case .ollama: return $ollamaModel
         }
     }
 
@@ -203,7 +269,7 @@ struct GeneralSettingsTab: View {
     }
 
     private func saveApiKey() {
-        guard !apiKeyInput.isEmpty else { return }
+        guard provider.requiresAPIKey, !apiKeyInput.isEmpty else { return }
         keyWarning = validateKeyPrefix(apiKeyInput, provider: provider)
         do {
             try KeychainService.set(key: apiKeyInput, forService: provider.keychainService)
@@ -220,19 +286,31 @@ struct GeneralSettingsTab: View {
     }
 
     private func loadModels() async {
-        guard hasKey else { return }
+        let requestedProvider = provider
+        guard requestedProvider == .ollama || hasKey else { return }
         isLoadingModels = true
+        discoveryError = nil
         defer { isLoadingModels = false }
 
         do {
-            discoveredModels = try await ModelDiscoveryService.shared.fetchModels(for: provider)
+            let models = try await ModelDiscoveryService.shared.fetchModels(for: requestedProvider)
+            guard provider == requestedProvider else { return }
+            discoveredModels = models
         } catch {
+            guard provider == requestedProvider else { return }
             discoveredModels = []
+            if requestedProvider == .ollama, let ollamaError = error as? OllamaError {
+                discoveryError = ollamaError == .notRunning
+                    ? "Ollama isn’t running. Open Ollama, then check again."
+                    : ollamaError.localizedDescription
+            } else {
+                discoveryError = "Couldn’t load models. You can enter a model ID manually."
+            }
         }
     }
 
     private func checkForKey() {
-        hasKey = KeychainService.exists(service: provider.keychainService)
+        hasKey = provider.requiresAPIKey && KeychainService.exists(service: provider.keychainService)
     }
 
     private func validateKeyPrefix(_ key: String, provider: AIProvider) -> String? {
@@ -245,8 +323,15 @@ struct GeneralSettingsTab: View {
             return "Gemini keys typically start with \"AIza\""
         case .openrouter where !key.hasPrefix("sk-or-"):
             return "OpenRouter keys typically start with \"sk-or-\""
+        case .ollama:
+            return nil
         default:
             return nil
         }
+    }
+
+    private func configurationChanged() {
+        KeySyncService.syncToiCloud()
+        NotificationCenter.default.post(name: .apiKeySaved, object: nil)
     }
 }

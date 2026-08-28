@@ -190,6 +190,17 @@ enum KeySyncCrypto {
 
     // MARK: - Test support
 
+    static func encryptLegacyForTesting(_ payload: Data) throws -> Data {
+        let sealed = try AES.GCM.seal(payload, using: legacyKey)
+        let envelope = EncryptedEnvelope(
+            version: 1,
+            nonce: Data(sealed.nonce).base64EncodedString(),
+            ciphertext: sealed.ciphertext.base64EncodedString() + ":" +
+                sealed.tag.base64EncodedString()
+        )
+        return try JSONEncoder().encode(envelope)
+    }
+
     static func encrypt(_ payload: Data, using key: SymmetricKey) throws -> Data {
         let sealed = try AES.GCM.seal(payload, using: key)
         let envelope = EncryptedEnvelope(

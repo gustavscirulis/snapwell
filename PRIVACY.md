@@ -1,6 +1,6 @@
 # Snapwell Privacy Policy
 
-**Last updated:** April 24, 2026
+**Last updated:** August 28, 2026
 
 Snapwell is a local-first media library app. Your privacy is fundamental to how Snapwell is built.
 
@@ -14,16 +14,18 @@ All your media files, metadata, and thumbnails are stored on your devices and yo
 
 ## AI Analysis (Optional)
 
-If you choose to enable AI analysis by providing your own API key, Snapwell sends your images directly to the AI provider you selected:
+If you choose a cloud AI provider, Snapwell sends your images directly to that provider using your own API key:
 
 - **OpenAI** (api.openai.com)
 - **Anthropic** (api.anthropic.com)
 - **Google Gemini** (generativelanguage.googleapis.com)
 - **OpenRouter** (openrouter.ai)
 
-Image data is sent directly from your device to the provider's API using your personal API key. Snapwell does not proxy, store, or have access to this data in transit. Each provider's own privacy policy governs how they handle your data.
+Images and sampled video frames are sent directly from your device to the provider's API using your personal API key. Snapwell does not proxy, store, or have access to this data in transit. Each provider's own privacy policy governs how they handle your data.
 
-You can disable AI analysis at any time by removing your API key in Settings.
+On Mac, you can instead choose Ollama. Snapwell then sends images and sampled video frames only to Ollama running at `localhost` on that Mac. Items saved on iOS remain unanalyzed until they sync to the Mac. Ollama models are installed and managed separately by you.
+
+You can disable cloud analysis by removing your API key, or disable local analysis by choosing another provider or stopping Ollama.
 
 ## Data Collection
 
@@ -36,7 +38,7 @@ Snapwell collects **no analytics, telemetry, or usage data**. There are:
 
 ## Third-Party Services
 
-Snapwell does not include any third-party SDKs. All network requests are made using Apple's built-in frameworks (URLSession) directly to the services listed above, only when you explicitly configure them.
+Snapwell does not include any third-party SDKs. All network requests are made using Apple's built-in frameworks (URLSession) directly to the services listed above or to Ollama on your Mac, only when you explicitly configure them.
 
 When importing media from X/Twitter URLs, Snapwell accesses Twitter's public syndication API to retrieve the media you requested.
 

@@ -126,7 +126,7 @@ struct AIAnalysisParsingTests {
     }
 
     @Test("Provider is correctly set in result",
-          arguments: ["openai", "anthropic", "gemini", "openrouter"])
+          arguments: ["openai", "anthropic", "gemini", "openrouter", "ollama"])
     func parseResponseSetsProvider(_ provider: String) throws {
         let json = """
         {
@@ -226,9 +226,18 @@ struct AIAnalysisParsingTests {
         #expect(!provider.defaultModel.isEmpty)
     }
 
-    @Test("Provider count is 4")
+    @Test("Provider count is 5")
     func providerCount() {
-        #expect(AIProvider.allCases.count == 4)
+        #expect(AIProvider.allCases.count == 5)
+    }
+
+    @Test("Ollama is configured locally but unavailable for iOS analysis")
+    func ollamaMetadata() {
+        #expect(AIProvider.ollama.requiresAPIKey == false)
+        #expect(AIProvider.ollama.canAnalyzeOnCurrentPlatform == false)
+        #expect(!AIProvider.credentialProviders.contains(.ollama))
+        #expect(!AIProvider.cloudProviders.contains(.ollama))
+        #expect(AIProvider.ollama.defaultModel == "gemma3:4b")
     }
 
     // MARK: - providerErrorMessage

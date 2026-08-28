@@ -128,7 +128,7 @@ struct AIAnalysisParsingTests {
     }
 
     @Test("Provider is correctly set in result",
-          arguments: ["openai", "anthropic", "gemini", "openrouter"])
+          arguments: ["openai", "anthropic", "gemini", "openrouter", "ollama"])
     func parseResponseSetsProvider(_ provider: String) throws {
         let json = """
         {
@@ -200,9 +200,17 @@ struct AIAnalysisParsingTests {
         #expect(!provider.defaultModel.isEmpty)
     }
 
-    @Test("Provider count is 4")
+    @Test("Provider count is 5")
     func providerCount() {
-        #expect(AIProvider.allCases.count == 4)
+        #expect(AIProvider.allCases.count == 5)
+    }
+
+    @Test("Ollama is a local provider with no credential")
+    func ollamaMetadata() {
+        #expect(AIProvider.ollama.requiresAPIKey == false)
+        #expect(AIProvider.ollama.canAnalyzeOnCurrentPlatform == true)
+        #expect(!AIProvider.credentialProviders.contains(.ollama))
+        #expect(AIProvider.ollama.defaultModel == "gemma3:4b")
     }
 
     @Test("keychainService matches rawValue",

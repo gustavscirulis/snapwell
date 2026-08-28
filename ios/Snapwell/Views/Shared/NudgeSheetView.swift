@@ -121,7 +121,7 @@ struct NudgeSheetView: View {
         case .macApp:
             "Everything moves over your own iCloud, so whatever you save here is already there the next time you open your Mac."
         case .apiKey:
-            "AI describes and tags everything you save, so you can find anything by what’s in it. Bring your own key for OpenAI, Claude, Gemini, or OpenRouter."
+            "AI describes and tags everything you save, so you can find anything by what’s in it. Bring your own key for a cloud provider, or use Ollama locally on your Mac."
         }
     }
 

@@ -45,7 +45,7 @@ const facts = [
   { k: "Price", v: "Free. No trial, no paid tier." },
   { k: "Storage", v: "Plain files in your Documents folder." },
   { k: "Sync", v: "Your own iCloud, Mac to iPhone." },
-  { k: "Analysis", v: "Your own API key. You pay them, not us." },
+  { k: "Analysis", v: "Your own API key, or Ollama on your Mac." },
   { k: "Tracking", v: "None in the apps. No telemetry." },
   { k: "Platforms", v: "macOS 15+, iOS 17+, iPhone and iPad." },
 ];
@@ -231,7 +231,8 @@ export default function Home() {
             <h2 className="t-h2">Free. No account. No subscription.</h2>
             <p className="t-body mt-5 text-muted">
               Nothing to cancel, and nothing anyone can take away. Bring your
-              own key for OpenAI, Claude, Gemini, or OpenRouter.
+              own key for OpenAI, Claude, Gemini, or OpenRouter — or run Ollama
+              locally on your Mac.
             </p>
 
             <dl className="mt-12 grid gap-x-10 border-t border-border lg:grid-cols-2">

@@ -162,8 +162,8 @@ struct MainView: View {
                 searchService.buildIndex(items: allItems)
             }
         }
-        .onChange(of: keySyncService.isUnlocked) { _, isUnlocked in
-            appState.dismissAPIKeyNudgeIfConfigured(isUnlocked: isUnlocked)
+        .onChange(of: keySyncService.isConfigured) { _, isConfigured in
+            appState.dismissAPIKeyNudgeIfConfigured(isConfigured: isConfigured)
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
@@ -686,7 +686,7 @@ struct MainView: View {
         guard let nudge = nudges.nextNudge(
             now: Date(),
             hasMedia: !allItems.isEmpty,
-            hasAPIKey: keySyncService.isUnlocked
+            hasAIConfiguration: keySyncService.isConfigured
         ) else { return }
 
         // Marked on present, not on dismiss, so a force-quit can't resurface it.

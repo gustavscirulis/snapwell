@@ -94,9 +94,15 @@ struct ImportServiceTests {
 
     @Test("Non-API failures do not trigger a model swap")
     func nonAPIErrors() {
-        #expect(!ImportService.indicatesUnusableModel(.invalidResponse))
-        #expect(!ImportService.indicatesUnusableModel(.parseFailed))
-        #expect(!ImportService.indicatesUnusableModel(.noAPIKey))
-        #expect(!ImportService.indicatesUnusableModel(.imageConversionFailed))
+        #expect(!ImportService.indicatesUnusableModel(AIAnalysisService.AnalysisError.invalidResponse))
+        #expect(!ImportService.indicatesUnusableModel(AIAnalysisService.AnalysisError.parseFailed))
+        #expect(!ImportService.indicatesUnusableModel(AIAnalysisService.AnalysisError.noAPIKey))
+        #expect(!ImportService.indicatesUnusableModel(AIAnalysisService.AnalysisError.imageConversionFailed))
+    }
+
+    @Test("A missing Ollama model triggers Recommended fallback")
+    func ollamaMissingModel() {
+        #expect(ImportService.indicatesUnusableModel(OllamaError.modelNotInstalled))
+        #expect(!ImportService.indicatesUnusableModel(OllamaError.notRunning))
     }
 }

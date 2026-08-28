@@ -6,6 +6,7 @@ enum AIProvider: String, CaseIterable, Codable, Sendable {
     case anthropic
     case gemini
     case openrouter
+    case ollama
 
     var displayName: String {
         switch self {
@@ -13,13 +14,28 @@ enum AIProvider: String, CaseIterable, Codable, Sendable {
         case .anthropic: return "Anthropic Claude"
         case .gemini: return "Google Gemini"
         case .openrouter: return "OpenRouter"
+        case .ollama: return "Ollama"
         }
     }
 
     var keychainService: String { rawValue }
 
+    var requiresAPIKey: Bool { self != .ollama }
+
+    var canAnalyzeOnCurrentPlatform: Bool { true }
+
+    static var credentialProviders: [AIProvider] {
+        allCases.filter(\.requiresAPIKey)
+    }
+
     static var hasAnyAPIKey: Bool {
-        allCases.contains { KeychainService.exists(service: $0.keychainService) }
+        credentialProviders.contains { KeychainService.exists(service: $0.keychainService) }
+    }
+
+    static var hasAnyAIConfiguration: Bool {
+        let selected = UserDefaults.standard.string(forKey: "aiProvider")
+            .flatMap(AIProvider.init(rawValue:)) ?? .openai
+        return selected == .ollama || hasAnyAPIKey
     }
 
     var defaultModel: String {
@@ -28,6 +44,7 @@ enum AIProvider: String, CaseIterable, Codable, Sendable {
         case .anthropic: return "claude-sonnet-5"
         case .gemini: return "gemini-3.5-flash"
         case .openrouter: return "google/gemini-3.5-flash"
+        case .ollama: return "gemma3:4b"
         }
     }
 }
@@ -37,6 +54,12 @@ enum AIProvider: String, CaseIterable, Codable, Sendable {
 
 final class AIAnalysisService: Sendable {
     static let shared = AIAnalysisService()
+
+    private let ollamaClient: OllamaClient
+
+    init(ollamaClient: OllamaClient = .shared) {
+        self.ollamaClient = ollamaClient
+    }
 
     private let systemPrompt = """
     You are an expert image analyst.
@@ -96,8 +119,14 @@ final class AIAnalysisService: Sendable {
     private let maxRetries = 2
 
     func analyze(image: NSImage, provider: AIProvider, model: String, guidance: String? = nil, spaceContext: String? = nil) async throws -> AnalysisResult {
-        guard let apiKey = try KeychainService.get(service: provider.keychainService) else {
-            throw AnalysisError.noAPIKey
+        let apiKey: String
+        if provider.requiresAPIKey {
+            guard let storedKey = try KeychainService.get(service: provider.keychainService) else {
+                throw AnalysisError.noAPIKey
+            }
+            apiKey = storedKey
+        } else {
+            apiKey = ""
         }
 
         guard let base64 = imageToBase64(image) else {
@@ -112,11 +141,20 @@ final class AIAnalysisService: Sendable {
         let prompt = buildPrompt(guidance: guidance, spaceContext: spaceContext)
 
         return try await performWithAnalysisRetries {
-            let req = buildProviderRequest(
-                provider: provider, apiKey: apiKey, model: model,
-                base64Image: base64, prompt: prompt
-            )
-            let responseText = try await sendProviderRequest(req)
+            let responseText: String
+            if provider == .ollama {
+                responseText = try await ollamaClient.analyze(
+                    model: model,
+                    prompt: prompt,
+                    base64Image: base64
+                )
+            } else {
+                let req = buildProviderRequest(
+                    provider: provider, apiKey: apiKey, model: model,
+                    base64Image: base64, prompt: prompt
+                )
+                responseText = try await sendProviderRequest(req)
+            }
             return try parseResponse(responseText, provider: provider.rawValue, model: model)
         }
     }
@@ -313,6 +351,8 @@ final class AIAnalysisService: Sendable {
                 provider: provider,
                 extractText: Self.extractOpenAIText
             )
+        case .ollama:
+            preconditionFailure("Ollama requests use OllamaClient")
         }
     }
 
