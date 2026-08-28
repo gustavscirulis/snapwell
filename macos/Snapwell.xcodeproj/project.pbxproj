@@ -660,7 +660,7 @@
 				ASSETCATALOG_COMPILER_STANDALONE_ICON_BEHAVIOR = none;
 				CODE_SIGN_ENTITLEMENTS = Snapwell/Resources/Snapwell.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 11;
+				CURRENT_PROJECT_VERSION = 13;
 				INFOPLIST_FILE = Snapwell/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -683,7 +683,7 @@
 				ASSETCATALOG_COMPILER_STANDALONE_ICON_BEHAVIOR = none;
 				CODE_SIGN_ENTITLEMENTS = Snapwell/Resources/Snapwell.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 11;
+				CURRENT_PROJECT_VERSION = 13;
 				INFOPLIST_FILE = Snapwell/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
