@@ -2,6 +2,17 @@ import Testing
 import Foundation
 @testable import Snapwell
 
+private actor AnalysisRetryCounter {
+    private var attempts = 0
+
+    func increment() -> Int {
+        attempts += 1
+        return attempts
+    }
+
+    func value() -> Int { attempts }
+}
+
 @Suite("AI Response Parsing", .tags(.parsing))
 struct AIAnalysisParsingTests {
 
@@ -100,10 +111,19 @@ struct AIAnalysisParsingTests {
         #expect(result.patterns[5].name == "P5")
     }
 
-    @Test("Invalid JSON throws a decoding error")
-    func invalidJSONThrows() {
-        #expect(throws: (any Error).self) {
-            try service.parseResponse("not json {{{", provider: "openai", model: "gpt-4o")
+    @Test("Invalid JSON throws an actionable analysis-format error")
+    func invalidJSONThrows() throws {
+        do {
+            _ = try service.parseResponse("not json {{{", provider: "openrouter", model: "test-model")
+            Issue.record("Expected invalidAnalysisFormat")
+        } catch let error as AIAnalysisService.AnalysisError {
+            guard case .invalidAnalysisFormat(let provider, let model) = error else {
+                Issue.record("Unexpected analysis error: \(error)")
+                return
+            }
+            #expect(provider == "openrouter")
+            #expect(model == "test-model")
+            #expect(error.localizedDescription.contains("Snapwell couldn’t read"))
         }
     }
 
@@ -257,5 +277,84 @@ struct AIAnalysisParsingTests {
         #expect(throws: AIAnalysisService.AnalysisError.self) {
             try AIAnalysisService.extractAnthropicText(["content": [["type": "text", "text": "  \n "]]])
         }
+    }
+
+    // MARK: - OpenRouter structured output
+
+    @Test("OpenRouter request requires Snapwell's strict JSON schema")
+    func openRouterStructuredRequest() throws {
+        let body = AIAnalysisService.openRouterRequestBody(
+            model: "google/gemini-3.5-flash",
+            base64Image: "image-data",
+            prompt: "System prompt"
+        )
+
+        #expect(JSONSerialization.isValidJSONObject(body))
+
+        let provider = try #require(body["provider"] as? [String: Any])
+        #expect(provider["require_parameters"] as? Bool == true)
+
+        let responseFormat = try #require(body["response_format"] as? [String: Any])
+        #expect(responseFormat["type"] as? String == "json_schema")
+        let jsonSchema = try #require(responseFormat["json_schema"] as? [String: Any])
+        #expect(jsonSchema["name"] as? String == "snapwell_image_analysis")
+        #expect(jsonSchema["strict"] as? Bool == true)
+
+        let schema = try #require(jsonSchema["schema"] as? [String: Any])
+        #expect(schema["additionalProperties"] as? Bool == false)
+        #expect(schema["required"] as? [String] == ["imageContext", "imageSummary", "patterns"])
+        let properties = try #require(schema["properties"] as? [String: Any])
+        let patterns = try #require(properties["patterns"] as? [String: Any])
+        #expect(patterns["maxItems"] as? Int == 6)
+        let patternSchema = try #require(patterns["items"] as? [String: Any])
+        #expect(patternSchema["additionalProperties"] as? Bool == false)
+        #expect(patternSchema["required"] as? [String] == ["name", "confidence"])
+    }
+
+    @Test("Malformed analysis is retried once and can recover")
+    func malformedAnalysisRetriesOnce() async throws {
+        let counter = AnalysisRetryCounter()
+
+        let result = try await service.performWithAnalysisRetries {
+            let attempt = await counter.increment()
+            if attempt == 1 {
+                throw AIAnalysisService.AnalysisError.invalidAnalysisFormat(
+                    provider: "openrouter",
+                    model: "google/gemini-3.5-flash"
+                )
+            }
+            return "success"
+        }
+
+        let attempts = await counter.value()
+        #expect(result == "success")
+        #expect(attempts == 2)
+    }
+
+    @Test("Malformed analysis stops after one retry with actionable copy")
+    func malformedAnalysisStopsAfterRetry() async throws {
+        let counter = AnalysisRetryCounter()
+
+        do {
+            _ = try await service.performWithAnalysisRetries {
+                _ = await counter.increment()
+                throw AIAnalysisService.AnalysisError.invalidAnalysisFormat(
+                    provider: "openrouter",
+                    model: "google/gemini-3.5-flash"
+                )
+            } as String
+            Issue.record("Expected invalidAnalysisFormat")
+        } catch let error as AIAnalysisService.AnalysisError {
+            guard case .invalidAnalysisFormat(let provider, let model) = error else {
+                Issue.record("Unexpected analysis error: \(error)")
+                return
+            }
+            #expect(provider == "openrouter")
+            #expect(model == "google/gemini-3.5-flash")
+            #expect(error.localizedDescription == "OpenRouter returned an analysis that Snapwell couldn’t read for google/gemini-3.5-flash. Try again or choose a different model.")
+        }
+
+        let attempts = await counter.value()
+        #expect(attempts == 2)
     }
 }

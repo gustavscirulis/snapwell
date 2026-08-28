@@ -140,19 +140,27 @@ struct AISettingsView: View {
                 }
                 .accessibilityElement(children: .combine)
             } else if !discoveredModels.isEmpty {
+                let current = keySyncService.modelSelection(for: provider)
                 Picker("Model", selection: modelBinding) {
                     Text(recommendedLabel)
                         .tag(ModelDiscoveryService.autoModelValue)
 
-                    let current = keySyncService.modelSelection(for: provider)
                     if current != ModelDiscoveryService.autoModelValue,
                        !discoveredModels.contains(where: { $0.id == current }) {
                         Text(current).tag(current)
                     }
 
                     ForEach(discoveredModels) { model in
-                        Text(model.displayName).tag(model.id)
+                        Text(modelPickerLabel(for: model))
+                            .tag(model.id)
+                            .disabled(provider == .openrouter && !model.supportsStructuredOutputs)
                     }
+                }
+
+                if hasIncompatibleOpenRouterSelection(current) {
+                    Text("This model can’t return the structured analysis Snapwell requires. Choose a compatible OpenRouter model.")
+                        .font(.footnote)
+                        .foregroundStyle(.orange)
                 }
             } else {
                 TextField("Model ID", text: modelBinding)
@@ -178,8 +186,24 @@ struct AISettingsView: View {
 
     private var recommendedLabel: String {
         let preferred = ModelDiscoveryService.shared.preferredModel(from: discoveredModels, for: provider)
-            ?? discoveredModels.first
+            ?? discoveredModels.first(where: {
+                provider != .openrouter || $0.supportsStructuredOutputs
+            })
         return "Recommended (\(preferred?.displayName ?? provider.defaultModel))"
+    }
+
+    private func modelPickerLabel(for model: DiscoveredModel) -> String {
+        guard provider == .openrouter, !model.supportsStructuredOutputs else {
+            return model.displayName
+        }
+        return "\(model.displayName) — Structured output unavailable"
+    }
+
+    private func hasIncompatibleOpenRouterSelection(_ modelID: String) -> Bool {
+        guard provider == .openrouter else { return false }
+        return discoveredModels.contains {
+            $0.id == modelID && !$0.supportsStructuredOutputs
+        }
     }
 
     private func saveAPIKey() {

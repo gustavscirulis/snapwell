@@ -93,28 +93,51 @@ final class AIAnalysisService: Sendable {
             throw AnalysisError.imageConversionFailed
         }
 
+        if provider == .openrouter,
+           await ModelDiscoveryService.shared.structuredOutputSupport(for: model, provider: provider) == false {
+            throw AnalysisError.unsupportedStructuredOutputs(model: model)
+        }
+
         let prompt = buildPrompt(guidance: guidance, spaceContext: spaceContext)
 
-        var lastError: Error?
-        for attempt in 0...maxRetries {
-            if attempt > 0 {
-                let delay = Double(attempt) * 2.0
-                try? await Task.sleep(for: .seconds(delay))
-                print("[Analysis] Retry attempt \(attempt)")
-            }
+        return try await performWithAnalysisRetries {
+            let req = buildProviderRequest(
+                provider: provider, apiKey: apiKey, model: model,
+                base64Image: base64, prompt: prompt
+            )
+            let responseText = try await sendProviderRequest(req)
+            return try parseResponse(responseText, provider: provider.rawValue, model: model)
+        }
+    }
+
+    /// Retries transient transport failures with backoff and malformed model output once.
+    /// The budgets are independent so a format retry does not consume a network retry.
+    func performWithAnalysisRetries<T>(
+        operation: () async throws -> T
+    ) async throws -> T {
+        var transientRetryCount = 0
+        var formatRetryCount = 0
+
+        while true {
             do {
-                let req = buildProviderRequest(
-                    provider: provider, apiKey: apiKey, model: model,
-                    base64Image: base64, prompt: prompt
-                )
-                let responseText = try await sendProviderRequest(req)
-                return try parseResponse(responseText, provider: provider.rawValue, model: model)
+                return try await operation()
             } catch {
-                lastError = error
-                if !isRetryable(error) { throw error }
+                if let analysisError = error as? AnalysisError,
+                   case .invalidAnalysisFormat = analysisError,
+                   formatRetryCount < 1 {
+                    formatRetryCount += 1
+                    print("[Analysis] Retrying malformed provider response")
+                    continue
+                }
+
+                guard isRetryable(error), transientRetryCount < maxRetries else {
+                    throw error
+                }
+                transientRetryCount += 1
+                try? await Task.sleep(for: .seconds(Double(transientRetryCount) * 2.0))
+                print("[Analysis] Retry attempt \(transientRetryCount)")
             }
         }
-        throw lastError!
     }
 
     func analyzeVideo(frames: [UIImage], provider: AIProvider, model: String, apiKey: String, guidance: String? = nil, spaceContext: String? = nil) async throws -> AnalysisResult {
@@ -268,21 +291,73 @@ final class AIAnalysisService: Sendable {
                     "HTTP-Referer": "https://snapwell.co",
                     "X-Title": "Snapwell"
                 ],
-                body: [
-                    "model": model,
-                    "messages": [
-                        ["role": "system", "content": prompt],
-                        ["role": "user", "content": [
-                            ["type": "text", "text": userText],
-                            ["type": "image_url", "image_url": ["url": "data:image/jpeg;base64,\(base64Image)"]]
-                        ]]
-                    ],
-                    "max_tokens": 1200
-                ],
+                body: Self.openRouterRequestBody(
+                    model: model,
+                    base64Image: base64Image,
+                    prompt: prompt,
+                    userText: userText
+                ),
                 provider: provider,
                 extractText: Self.extractOpenAIText
             )
         }
+    }
+
+    static var analysisJSONSchema: [String: Any] {
+        [
+            "type": "object",
+            "additionalProperties": false,
+            "properties": [
+                "imageContext": ["type": "string"],
+                "imageSummary": ["type": "string"],
+                "patterns": [
+                    "type": "array",
+                    "maxItems": 6,
+                    "items": [
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": [
+                            "name": ["type": "string"],
+                            "confidence": [
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 1
+                            ]
+                        ],
+                        "required": ["name", "confidence"]
+                    ]
+                ]
+            ],
+            "required": ["imageContext", "imageSummary", "patterns"]
+        ]
+    }
+
+    static func openRouterRequestBody(
+        model: String,
+        base64Image: String,
+        prompt: String,
+        userText: String = "Analyze this image."
+    ) -> [String: Any] {
+        [
+            "model": model,
+            "messages": [
+                ["role": "system", "content": prompt],
+                ["role": "user", "content": [
+                    ["type": "text", "text": userText],
+                    ["type": "image_url", "image_url": ["url": "data:image/jpeg;base64,\(base64Image)"]]
+                ]]
+            ],
+            "max_tokens": 1200,
+            "response_format": [
+                "type": "json_schema",
+                "json_schema": [
+                    "name": "snapwell_image_analysis",
+                    "strict": true,
+                    "schema": analysisJSONSchema
+                ]
+            ],
+            "provider": ["require_parameters": true]
+        ]
     }
 
     private static func extractOpenAIText(_ json: [String: Any]) throws -> String {
@@ -416,7 +491,13 @@ final class AIAnalysisService: Sendable {
             }
         }
 
-        let decoded = try JSONDecoder().decode(AIResponse.self, from: data)
+        let decoded: AIResponse
+        do {
+            decoded = try JSONDecoder().decode(AIResponse.self, from: data)
+        } catch {
+            print("[Analysis] Invalid response format from \(provider)/\(model): \(error)")
+            throw AnalysisError.invalidAnalysisFormat(provider: provider, model: model)
+        }
 
         let patterns = decoded.patterns
             .filter { $0.confidence >= 0.7 }
@@ -439,6 +520,8 @@ final class AIAnalysisService: Sendable {
         case invalidResponse
         case apiError(statusCode: Int, message: String, provider: AIProvider)
         case parseFailed
+        case invalidAnalysisFormat(provider: String, model: String)
+        case unsupportedStructuredOutputs(model: String)
 
         var errorDescription: String? {
             switch self {
@@ -465,6 +548,11 @@ final class AIAnalysisService: Sendable {
                     return "API request failed with HTTP \(code). Check your provider settings."
                 }
             case .parseFailed: return "Failed to parse AI response"
+            case .invalidAnalysisFormat(let provider, let model):
+                let providerName = AIProvider(rawValue: provider)?.displayName ?? provider
+                return "\(providerName) returned an analysis that Snapwell couldn’t read for \(model). Try again or choose a different model."
+            case .unsupportedStructuredOutputs:
+                return "This OpenRouter model can’t return the structured analysis Snapwell requires. Choose a different model in Settings."
             }
         }
     }

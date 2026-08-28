@@ -173,6 +173,56 @@ struct ModelDiscoveryScoringTests {
         #expect(service.preferredModel(from: openrouter, for: .openrouter)?.id == "google/gemini-3.5-flash")
     }
 
+    @Test("OpenRouter preference skips models without structured outputs")
+    func openRouterPreferenceRequiresStructuredOutputs() {
+        let models = [
+            DiscoveredModel(
+                id: "google/gemini-3.5-flash",
+                displayName: "Gemini 3.5 Flash",
+                supportsStructuredOutputs: false
+            ),
+            DiscoveredModel(
+                id: "openai/gpt-5.6-luna",
+                displayName: "GPT-5.6 Luna",
+                supportsStructuredOutputs: true
+            )
+        ]
+
+        #expect(service.preferredModel(from: models, for: .openrouter)?.id == "openai/gpt-5.6-luna")
+    }
+
+    @Test("OpenRouter discovery keeps vision models and records structured-output support")
+    func openRouterCapabilityParsing() throws {
+        let payload: [String: Any] = ["data": [
+            [
+                "id": "supported/model",
+                "name": "Supported",
+                "architecture": ["input_modalities": ["text", "image"]],
+                "supported_parameters": ["max_tokens", "structured_outputs"]
+            ],
+            [
+                "id": "unsupported/model",
+                "name": "Unsupported",
+                "architecture": ["input_modalities": ["image"]],
+                "supported_parameters": ["max_tokens"]
+            ],
+            [
+                "id": "text/model",
+                "name": "Text Only",
+                "architecture": ["input_modalities": ["text"]],
+                "supported_parameters": ["structured_outputs"]
+            ]
+        ]]
+        let data = try JSONSerialization.data(withJSONObject: payload)
+
+        let models = try ModelDiscoveryService.parseOpenRouterModels(from: data)
+
+        #expect(models.count == 2)
+        #expect(models.first(where: { $0.id == "supported/model" })?.supportsStructuredOutputs == true)
+        #expect(models.first(where: { $0.id == "unsupported/model" })?.supportsStructuredOutputs == false)
+        #expect(!models.contains(where: { $0.id == "text/model" }))
+    }
+
     @Test("Every provider has a preference list and a discoverable default",
           arguments: AIProvider.allCases)
     func everyProviderHasPreferences(_ provider: AIProvider) throws {
