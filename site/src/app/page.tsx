@@ -93,71 +93,47 @@ function SecondaryCTA({ className = "" }: { className?: string }) {
 export default function Home() {
   return (
     <>
-      <header className="sticky top-0 z-50 border-b border-border bg-background/75 backdrop-blur-xl">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
-          <Link href="/" className="flex items-center gap-2.5">
-            <Image src="/icon.png" alt="" width={64} height={64} className="h-[22px] w-[22px]" />
-            <span className="text-[15px] font-semibold tracking-[-0.01em]">Snapwell</span>
-          </Link>
-          <nav className="flex items-center gap-1">
-            <a
-              href={GITHUB}
-              className="rounded-[10px] px-3 py-1.5 text-sm text-muted transition-colors hover:bg-surface hover:text-foreground"
-            >
-              GitHub
-            </a>
-            <a
-              href={APP_STORE}
-              className="rounded-[10px] bg-foreground px-3.5 py-1.5 text-sm font-medium text-background transition-colors hover:bg-white"
-            >
-              Download
-            </a>
-          </nav>
-        </div>
-      </header>
-
       <main>
         {/* ── Hero ──────────────────────────────────────────── */}
-        <section className="relative isolate px-6 pt-20 md:pt-28">
-          <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-            <Image
-              src="/hero/background.webp"
-              alt=""
-              fill
-              className="object-cover opacity-[0.16]"
-            />
-            <div className="absolute inset-0 bg-gradient-to-b from-background via-background/40 to-background" />
-          </div>
-
+        <section className="px-6 pt-8 md:pt-12">
           <div className="mx-auto max-w-6xl">
-            <h1 className="rise t-display max-w-[16ch]" style={{ "--i": 0 } as React.CSSProperties}>
-              Everything you save, tagged automatically.
-            </h1>
-            <p
-              className="rise t-lead mt-6 text-muted"
-              style={{ "--i": 1 } as React.CSSProperties}
+            <Link
+              href="/"
+              aria-label="Snapwell home"
+              className="rise inline-flex items-center gap-2.5"
+              style={{ "--i": 0 } as React.CSSProperties}
             >
-              AI describes and tags every image and video you save —
-              automatically, in the background. Find anything by what&rsquo;s in
-              it, not what it&rsquo;s called. Native on Mac and iPhone.
-            </p>
-            <div
-              className="rise mt-8 flex flex-wrap items-center gap-3"
-              style={{ "--i": 2 } as React.CSSProperties}
-            >
-              <PrimaryCTA />
-              <SecondaryCTA />
+              <Image src="/icon.png" alt="" width={64} height={64} className="h-7 w-7" priority />
+              <span className="text-[17px] font-semibold tracking-[-0.015em]">Snapwell</span>
+            </Link>
+
+            <div className="mt-20 md:mt-28">
+              <h1
+                className="rise max-w-[13ch] text-[clamp(3.75rem,9.2vw,8rem)] leading-[0.91] font-[550] tracking-[-0.058em] text-balance"
+                style={{ "--i": 1 } as React.CSSProperties}
+              >
+                Everything you save, tagged automatically.
+              </h1>
+
+              <div className="rise mt-10 md:mt-12" style={{ "--i": 2 } as React.CSSProperties}>
+                <p className="max-w-[44ch] text-[17px] leading-[1.6] tracking-[-0.008em] text-muted md:text-[19px]">
+                  AI describes and tags every image and video you save —
+                  automatically, in the background. Find anything by what&rsquo;s in
+                  it, not what it&rsquo;s called. Native on Mac and iPhone.
+                </p>
+                <div className="mt-7 flex flex-wrap items-center gap-3">
+                  <PrimaryCTA />
+                  <SecondaryCTA />
+                </div>
+                <p className="mt-5 text-[13px] leading-relaxed text-muted">
+                  Completely free · Open source · macOS 15+ · iOS 17+
+                </p>
+              </div>
             </div>
-            <p
-              className="rise mt-5 text-[13px] text-muted"
-              style={{ "--i": 3 } as React.CSSProperties}
-            >
-              Completely free · Open source · macOS 15+ · iOS 17+
-            </p>
 
             <div
-              className="rise mt-14 md:mt-20"
-              style={{ "--i": 4 } as React.CSSProperties}
+              className="rise relative left-1/2 mt-24 w-[min(1440px,calc(100vw-32px))] -translate-x-1/2 md:mt-32"
+              style={{ "--i": 3 } as React.CSSProperties}
             >
               <HeroVideo />
             </div>

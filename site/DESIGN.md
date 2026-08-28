@@ -140,7 +140,8 @@ that is the single loudest tell it had.
 Six roles, applied as CSS classes in `globals.css`: `.t-display`, `.t-h2`,
 `.t-h3`, `.t-lead`, `.t-body`, plus a 13px label size used inline.
 
-- Display tops out at **5rem** and never exceeds it.
+- Section display type tops out at **5rem**. The homepage hero is the deliberate
+  exception, scaling to **8rem** so the product promise owns the first viewport.
 - Tracking tightens as size grows and stops at **-0.032em**; never past -0.04em.
 - Weight steps are 400 / 550 / 600 only.
 - Measure is capped: lead 44ch, body 68ch.
@@ -171,8 +172,8 @@ Layered, not lifted. Depth comes from a hairline border or a soft shadow —
 - Device renders with transparent surrounds (iPhone): `drop-shadow` only, so it
   follows the alpha silhouette. `0 28px 56px rgba(0,0,0,0.85)`.
 - Flat content tiles (library crops): `1px` border only, no shadow.
-- The sticky header is the one glass surface: `background/75` +
-  `backdrop-blur-xl` + a bottom hairline.
+- The homepage has no site header. The icon and wordmark sit directly above the
+  hero statement so the first viewport reads as a single product introduction.
 
 Shadows always carry a vertical offset and a soft blur. A zero-offset glow is
 decoration and does not belong here.
@@ -193,8 +194,9 @@ decoration and does not belong here.
   15px, `10px` radius. Exactly one per viewport region.
 - **Secondary button** — 1px `border`, transparent fill; hover lifts the border
   to `border-strong` and fills with `surface`.
-- **Sticky header** — 56px tall, wordmark + app icon left, ghost nav link and
-  primary button right. Always present; carries the CTA down the whole page.
+- **Hero wordmark** — app icon + wordmark above the manifesto. The App Store and
+  source CTAs live once, beneath the hero description; they are not duplicated
+  in nav.
 - **Step row** — a 3-column grid under a single full-width hairline. Title at
   `.t-h3`, one line of `.t-body` muted. No numbers, no icons, no card container.
 - **Content tile** — a bare 4:3 image with a 1px border, caption beneath.
