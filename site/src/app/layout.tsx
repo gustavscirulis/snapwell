@@ -14,8 +14,8 @@ const DIRECTION_CONTRACT = `<!--
 THESIS: The category standard for a native Mac app, executed at full craft rather than decorated. It refuses the arrangement it replaces: gold-on-black, italic-serif accents, tracked mono eyebrows, 01/02/03 steps, abstract line-art icons.
 OWN-WORLD: Near-black cool ground (#09090B), hairline borders, one typeface (Geist) on a four-step scale. The lavender-grey accent (#B7B2CE), sampled from the app icon, is held back to selection, focus rings and one link — every colour a visitor actually sees comes from the collected work itself. No gradient text, no second hue, no decorative SVG.
 STORY: A designer learns Snapwell tags their whole library automatically, sees the real search field and real collected items as proof, and downloads.
-FIRST VIEWPORT: Hairline sticky header. Left-aligned headline at 5rem max, lead paragraph, solid near-white primary CTA. Below it the real macOS screen recording, full container width, playing search silently on loop. Mac and iOS are separate beats; the iPhone gets its own section.
-FORM: Canon — the standing exit, taken deliberately over grounded candidate 4 (Specimen Sheet). Seed key 1dc04a19.
+FIRST VIEWPORT: The Snapwell icon and wordmark sit directly above a single oversized statement: “Everything you save, tagged automatically.” The original mechanism copy and both real CTAs sit beneath it in one left-aligned block. After generous separation, the real macOS recording breaks wider than the 1152px document and plays search silently on loop. There is no site header; Mac and iOS remain separate beats.
+FORM: Manifesto — selected after a three-direction hero prototype (Manifesto, Film Title, Product Index). The navigation bar was deliberately removed so the product statement and proof asset own the first viewport.
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
 -->`;
 
