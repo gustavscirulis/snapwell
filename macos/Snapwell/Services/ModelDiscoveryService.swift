@@ -3,13 +3,26 @@ import Foundation
 struct DiscoveredModel: Identifiable, Sendable {
     let id: String
     let displayName: String
+    let supportsStructuredOutputs: Bool
+
+    init(id: String, displayName: String, supportsStructuredOutputs: Bool = true) {
+        self.id = id
+        self.displayName = displayName
+        self.supportsStructuredOutputs = supportsStructuredOutputs
+    }
 }
 
 final class ModelDiscoveryService: @unchecked Sendable {
     static let shared = ModelDiscoveryService()
     static let autoModelValue = "auto"
+    private static let cacheLifetime: TimeInterval = 15 * 60
 
-    private var cache: [AIProvider: [DiscoveredModel]] = [:]
+    private struct CacheEntry {
+        let models: [DiscoveredModel]
+        let fetchedAt: Date
+    }
+
+    private var cache: [AIProvider: CacheEntry] = [:]
     private let lock = NSLock()
 
     private init() {}
@@ -19,13 +32,18 @@ final class ModelDiscoveryService: @unchecked Sendable {
     private func getCached(for provider: AIProvider) -> [DiscoveredModel]? {
         lock.lock()
         defer { lock.unlock() }
-        return cache[provider]
+        guard let entry = cache[provider] else { return nil }
+        guard Date().timeIntervalSince(entry.fetchedAt) < Self.cacheLifetime else {
+            cache.removeValue(forKey: provider)
+            return nil
+        }
+        return entry.models
     }
 
     private func setCached(_ models: [DiscoveredModel], for provider: AIProvider) {
         lock.lock()
         defer { lock.unlock() }
-        cache[provider] = models
+        cache[provider] = CacheEntry(models: models, fetchedAt: .now)
     }
 
     func fetchModels(for provider: AIProvider) async throws -> [DiscoveredModel] {
@@ -67,8 +85,11 @@ final class ModelDiscoveryService: @unchecked Sendable {
     /// wins, which favours the base model over `-pro` / `-image` / `-fast` variants.
     func preferredModel(from models: [DiscoveredModel], for provider: AIProvider) -> DiscoveredModel? {
         guard let prefixes = Self.preferredModelPrefixes[provider] else { return nil }
+        let compatibleModels = models.filter {
+            provider != .openrouter || $0.supportsStructuredOutputs
+        }
         for prefix in prefixes {
-            let matches = models.filter { $0.id.lowercased().hasPrefix(prefix) }
+            let matches = compatibleModels.filter { $0.id.lowercased().hasPrefix(prefix) }
             if let best = matches.min(by: { ($0.id.count, $0.id) < ($1.id.count, $1.id) }) {
                 return best
             }
@@ -78,7 +99,10 @@ final class ModelDiscoveryService: @unchecked Sendable {
 
     func resolveAutoModel(for provider: AIProvider, excluding excluded: Set<String> = []) async -> String {
         do {
-            let models = try await fetchModels(for: provider).filter { !excluded.contains($0.id) }
+            let models = try await fetchModels(for: provider).filter {
+                !excluded.contains($0.id)
+                    && (provider != .openrouter || $0.supportsStructuredOutputs)
+            }
             if let preferred = preferredModel(from: models, for: provider) {
                 return preferred.id
             }
@@ -98,6 +122,20 @@ final class ModelDiscoveryService: @unchecked Sendable {
         lock.lock()
         cache.removeValue(forKey: provider)
         lock.unlock()
+    }
+
+    /// Returns OpenRouter's advertised structured-output support for a model. A nil result
+    /// means discovery failed or the model is unknown, so request-time routing remains the
+    /// source of truth via `provider.require_parameters`.
+    func structuredOutputSupport(for modelID: String, provider: AIProvider) async -> Bool? {
+        guard provider == .openrouter else { return true }
+        do {
+            return try await fetchModels(for: provider)
+                .first(where: { $0.id == modelID })?
+                .supportsStructuredOutputs
+        } catch {
+            return nil
+        }
     }
 
     // MARK: - OpenAI
@@ -267,6 +305,10 @@ final class ModelDiscoveryService: @unchecked Sendable {
         let (data, response) = try await URLSession.shared.data(for: request)
         try validateHTTP(response, data: data)
 
+        return try Self.parseOpenRouterModels(from: data)
+    }
+
+    static func parseOpenRouterModels(from data: Data) throws -> [DiscoveredModel] {
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         let models = json?["data"] as? [[String: Any]] ?? []
 
@@ -277,7 +319,12 @@ final class ModelDiscoveryService: @unchecked Sendable {
                 let modalities = arch?["input_modalities"] as? [String] ?? []
                 guard modalities.contains("image") else { return nil }
                 let display = dict["name"] as? String ?? id
-                return DiscoveredModel(id: id, displayName: display)
+                let parameters = dict["supported_parameters"] as? [String] ?? []
+                return DiscoveredModel(
+                    id: id,
+                    displayName: display,
+                    supportsStructuredOutputs: parameters.contains("structured_outputs")
+                )
             }
             .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
     }

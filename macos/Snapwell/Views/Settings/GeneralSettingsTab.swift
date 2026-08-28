@@ -160,8 +160,16 @@ struct GeneralSettingsTab: View {
                 }
                 Divider()
                 ForEach(discoveredModels) { model in
-                    Text(model.displayName).tag(model.id)
+                    Text(modelPickerLabel(for: model))
+                        .tag(model.id)
+                        .disabled(provider == .openrouter && !model.supportsStructuredOutputs)
                 }
+            }
+
+            if hasIncompatibleOpenRouterSelection(binding.wrappedValue) {
+                Text("This model can’t return the structured analysis Snapwell requires. Choose a compatible OpenRouter model.")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
             }
         } else {
             TextField("Model ID", text: binding)
@@ -177,6 +185,20 @@ struct GeneralSettingsTab: View {
         case .anthropic: return $anthropicModel
         case .gemini: return $geminiModel
         case .openrouter: return $openrouterModel
+        }
+    }
+
+    private func modelPickerLabel(for model: DiscoveredModel) -> String {
+        guard provider == .openrouter, !model.supportsStructuredOutputs else {
+            return model.displayName
+        }
+        return "\(model.displayName) — Structured output unavailable"
+    }
+
+    private func hasIncompatibleOpenRouterSelection(_ modelID: String) -> Bool {
+        guard provider == .openrouter else { return false }
+        return discoveredModels.contains {
+            $0.id == modelID && !$0.supportsStructuredOutputs
         }
     }
 
