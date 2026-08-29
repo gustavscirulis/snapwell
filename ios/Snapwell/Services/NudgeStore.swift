@@ -4,7 +4,7 @@ import Foundation
 /// eligible case wins and the rest wait for the next evaluation, so we never
 /// stack two modals on top of each other.
 enum Nudge: String, Identifiable, CaseIterable {
-    /// You have media but no API key, so nothing is being analyzed.
+    /// You have media but no configured AI provider, so nothing is being analyzed.
     case apiKey
     /// The same library is available in the Mac app.
     case macApp
@@ -45,8 +45,8 @@ struct NudgeStore {
     // MARK: - Eligibility
 
     /// The highest-priority nudge that should be shown right now, or nil.
-    func nextNudge(now: Date, hasMedia: Bool, hasAPIKey: Bool, calendar: Calendar = .current) -> Nudge? {
-        if hasMedia, !hasAPIKey, !hasSeen(.apiKey) {
+    func nextNudge(now: Date, hasMedia: Bool, hasAIConfiguration: Bool, calendar: Calendar = .current) -> Nudge? {
+        if hasMedia, !hasAIConfiguration, !hasSeen(.apiKey) {
             return .apiKey
         }
         if !hasSeen(.macApp), isSecondDayOrLater(now: now, calendar: calendar) {

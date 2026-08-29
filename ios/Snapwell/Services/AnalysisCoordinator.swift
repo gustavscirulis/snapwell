@@ -35,13 +35,17 @@ final class AnalysisCoordinator {
             return
         }
 
-        guard keySyncService.isUnlocked else {
-            print("[Analysis] Skipped — keySyncService not unlocked")
-            return
-        }
         guard let providerStr = keySyncService.activeProvider,
               let provider = AIProvider(rawValue: providerStr) else {
             print("[Analysis] Skipped — no active provider")
+            return
+        }
+        guard provider.canAnalyzeOnCurrentPlatform else {
+            print("[Analysis] Skipped — \(provider.displayName) analysis runs on Mac")
+            return
+        }
+        guard keySyncService.isUnlocked else {
+            print("[Analysis] Skipped — keySyncService not unlocked")
             return
         }
         guard let apiKey = keySyncService.activeAPIKey() else {

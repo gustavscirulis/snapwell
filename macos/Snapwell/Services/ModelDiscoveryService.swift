@@ -24,8 +24,11 @@ final class ModelDiscoveryService: @unchecked Sendable {
 
     private var cache: [AIProvider: CacheEntry] = [:]
     private let lock = NSLock()
+    private let ollamaClient: OllamaClient
 
-    private init() {}
+    init(ollamaClient: OllamaClient = .shared) {
+        self.ollamaClient = ollamaClient
+    }
 
     // MARK: - Public API
 
@@ -51,8 +54,14 @@ final class ModelDiscoveryService: @unchecked Sendable {
             return cached
         }
 
-        guard let apiKey = try KeychainService.get(service: provider.keychainService) else {
-            throw DiscoveryError.noAPIKey
+        let apiKey: String
+        if provider.requiresAPIKey {
+            guard let storedKey = try KeychainService.get(service: provider.keychainService) else {
+                throw DiscoveryError.noAPIKey
+            }
+            apiKey = storedKey
+        } else {
+            apiKey = ""
         }
 
         let models: [DiscoveredModel]
@@ -65,6 +74,8 @@ final class ModelDiscoveryService: @unchecked Sendable {
             models = try await fetchGeminiModels(apiKey: apiKey)
         case .openrouter:
             models = try await fetchOpenRouterModels(apiKey: apiKey)
+        case .ollama:
+            models = try await ollamaClient.fetchVisionModels()
         }
 
         setCached(models, for: provider)
@@ -78,7 +89,8 @@ final class ModelDiscoveryService: @unchecked Sendable {
         .openai: ["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.5", "gpt-5.4", "gpt-5", "gpt-4.1", "gpt-4o"],
         .anthropic: ["claude-sonnet-5", "claude-opus-5", "claude-opus-4-8", "claude-haiku-4-5", "claude-sonnet-4-6"],
         .gemini: ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.1-flash", "gemini-3-pro", "gemini-2.5-flash", "gemini-2.0-flash"],
-        .openrouter: ["google/gemini-3.5-flash", "google/gemini-3.6-flash", "openai/gpt-5.6-luna", "anthropic/claude-sonnet-5"]
+        .openrouter: ["google/gemini-3.5-flash", "google/gemini-3.6-flash", "openai/gpt-5.6-luna", "anthropic/claude-sonnet-5"],
+        .ollama: ["gemma3:4b", "gemma3:latest", "gemma3:12b", "gemma3:27b", "gemma3"]
     ]
 
     /// First model matching the earliest preferred prefix. Within a family the shortest ID

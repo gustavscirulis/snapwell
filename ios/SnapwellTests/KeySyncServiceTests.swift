@@ -46,6 +46,23 @@ struct KeySyncServiceTests {
         #expect(decoded.keys["openai"] == "test-key-123")
     }
 
+    @Test("Ollama provider and model use the existing payload schema")
+    func ollamaPayloadRoundtrip() throws {
+        let original = KeySyncPayload(
+            provider: "ollama",
+            model: "gemma3:4b",
+            keys: ["openai": "test-key-123"],
+            updatedAt: Date(timeIntervalSince1970: 1700000000)
+        )
+
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(KeySyncPayload.self, from: data)
+
+        #expect(decoded.provider == "ollama")
+        #expect(decoded.model == "gemma3:4b")
+        #expect(decoded.keys == original.keys)
+    }
+
     @Test("KeySyncPayload with empty keys dict")
     func emptyKeys() throws {
         let payload = KeySyncPayload(
@@ -151,7 +168,7 @@ struct KeySyncServiceTests {
     }
 
     private func cleanupKeychain() {
-        for provider in AIProvider.allCases {
+        for provider in AIProvider.credentialProviders {
             try? KeychainService.delete(service: provider.rawValue)
         }
     }
@@ -362,6 +379,82 @@ struct KeySyncServiceTests {
         #expect(service.activeAPIKey() == "openai-key")
         #expect(service.activeModel == "gpt-4o")
         #expect(service.hasAPIKey(for: .anthropic))
+    }
+
+    @Test("Ollama is configured but cannot analyze on iOS")
+    @MainActor func ollamaIsConfiguredButLocked() async {
+        let defaults = UserDefaults.standard
+        cleanupDefaults(defaults)
+        cleanupKeychain()
+        defer { cleanupDefaults(defaults); cleanupKeychain() }
+
+        defaults.set(AIProvider.ollama.rawValue, forKey: KeySyncService.providerDefaultsKey)
+        defaults.set("gemma3:4b", forKey: KeySyncService.modelDefaultsKey(for: .ollama))
+
+        let service = KeySyncService.shared
+        service.checkForSettingsKeys()
+
+        #expect(service.activeProvider == "ollama")
+        #expect(service.activeModel == "gemma3:4b")
+        #expect(service.isConfigured == true)
+        #expect(service.isUnlocked == false)
+        #expect(service.activeAPIKey() == nil)
+        #expect(AIProvider.ollama.canAnalyzeOnCurrentPlatform == false)
+    }
+
+    @Test("Foreground refresh imports an Ollama payload that arrives after launch")
+    @MainActor func delayedOllamaPayloadIsImported() async throws {
+        let defaults = UserDefaults.standard
+        cleanupDefaults(defaults)
+        cleanupKeychain()
+
+        let service = KeySyncService.shared
+        defer {
+            cleanupDefaults(defaults)
+            cleanupKeychain()
+            service.checkForSettingsKeys()
+        }
+
+        defaults.set(AIProvider.openrouter.rawValue, forKey: KeySyncService.providerDefaultsKey)
+        defaults.set("google/gemini-3.5-flash", forKey: KeySyncService.modelDefaultsKey(for: .openrouter))
+        let payloadDate = Date.now.addingTimeInterval(10)
+        defaults.set(payloadDate.addingTimeInterval(-20).timeIntervalSince1970, forKey: "keySyncLastImportedAt")
+        service.checkForSettingsKeys()
+        #expect(service.activeProvider == "openrouter")
+
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("KeySyncRefresh-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let payload = KeySyncPayload(
+            provider: "ollama",
+            model: "gemma3:4b",
+            keys: [:],
+            updatedAt: payloadDate
+        )
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let encrypted = try KeySyncCrypto.encryptLegacyForTesting(encoder.encode(payload))
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(10))
+            try? encrypted.write(
+                to: rootURL.appendingPathComponent(".apikeys.encrypted"),
+                options: .atomic
+            )
+        }
+
+        await service.refreshFromiCloud(
+            rootURL: rootURL,
+            retryDelays: [.milliseconds(25), .milliseconds(50)]
+        )
+
+        #expect(service.activeProvider == "ollama")
+        #expect(service.activeModel == "gemma3:4b")
+        #expect(service.isConfigured == true)
+        #expect(service.isUnlocked == false)
+        #expect(service.keySource == .iCloudSync)
     }
 
     @Test("Removing the selected key disables analysis without deleting other providers")

@@ -94,6 +94,16 @@ struct SnapwellApp: App {
             }
 
             CommandGroup(replacing: .pasteboard) {
+                Button("Cut") {
+                    NSApp.sendAction(#selector(NSText.cut(_:)), to: nil, from: nil)
+                }
+                .keyboardShortcut("x")
+
+                Button("Copy") {
+                    NSApp.sendAction(#selector(NSText.copy(_:)), to: nil, from: nil)
+                }
+                .keyboardShortcut("c")
+
                 Button("Paste") {
                     if let firstResponder = NSApp.keyWindow?.firstResponder, firstResponder is NSText {
                         firstResponder.tryToPerform(#selector(NSText.paste(_:)), with: nil)
@@ -102,6 +112,8 @@ struct SnapwellApp: App {
                     }
                 }
                 .keyboardShortcut("v")
+
+                Divider()
 
                 Button("Find") {
                     NotificationCenter.default.post(name: .focusSearch, object: nil)

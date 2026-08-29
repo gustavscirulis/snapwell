@@ -38,8 +38,8 @@ final class AppState {
     var showAISettings = false
     var opensAISettingsAfterNudge = false
 
-    func dismissAPIKeyNudgeIfConfigured(isUnlocked: Bool) {
-        guard isUnlocked, activeNudge == .apiKey else { return }
+    func dismissAPIKeyNudgeIfConfigured(isConfigured: Bool) {
+        guard isConfigured, activeNudge == .apiKey else { return }
         activeNudge = nil
     }
 

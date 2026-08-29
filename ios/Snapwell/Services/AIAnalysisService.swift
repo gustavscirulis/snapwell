@@ -6,6 +6,7 @@ enum AIProvider: String, CaseIterable, Codable, Sendable {
     case anthropic
     case gemini
     case openrouter
+    case ollama
 
     var displayName: String {
         switch self {
@@ -13,10 +14,23 @@ enum AIProvider: String, CaseIterable, Codable, Sendable {
         case .anthropic: return "Anthropic Claude"
         case .gemini: return "Google Gemini"
         case .openrouter: return "OpenRouter"
+        case .ollama: return "Ollama"
         }
     }
 
     var keychainService: String { rawValue }
+
+    var requiresAPIKey: Bool { self != .ollama }
+
+    var canAnalyzeOnCurrentPlatform: Bool { self != .ollama }
+
+    static var credentialProviders: [AIProvider] {
+        allCases.filter(\.requiresAPIKey)
+    }
+
+    static var cloudProviders: [AIProvider] {
+        allCases.filter(\.canAnalyzeOnCurrentPlatform)
+    }
 
     var defaultModel: String {
         switch self {
@@ -24,6 +38,7 @@ enum AIProvider: String, CaseIterable, Codable, Sendable {
         case .anthropic: return "claude-sonnet-5"
         case .gemini: return "gemini-3.5-flash"
         case .openrouter: return "google/gemini-3.5-flash"
+        case .ollama: return "gemma3:4b"
         }
     }
 }
@@ -300,6 +315,8 @@ final class AIAnalysisService: Sendable {
                 provider: provider,
                 extractText: Self.extractOpenAIText
             )
+        case .ollama:
+            preconditionFailure("Ollama analysis is available only on Mac")
         }
     }
 

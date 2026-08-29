@@ -66,12 +66,12 @@ struct EmptyStateView: View {
                         .controlSize(.large)
                     }
 
-                    if mode == .appLevel, !AIProvider.hasAnyAPIKey {
+                    if mode == .appLevel, !AIProvider.hasAnyAIConfiguration {
                         VStack(spacing: 12) {
                             Divider()
                                 .frame(width: 160)
 
-                            Text("Add an AI API key in Settings (\u{2318},) to enable automatic image analysis")
+                            Text("Choose an AI provider in Settings (\u{2318},) to enable automatic image analysis")
                                 .font(.callout)
                                 .foregroundStyle(.tertiary)
                                 .multilineTextAlignment(.center)

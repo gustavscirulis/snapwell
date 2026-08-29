@@ -242,7 +242,7 @@ struct ContentView: View {
             },
             onPasteImages: { handlePaste() },
             onShowAPIKeyToast: {
-                appState.showToast("To enable AI analysis, set up an API key in Settings", duration: 5)
+                appState.showToast("Choose an AI provider in Settings to enable analysis", duration: 5)
             }
         ))
         .sheet(isPresented: Binding(
@@ -664,9 +664,9 @@ struct ContentView: View {
 
     private func showAPIKeyNudgeIfNeeded() {
         let count = UserDefaults.standard.integer(forKey: "apiKeyToastCount")
-        guard !AIProvider.hasAnyAPIKey, count < 3 else { return }
+        guard !AIProvider.hasAnyAIConfiguration, count < 3 else { return }
         UserDefaults.standard.set(count + 1, forKey: "apiKeyToastCount")
-        appState.showToast("To enable AI analysis, set up an API key in Settings", duration: 5)
+        appState.showToast("Choose an AI provider in Settings to enable analysis", duration: 5)
     }
 
     private func deleteItems(_ ids: Set<String>) {
@@ -1059,16 +1059,12 @@ struct ContentView: View {
 
     private func retryAnalysis(_ ids: Set<String>) {
         let items = allItems.filter { ids.contains($0.id) }
-        for item in items {
-            item.analysisError = nil
-            item.analysisResult = nil
-        }
-        modelContext.saveOrLog()
         Task {
-            for item in items {
-                let success = await importService.analyzeItem(item, context: modelContext)
-                if !success { break }
-            }
+            await importService.retryFailedItems(
+                items,
+                continuingWith: Array(allItems),
+                context: modelContext
+            )
         }
     }
 

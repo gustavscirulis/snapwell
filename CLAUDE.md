@@ -43,6 +43,20 @@ Uses XcodeGen — run `cd macos && xcodegen generate && scripts/post-xcodegen.sh
 
 Bundle ID: `co.snapwell`.
 
+## App Store releases
+
+**App Store Connect is the source of truth for build numbers.** Builds may have been uploaded without a corresponding Git commit, so never infer the next `CFBundleVersion` only from `CURRENT_PROJECT_VERSION`, Git history, or the other platform.
+
+Before bumping versions or preparing an App Store archive:
+
+1. Find the highest build number already uploaded to App Store Connect for **macOS and iOS separately**. Query App Store Connect when credentials are available; otherwise ask for the latest uploaded number for each platform.
+2. Set each platform's `CURRENT_PROJECT_VERSION` strictly higher than its own latest uploaded build. The Mac and iOS build numbers do not need to match.
+3. For macOS, update `macos/project.yml`, then run `cd macos && xcodegen generate && scripts/post-xcodegen.sh`. Do not edit only the generated `.pbxproj`.
+4. For iOS, update the app and share-extension build settings in `ios/Snapwell.xcodeproj/project.pbxproj`.
+5. Build or archive each changed platform and inspect the resulting app's `Info.plist` to verify both `CFBundleShortVersionString` and `CFBundleVersion` before reporting completion or uploading.
+
+When handing off a release, explicitly report the verified marketing version and build number for each platform.
+
 ## Architecture patterns
 
 **iOS AppState**: UI state lives in `AppState` (`@Observable @MainActor`), not scattered `@State` on views. Match this pattern for new state.
