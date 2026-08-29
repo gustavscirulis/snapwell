@@ -119,7 +119,7 @@ export default function Home() {
                 <p className="max-w-[44ch] text-[17px] leading-[1.6] tracking-[-0.008em] text-muted md:text-[19px]">
                   AI describes and tags every image and video you save —
                   automatically, in the background. Find anything by what&rsquo;s in
-                  it, not what it&rsquo;s called. Native on Mac and iPhone.
+                  it, not what it&rsquo;s called. Native on Mac, iPhone, and iPad.
                 </p>
                 <div className="mt-7 flex flex-wrap items-center gap-3">
                   <PrimaryCTA />
