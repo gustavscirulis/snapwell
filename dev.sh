@@ -236,16 +236,224 @@ run_site() {
     npm run dev
 }
 
+# ── App Store archive & upload ──────────────────────────────────
+
+release_fail() {
+    printf "${RED}Error: %s${RESET}\n" "$1" >&2
+    exit 1
+}
+
+run_release_command() {
+    if command -v xcbeautify &>/dev/null; then
+        "$@" 2>&1 | xcbeautify --quiet
+    else
+        "$@"
+    fi
+}
+
+release_preflight() {
+    local needs_xcodegen="${1:-false}"
+
+    command -v xcodebuild &>/dev/null || release_fail "xcodebuild not found"
+    if [[ "$needs_xcodegen" == "true" ]]; then
+        command -v xcodegen &>/dev/null || release_fail "XcodeGen not found. Install it with: brew install xcodegen"
+    fi
+    local signing_identities
+    signing_identities=$(security find-identity -v -p codesigning)
+    [[ "$signing_identities" == *"Apple Distribution"* ]] \
+        || release_fail "No Apple Distribution certificate found in Keychain"
+}
+
+confirm_app_store_upload() {
+    local platform="$1"
+    local version="$2"
+    local build="$3"
+    local response
+
+    printf "\n${YELLOW}${BOLD}Publish %s %s (build %s)?${RESET}\n" "$platform" "$version" "$build"
+    printf "Confirm this build number is higher than every %s build in App Store Connect.\n" "$platform"
+    printf "This will archive and upload the app to Apple, but will not submit it for review. [y/N] "
+    IFS= read -r response
+
+    [[ "$response" == "y" || "$response" == "Y" ]]
+}
+
+publish_ios() {
+    release_preflight false
+
+    local project_dir="$SCRIPT_DIR/ios"
+    local build_dir="$project_dir/build"
+    local archive_path="$build_dir/Snapwell.xcarchive"
+    local upload_dir="$build_dir/upload"
+    local upload_options="$build_dir/ExportOptions-Upload.plist"
+    local settings
+    local version
+    local build
+
+    settings=$(xcodebuild -showBuildSettings \
+        -project "$project_dir/Snapwell.xcodeproj" \
+        -scheme Snapwell \
+        -configuration Release \
+        -destination 'generic/platform=iOS' 2>/dev/null)
+    version=$(printf '%s\n' "$settings" | awk '/^[[:space:]]*MARKETING_VERSION = / {print $3; exit}')
+    build=$(printf '%s\n' "$settings" | awk '/^[[:space:]]*CURRENT_PROJECT_VERSION = / {print $3; exit}')
+    [[ -n "$version" && -n "$build" ]] || release_fail "Could not read the iOS version and build number"
+
+    if ! confirm_app_store_upload "iOS" "$version" "$build"; then
+        printf "${DIM}Upload cancelled.${RESET}\n"
+        return
+    fi
+
+    printf "\n${BOLD}Archiving Snapwell for iOS...${RESET}\n\n"
+    rm -rf "$build_dir"
+    mkdir -p "$build_dir"
+
+    run_release_command xcodebuild archive \
+        -project "$project_dir/Snapwell.xcodeproj" \
+        -scheme Snapwell \
+        -configuration Release \
+        -archivePath "$archive_path" \
+        -allowProvisioningUpdates \
+        -destination 'generic/platform=iOS'
+
+    local app_info="$archive_path/Products/Applications/Snapwell.app/Info.plist"
+    local extension_info="$archive_path/Products/Applications/Snapwell.app/PlugIns/ShareExtension.appex/Info.plist"
+    [[ -f "$app_info" && -f "$extension_info" ]] \
+        || release_fail "Archive is missing the iOS app or share-extension Info.plist"
+
+    local archived_version
+    local archived_build
+    local extension_version
+    local extension_build
+    archived_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app_info")
+    archived_build=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app_info")
+    extension_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$extension_info")
+    extension_build=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$extension_info")
+
+    [[ "$archived_version" == "$version" && "$archived_build" == "$build" ]] \
+        || release_fail "Archived iOS version does not match the confirmed version"
+    [[ "$extension_version" == "$archived_version" && "$extension_build" == "$archived_build" ]] \
+        || release_fail "The iOS app and share extension versions do not match"
+    printf "${GREEN}✓ Verified iOS %s (build %s)${RESET}\n" "$archived_version" "$archived_build"
+
+    cp "$project_dir/ExportOptions-AppStore.plist" "$upload_options"
+    /usr/libexec/PlistBuddy -c 'Delete :destination' "$upload_options" 2>/dev/null || true
+    /usr/libexec/PlistBuddy -c 'Add :destination string upload' "$upload_options"
+
+    printf "\n${BOLD}Uploading to App Store Connect...${RESET}\n\n"
+    run_release_command xcodebuild -exportArchive \
+        -archivePath "$archive_path" \
+        -exportPath "$upload_dir" \
+        -exportOptionsPlist "$upload_options" \
+        -allowProvisioningUpdates
+
+    printf "\n${GREEN}✓ Uploaded iOS %s (build %s) to App Store Connect${RESET}\n" "$archived_version" "$archived_build"
+    print_review_next_steps
+}
+
+publish_mac() {
+    release_preflight true
+
+    local project_dir="$SCRIPT_DIR/macos"
+    local build_dir="$project_dir/build"
+    local archive_path="$build_dir/Snapwell.xcarchive"
+    local upload_dir="$build_dir/upload"
+    local upload_options="$build_dir/ExportOptions-Upload.plist"
+    local version
+    local build
+    version=$(awk -F': ' '/MARKETING_VERSION:/ {gsub(/"/, "", $2); print $2; exit}' "$project_dir/project.yml")
+    build=$(awk -F': ' '/CURRENT_PROJECT_VERSION:/ {print $2; exit}' "$project_dir/project.yml")
+    [[ -n "$version" && -n "$build" ]] || release_fail "Could not read the Mac version and build number"
+
+    if ! confirm_app_store_upload "macOS" "$version" "$build"; then
+        printf "${DIM}Upload cancelled.${RESET}\n"
+        return
+    fi
+
+    printf "\n${DIM}Generating the Mac project...${RESET}\n"
+    cd "$project_dir"
+    xcodegen generate
+    scripts/post-xcodegen.sh
+
+    printf "\n${BOLD}Archiving Snapwell for Mac...${RESET}\n\n"
+    rm -rf "$build_dir"
+    mkdir -p "$build_dir"
+
+    run_release_command xcodebuild archive \
+        -project Snapwell.xcodeproj \
+        -scheme Snapwell \
+        -configuration Release \
+        -archivePath "$archive_path" \
+        -allowProvisioningUpdates
+
+    local app_info="$archive_path/Products/Applications/Snapwell.app/Contents/Info.plist"
+    [[ -f "$app_info" ]] || release_fail "Archive is missing the Mac app Info.plist"
+
+    local archived_version
+    local archived_build
+    archived_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app_info")
+    archived_build=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app_info")
+    [[ "$archived_version" == "$version" && "$archived_build" == "$build" ]] \
+        || release_fail "Archived Mac version does not match the confirmed version"
+    printf "${GREEN}✓ Verified macOS %s (build %s)${RESET}\n" "$archived_version" "$archived_build"
+
+    cp "$project_dir/ExportOptions.plist" "$upload_options"
+    /usr/libexec/PlistBuddy -c 'Delete :destination' "$upload_options" 2>/dev/null || true
+    /usr/libexec/PlistBuddy -c 'Add :destination string upload' "$upload_options"
+
+    printf "\n${BOLD}Uploading to App Store Connect...${RESET}\n\n"
+    run_release_command xcodebuild -exportArchive \
+        -archivePath "$archive_path" \
+        -exportPath "$upload_dir" \
+        -exportOptionsPlist "$upload_options" \
+        -allowProvisioningUpdates
+
+    printf "\n${GREEN}✓ Uploaded macOS %s (build %s) to App Store Connect${RESET}\n" "$archived_version" "$archived_build"
+    print_review_next_steps
+}
+
+print_review_next_steps() {
+    printf "\n${DIM}App Store Connect still needs to process the build. Then add the build and What's New notes to the version and submit it for App Review.${RESET}\n"
+}
+
+choose_mac_action() {
+    printf "\n${BOLD}Mac app${RESET}\n\n"
+    local actions=("Run locally" "Publish to the App Store")
+    local action
+    select_option "${actions[@]}" && action=$? || action=$?
+
+    case $action in
+        0) run_mac ;;
+        1) publish_mac ;;
+    esac
+}
+
+choose_ios_action() {
+    printf "\n${BOLD}iOS app${RESET}\n\n"
+    local actions=("Run locally" "Publish to the App Store")
+    local action
+    select_option "${actions[@]}" && action=$? || action=$?
+
+    case $action in
+        0) run_ios ;;
+        1) publish_ios ;;
+    esac
+}
+
 # ── Main ────────────────────────────────────────────────────────
 
 printf "\n${BOLD}Snapwell Dev Runner${RESET}\n\n"
 printf "Select target:\n\n"
 
-options=("Mac app     →  build & run locally" "iOS app     →  build & run on iPhone" "Website     →  Next.js dev server")
+options=(
+    "Mac app     →  run locally or publish"
+    "iOS app     →  run locally or publish"
+    "Website     →  Next.js dev server"
+)
 select_option "${options[@]}" && choice=$? || choice=$?
 
 case $choice in
-    0) run_mac ;;
-    1) run_ios ;;
+    0) choose_mac_action ;;
+    1) choose_ios_action ;;
     2) run_site ;;
 esac

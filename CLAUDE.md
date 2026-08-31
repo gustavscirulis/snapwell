@@ -57,6 +57,20 @@ Before bumping versions or preparing an App Store archive:
 
 When handing off a release, explicitly report the verified marketing version and build number for each platform.
 
+### Archive and upload workflow
+
+Run `./dev.sh`, choose the Mac or iOS app, then choose one of the platform actions:
+
+- **Run locally** uses the existing local device or simulator workflow.
+- **Publish to the App Store** shows the configured marketing/build versions, requires confirmation that the build exceeds App Store Connect, creates a signed archive, verifies the archived metadata, and uploads it with Xcode. The iOS workflow also verifies that the app and share extension versions match. Xcode must be signed in to the correct Apple developer account.
+- Uploading does **not** submit the version for App Review. After processing, select the build, add the What's New text, and submit from App Store Connect.
+
+The interactive archive/upload implementation lives in the root `dev.sh`; keep the release path there rather than splitting it across new scripts. Never run an upload until the App Store Connect build-number check and version bump above are complete.
+
+### What's New copy
+
+Write App Store What's New text as 2–4 concise, user-facing bullets. Start every line with `•`, keep one benefit or fix per bullet, and omit headings, implementation details, provider error codes, and internal terminology. Describe what improved for the user rather than how the code changed.
+
 ## Architecture patterns
 
 **iOS AppState**: UI state lives in `AppState` (`@Observable @MainActor`), not scattered `@State` on views. Match this pattern for new state.

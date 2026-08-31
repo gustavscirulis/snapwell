@@ -135,8 +135,13 @@ final class AIAnalysisService: Sendable {
 
         while true {
             do {
+                try Task.checkCancellation()
                 return try await operation()
             } catch {
+                // A coordinator-owned task cancellation is control flow, not an analysis
+                // failure. Preserve it so callers can clean up without showing an error.
+                try Task.checkCancellation()
+
                 if let analysisError = error as? AnalysisError,
                    case .invalidAnalysisFormat = analysisError,
                    formatRetryCount < 1 {
@@ -149,7 +154,7 @@ final class AIAnalysisService: Sendable {
                     throw error
                 }
                 transientRetryCount += 1
-                try? await Task.sleep(for: .seconds(Double(transientRetryCount) * 2.0))
+                try await Task.sleep(for: .seconds(Double(transientRetryCount) * 2.0))
                 print("[Analysis] Retry attempt \(transientRetryCount)")
             }
         }
@@ -208,7 +213,10 @@ final class AIAnalysisService: Sendable {
     func isRetryable(_ error: Error) -> Bool {
         let nsError = error as NSError
         if nsError.domain == NSURLErrorDomain {
-            return [-1001, -1005, -1009].contains(nsError.code)
+            // -999 can also be produced by URL loading when the connection is interrupted
+            // without the parent Swift task being cancelled. True task cancellation is
+            // rethrown by performWithAnalysisRetries before reaching this classifier.
+            return [-999, -1001, -1005, -1009].contains(nsError.code)
         }
         if case AnalysisError.apiError(let code, _, _) = error {
             return [429, 502, 503].contains(code)
