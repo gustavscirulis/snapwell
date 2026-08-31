@@ -76,6 +76,7 @@
 		A300000001 /* ModelDiscoveryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000001 /* ModelDiscoveryService.swift */; };
 		A300000002 /* AISettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000002 /* AISettingsView.swift */; };
 		A300000003 /* ModelDiscoveryScoringTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000003 /* ModelDiscoveryScoringTests.swift */; };
+		AC00000002 /* AnalysisCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC00000001 /* AnalysisCoordinatorTests.swift */; };
 		C325B2DE9C4EBB590CE9AA5B /* MediaItemTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BC6070D4921036591CAB048 /* MediaItemTests.swift */; };
 		E34FCD416FC123E6A9B6418F /* ImageImportServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7283BD792D4DC7DA66FA0273 /* ImageImportServiceTests.swift */; };
 		E740BF023E205C121824CCB6 /* TestTags.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC1856679647210724D1E66B /* TestTags.swift */; };
@@ -135,6 +136,7 @@
 		91BCDEF1234567890ABCDE12 /* SpaceMembership.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpaceMembership.swift; sourceTree = "<group>"; };
 		92BCDEF1234567890ABCDE12 /* SpaceGuidanceResolverTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpaceGuidanceResolverTests.swift; sourceTree = "<group>"; };
 		98D2D2CB68835763A39B0B88 /* KeySyncCryptoTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = KeySyncCryptoTests.swift; sourceTree = "<group>"; };
+		AC00000001 /* AnalysisCoordinatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnalysisCoordinatorTests.swift; sourceTree = "<group>"; };
 		A0E9D3D02F7328AC00E35403 /* ShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		B0AEB8740C7475677E69AF73 /* MediaDeleteServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MediaDeleteServiceTests.swift; sourceTree = "<group>"; };
 		B100000001 /* SnapwellApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapwellApp.swift; sourceTree = "<group>"; };
@@ -263,6 +265,7 @@
 				32C93C83CDA2B19AF3A644AF /* Helpers */,
 				E500000012 /* SyncServiceIntegrationTests.swift */,
 				6DD0DAB918AE6C43203687B1 /* AIAnalysisParsingTests.swift */,
+				AC00000001 /* AnalysisCoordinatorTests.swift */,
 				98D2D2CB68835763A39B0B88 /* KeySyncCryptoTests.swift */,
 				54ADC2195271038AAEE8E275 /* SidecarCodableTests.swift */,
 				B0AEB8740C7475677E69AF73 /* MediaDeleteServiceTests.swift */,
@@ -625,6 +628,7 @@
 				D500000011 /* IntegrationTestSupport.swift in Sources */,
 				D500000012 /* SyncServiceIntegrationTests.swift in Sources */,
 				00B9B3A1CE6741B63334035B /* AIAnalysisParsingTests.swift in Sources */,
+				AC00000002 /* AnalysisCoordinatorTests.swift in Sources */,
 				8448C11DC4344A2F90D8BD6F /* SwiftDataTestSupport.swift in Sources */,
 				E740BF023E205C121824CCB6 /* TestTags.swift in Sources */,
 				11C0F4AB839DF43E22D65B9A /* KeySyncCryptoTests.swift in Sources */,
@@ -744,7 +748,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.0.6;
+				MARKETING_VERSION = 1.0.7;
 				PRODUCT_BUNDLE_IDENTIFIER = co.snapwell.ShareExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -776,7 +780,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.0.6;
+				MARKETING_VERSION = 1.0.7;
 				PRODUCT_BUNDLE_IDENTIFIER = co.snapwell.ShareExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -971,7 +975,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.6;
+				MARKETING_VERSION = 1.0.7;
 				PRODUCT_BUNDLE_IDENTIFIER = co.snapwell;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -1008,7 +1012,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.6;
+				MARKETING_VERSION = 1.0.7;
 				PRODUCT_BUNDLE_IDENTIFIER = co.snapwell;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";

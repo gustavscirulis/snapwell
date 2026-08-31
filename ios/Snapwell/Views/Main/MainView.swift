@@ -247,13 +247,13 @@ struct MainView: View {
             }
             Button("Cancel", role: .cancel) {}
         }
-        .alert("Analysis Failed", isPresented: Binding(
-            get: { analysisCoordinator.analysisAlertError != nil },
-            set: { if !$0 { analysisCoordinator.analysisAlertError = nil } }
+        .alert(analysisCoordinator.analysisAlert?.title ?? "Couldn’t analyze media", isPresented: Binding(
+            get: { analysisCoordinator.analysisAlert != nil },
+            set: { if !$0 { analysisCoordinator.analysisAlert = nil } }
         )) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(analysisCoordinator.analysisAlertError ?? "")
+            Text(analysisCoordinator.analysisAlert?.message ?? "")
         }
         #if DEBUG
         .overlay {
@@ -605,9 +605,12 @@ struct MainView: View {
 
         let stuckDescriptor = FetchDescriptor<MediaItem>(predicate: #Predicate { $0.isAnalyzing == true })
         if let stuck = try? modelContext.fetch(stuckDescriptor), !stuck.isEmpty {
-            for item in stuck { item.isAnalyzing = false }
-            modelContext.saveOrLog()
-            print("[Cleanup] Reset \(stuck.count) stuck isAnalyzing flags")
+            let stale = stuck.filter { !analysisCoordinator.ownsAnalysis(for: $0.id) }
+            if !stale.isEmpty {
+                for item in stale { item.isAnalyzing = false }
+                modelContext.saveOrLog()
+                print("[Cleanup] Reset \(stale.count) stale isAnalyzing flags")
+            }
         }
 
         guard let rootURL = fileSystem.rootURL else {
