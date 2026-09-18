@@ -33,7 +33,7 @@ Built by [@gustavscirulis](https://github.com/gustavscirulis).
 
 No subscription. No account. Open source.
 
-Your library lives on your devices and your iCloud — not our servers. Snapwell has zero analytics, zero telemetry, and zero tracking. Cloud analysis goes directly from your device to the provider you choose, while Ollama analysis stays on your Mac. See [PRIVACY.md](PRIVACY.md) for details.
+Your library lives on your devices and your iCloud — not our servers. The Snapwell app has zero analytics, zero telemetry, and zero tracking. Cloud analysis goes directly from your device to the provider you choose, while Ollama analysis stays on your Mac. See [PRIVACY.md](PRIVACY.md) for details.
 
 ## Installation
 
