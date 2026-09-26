@@ -204,6 +204,9 @@ struct DeletedItemInfo {
     let height: Int
     let duration: Double?
     let spaceIds: [String]
+    var createdAt: Date = .now
+    var sourceId: String? = nil
+    var sourceURL: String? = nil
 
     // Snapshot of analysis data — stored as plain values, NOT a reference to
     // the SwiftData @Model object, which becomes invalid after deletion.
@@ -213,6 +216,29 @@ struct DeletedItemInfo {
     let analyzedAt: Date?
     let analysisProvider: String?
     let analysisModel: String?
+
+    static func snapshot(of item: MediaItem) -> DeletedItemInfo {
+        let analysis = item.analysisResult
+        var snapshot = DeletedItemInfo(
+            id: item.id,
+            filename: item.filename,
+            mediaType: item.mediaType,
+            width: item.width,
+            height: item.height,
+            duration: item.duration,
+            spaceIds: item.orderedSpaceIDs,
+            imageContext: analysis?.imageContext,
+            imageSummary: analysis?.imageSummary,
+            patterns: analysis?.patterns,
+            analyzedAt: analysis?.analyzedAt,
+            analysisProvider: analysis?.provider,
+            analysisModel: analysis?.model
+        )
+        snapshot.createdAt = item.createdAt
+        snapshot.sourceId = item.sourceId
+        snapshot.sourceURL = item.sourceURL
+        return snapshot
+    }
 }
 
 struct SpaceChangeInfo {

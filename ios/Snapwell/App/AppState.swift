@@ -29,9 +29,14 @@ final class AppState {
     var searchSpaceId: String? = nil
     var searchText = ""
     var searchScores: [String: Double] = [:]
+    var searchScoresQuery = ""
     var showPhotosPicker = false
     var showFilesPicker = false
     var isImporting = false
+    var importStage = ""
+    var importCompletedCount = 0
+    var importTotalCount = 0
+    var importMessage: String?
     var itemToDelete: MediaItem?
     var shareItem: URL?
     var activeNudge: Nudge?

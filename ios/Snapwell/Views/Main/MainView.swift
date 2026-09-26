@@ -11,12 +11,12 @@ struct MainView: View {
     @State private var appState = AppState()
     @State private var isLoading = true
     @State private var error: String?
+    @State private var deleteError: String?
     @State private var hasAttemptedRescan = false
     @State private var prefetchTask: Task<Void, Never>?
     @State private var syncService = SyncService()
     @State private var searchService = SearchIndexService()
     @State private var analysisCoordinator = AnalysisCoordinator()
-    @State private var debounceTask: Task<Void, Never>?
     @State private var indexRebuildTask: Task<Void, Never>?
     @State private var showNewSpaceAlert = false
     @State private var newSpaceName = ""
@@ -38,7 +38,7 @@ struct MainView: View {
 
     private var searchResultItems: [MediaItem] {
         let scores = appState.searchScores
-        let query = appState.searchText.lowercased().trimmingCharacters(in: .whitespaces)
+        let query = appState.searchText.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         let base = searchBaseItems
 
         guard !query.isEmpty else { return [] }
@@ -46,7 +46,7 @@ struct MainView: View {
         if query == "video" { return base.filter { $0.isVideo } }
         if query == "image" { return base.filter { !$0.isVideo } }
 
-        guard !scores.isEmpty else { return [] }
+        guard query == appState.searchScoresQuery, !scores.isEmpty else { return [] }
 
         return base
             .filter { scores[$0.id] != nil }
@@ -54,7 +54,7 @@ struct MainView: View {
     }
 
     private var searchContentItems: [MediaItem] {
-        let query = appState.searchText.trimmingCharacters(in: .whitespaces)
+        let query = appState.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return searchBaseItems }
         return searchResultItems
     }
@@ -129,30 +129,35 @@ struct MainView: View {
                 GridItemRectsPreferenceKey.screenBounds = geo.frame(in: .global)
             }
         }
+        .overlay(alignment: .bottom) {
+            if appState.isImporting {
+                HStack(spacing: 10) {
+                    ProgressView()
+                    Text("\(appState.importStage) \(appState.importCompletedCount)/\(appState.importTotalCount)")
+                        .font(.subheadline.weight(.medium))
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(.regularMaterial, in: Capsule())
+                .padding(.bottom, 70)
+                .accessibilityLabel("\(appState.importStage) \(appState.importCompletedCount) of \(appState.importTotalCount)")
+            } else if let message = appState.importMessage {
+                Text(message)
+                    .font(.subheadline.weight(.medium))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(.regularMaterial, in: Capsule())
+                    .padding(.bottom, 70)
+            }
+        }
         .task {
             await loadContent()
         }
         .onChange(of: appState.searchText) { _, newValue in
-            debounceTask?.cancel()
-            let trimmed = newValue.trimmingCharacters(in: .whitespaces)
-            if trimmed.isEmpty {
-                appState.searchScores = [:]
-            } else {
-                debounceTask = Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(100))
-                    guard !Task.isCancelled else { return }
-
-                    let lowered = trimmed.lowercased()
-                    if lowered == "video" || lowered == "image" {
-                        appState.searchScores = [:]
-                        return
-                    }
-
-                    let results = searchService.search(query: trimmed)
-                    guard !Task.isCancelled else { return }
-                    appState.searchScores = Dictionary(uniqueKeysWithValues: results.map { ($0.itemId, $0.score) })
-                }
-            }
+            refreshSearchScores(for: newValue)
+        }
+        .onChange(of: searchService.generation) { _, _ in
+            refreshSearchScores(for: appState.searchText)
         }
         .onChange(of: allItems.count) { _, _ in
             indexRebuildTask?.cancel()
@@ -186,14 +191,10 @@ struct MainView: View {
             }
         }
         .sheet(isPresented: $appState.showPhotosPicker) {
-            PhotosPickerWrapper { images in
-                handlePickedImages(images)
-            }
+            PhotosPickerWrapper(onItemsPicked: handlePickedMedia, onPreparing: updatePickerProgress)
         }
         .sheet(isPresented: $appState.showFilesPicker) {
-            DocumentPickerWrapper { images in
-                handlePickedImages(images)
-            }
+            DocumentPickerWrapper(onItemsPicked: handlePickedMedia, onPreparing: updatePickerProgress)
         }
         .sheet(isPresented: $appState.showAISettings) {
             AISettingsView()
@@ -223,7 +224,7 @@ struct MainView: View {
         )) {
             Button("Delete", role: .destructive) {
                 if let item = appState.itemToDelete {
-                    handleItemDeleted(item)
+                    _ = handleItemDeleted(item)
                     appState.itemToDelete = nil
                 }
             }
@@ -254,6 +255,14 @@ struct MainView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(analysisCoordinator.analysisAlert?.message ?? "")
+        }
+        .alert("Couldn't delete item", isPresented: Binding(
+            get: { deleteError != nil },
+            set: { if !$0 { deleteError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(deleteError ?? "The media file could not be moved to Trash.")
         }
         #if DEBUG
         .overlay {
@@ -442,6 +451,17 @@ struct MainView: View {
         return false
     }
 
+    private func refreshSearchScores(for query: String) {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        appState.searchScoresQuery = trimmed.lowercased()
+        guard !trimmed.isEmpty, !["video", "image"].contains(trimmed.lowercased()) else {
+            appState.searchScores = [:]
+            return
+        }
+        let results = searchService.search(query: trimmed)
+        appState.searchScores = Dictionary(uniqueKeysWithValues: results.map { ($0.itemId, $0.score) })
+    }
+
     // MARK: - Space Creation
 
     private func createSpace() {
@@ -455,8 +475,7 @@ struct MainView: View {
         modelContext.saveOrLog()
 
         if let rootURL = fileSystem.rootURL {
-            let allSpaces = (try? modelContext.fetch(FetchDescriptor<Space>(sortBy: [SortDescriptor(\.order)]))) ?? []
-            SidecarWriteService.writeSpaces(allSpaces, rootURL: rootURL)
+            SidecarWriteService.upsertSpace(space, rootURL: rootURL)
         }
 
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -475,8 +494,7 @@ struct MainView: View {
         modelContext.saveOrLog()
 
         if let rootURL = fileSystem.rootURL {
-            let allSpaces = (try? modelContext.fetch(FetchDescriptor<Space>(sortBy: [SortDescriptor(\.order)]))) ?? []
-            SidecarWriteService.writeSpaces(allSpaces, rootURL: rootURL)
+            SidecarWriteService.upsertSpace(space, rootURL: rootURL)
         }
 
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -488,8 +506,7 @@ struct MainView: View {
         modelContext.saveOrLog()
 
         if let rootURL = fileSystem.rootURL {
-            let allSpaces = (try? modelContext.fetch(FetchDescriptor<Space>(sortBy: [SortDescriptor(\.order)]))) ?? []
-            SidecarWriteService.writeSpaces(allSpaces, rootURL: rootURL)
+            SidecarWriteService.upsertSpace(space, rootURL: rootURL)
         }
 
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -510,8 +527,7 @@ struct MainView: View {
         modelContext.saveOrLog()
 
         if let rootURL = fileSystem.rootURL {
-            let allSpaces = (try? modelContext.fetch(FetchDescriptor<Space>(sortBy: [SortDescriptor(\.order)]))) ?? []
-            SidecarWriteService.writeSpaces(allSpaces, rootURL: rootURL)
+            SidecarWriteService.deleteSpace(id: id, rootURL: rootURL)
             for item in itemsToUpdate {
                 SidecarWriteService.writeSpaceMembership(for: item, rootURL: rootURL)
             }
@@ -549,16 +565,24 @@ struct MainView: View {
 
     // MARK: - Item Deletion
 
-    private func handleItemDeleted(_ item: MediaItem) {
-        if let rootURL = fileSystem.rootURL {
-            try? MediaDeleteService.moveToTrash(
-                filename: item.filename, id: item.id, rootURL: rootURL
-            )
+    @discardableResult
+    private func handleItemDeleted(_ item: MediaItem) -> Bool {
+        guard let rootURL = fileSystem.rootURL else {
+            deleteError = "The Snapwell folder is unavailable. Try again when access returns."
+            return false
         }
+        do {
+            try MediaDeleteService.moveToTrash(filename: item.filename, id: item.id, rootURL: rootURL)
+        } catch {
+            deleteError = error.localizedDescription
+            return false
+        }
+        SidecarWriteService.discardItemEdit(id: item.id, rootURL: rootURL)
         modelContext.delete(item)
         withAnimation(SnapSpring.resolvedStandard) {
             modelContext.saveOrLog()
         }
+        return true
     }
 
     // MARK: - Item Sharing
@@ -578,21 +602,65 @@ struct MainView: View {
 
     // MARK: - Image Import
 
-    private func handlePickedImages(_ images: [UIImage]) {
-        guard !images.isEmpty, let rootURL = fileSystem.rootURL else { return }
-
+    private func updatePickerProgress(completed: Int, total: Int) {
+        guard total > 0 else { return }
         appState.isImporting = true
+        appState.importStage = "Preparing"
+        appState.importCompletedCount = completed
+        appState.importTotalCount = total
+        appState.importMessage = nil
+    }
+
+    private func handlePickedMedia(_ picked: PickerLoadResult) {
+        guard picked.selectedCount > 0 else {
+            appState.isImporting = false
+            return
+        }
+        guard let rootURL = fileSystem.rootURL else {
+            appState.isImporting = false
+            appState.importMessage = "Snapwell folder unavailable; import cancelled"
+            for item in picked.items {
+                if case .video(let url) = item { try? FileManager.default.removeItem(at: url) }
+            }
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(5))
+                if appState.importMessage == "Snapwell folder unavailable; import cancelled" {
+                    appState.importMessage = nil
+                }
+            }
+            return
+        }
+        appState.isImporting = true
+        appState.importStage = "Importing"
+        appState.importCompletedCount = picked.failureCount
+        appState.importTotalCount = picked.selectedCount
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
 
         Task {
-            let result = await ImageImportService.importImages(images, to: rootURL, spaceId: appState.activeSpaceId)
+            let result = await ImageImportService.importItems(
+                picked.items, to: rootURL, spaceId: appState.activeSpaceId
+            ) { completed, _ in
+                appState.importCompletedCount = picked.failureCount + completed
+            }
             appState.isImporting = false
-
+            let failed = picked.failureCount + result.failureCount
+            if failed > 0 {
+                appState.importMessage = result.successCount > 0
+                    ? "Imported \(result.successCount); \(failed) failed"
+                    : "Couldn't import \(failed) item\(failed == 1 ? "" : "s")"
+            } else {
+                appState.importMessage = "Imported \(result.successCount) item\(result.successCount == 1 ? "" : "s")"
+            }
+            let completedMessage = appState.importMessage
             if result.successCount > 0 {
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
                 await loadContent()
             } else {
                 UINotificationFeedbackGenerator().notificationOccurred(.error)
+            }
+            try? await Task.sleep(for: .seconds(5))
+            if appState.importMessage == completedMessage {
+                appState.importMessage = nil
             }
         }
     }

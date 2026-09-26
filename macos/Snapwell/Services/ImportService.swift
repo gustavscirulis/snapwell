@@ -7,6 +7,11 @@ import UniformTypeIdentifiers
 @MainActor
 final class ImportService {
 
+    struct ImportResult {
+        let successCount: Int
+        let failureCount: Int
+    }
+
     let storage: MediaStorageService
     private let analysisService: AIAnalysisService
     private let providerOverride: AIProvider?
@@ -32,11 +37,16 @@ final class ImportService {
     private let imageTypes = SupportedMedia.imageExtensions
     private let videoTypes = SupportedMedia.videoExtensions
 
-    func importFiles(_ urls: [URL], into context: ModelContext, spaceId: String? = nil) async {
+    @discardableResult
+    func importFiles(_ urls: [URL], into context: ModelContext, spaceId: String? = nil) async -> ImportResult {
+        var successCount = 0
+        var failureCount = 0
         for url in urls {
             do {
                 try await importSingleFile(url, into: context, spaceId: spaceId, analyze: false)
+                successCount += 1
             } catch {
+                failureCount += 1
                 print("[ImportService] Failed to import \(url.lastPathComponent): \(error)")
             }
             await Task.yield()
@@ -46,10 +56,12 @@ final class ImportService {
             $0.analysisResult == nil && $0.analysisError == nil && !$0.isAnalyzing
         } ?? []
         await analyzeUnanalyzedItems(from: unanalyzed, context: context)
+        return ImportResult(successCount: successCount, failureCount: failureCount)
     }
 
     /// Import a raw NSImage (e.g. from pasteboard or browser drag) — converts to PNG and runs the full pipeline.
-    func importImage(_ image: NSImage, into context: ModelContext, spaceId: String? = nil) async {
+    @discardableResult
+    func importImage(_ image: NSImage, into context: ModelContext, spaceId: String? = nil) async -> Bool {
         do {
             guard let tiffData = image.tiffRepresentation,
                   let bitmap = NSBitmapImageRep(data: tiffData),
@@ -85,8 +97,10 @@ final class ImportService {
             Task { @MainActor [weak self] in
                 await self?.analyzeItem(item, context: context)
             }
+            return true
         } catch {
             print("[ImportService] Failed to import pasted image: \(error)")
+            return false
         }
     }
 
@@ -104,8 +118,9 @@ final class ImportService {
 
         let id = UUID().uuidString
         let mediaType: MediaType = isVideo ? .video : .image
-        let targetExt = isVideo ? "mp4" : "png"
-        let filename = "\(id).\(targetExt)"
+        // The file is copied byte-for-byte. Keep its actual extension so file consumers
+        // do not mistake a MOV for MP4 or a HEIC/JPEG for PNG.
+        let filename = "\(id).\(ext)"
 
         // Get dimensions
         var width: Int

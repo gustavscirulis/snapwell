@@ -124,7 +124,9 @@ struct SearchIndexServiceTests {
         service.buildIndex(items: [item1])
         #expect(service.search(query: "toggle").isEmpty)
 
+        let previousGeneration = service.generation
         service.addToIndex(item: item2)
+        #expect(service.generation > previousGeneration)
         #expect(!service.search(query: "toggle").isEmpty)
     }
 

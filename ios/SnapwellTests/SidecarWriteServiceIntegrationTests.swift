@@ -143,6 +143,80 @@ struct SidecarWriteServiceIntegrationTests {
         #expect(decoded.imageContext == "Fallback analysis")
     }
 
+    @Test("Pending placeholder edit survives reload and preserves remote fields")
+    @MainActor func placeholderEditMergesAfterDownload() throws {
+        let id = UUID().uuidString
+        let url = tempRoot.appendingPathComponent("metadata/\(id).json")
+        let placeholder = ICloudFile.placeholderURL(for: url)
+        try Data().write(to: placeholder)
+
+        let item = MediaItem(id: id, mediaType: .image, filename: "\(id).png", width: 10, height: 10)
+        item.analysisResult = AnalysisResult(
+            imageContext: "New analysis", imageSummary: "New summary", patterns: [],
+            analyzedAt: Date(), provider: "test", model: "test"
+        )
+        context.insert(item)
+        SidecarWriteService.writeAnalysis(for: item, rootURL: tempRoot)
+        #expect(!FileManager.default.fileExists(atPath: url.path))
+        #expect(SidecarWriteService.hasPendingItemEdit(id: id, rootURL: tempRoot))
+
+        try FileManager.default.removeItem(at: placeholder)
+        let remote = SidecarMetadata(
+            id: id, type: "image", width: 10, height: 10, createdAt: Date(), duration: nil,
+            spaceIds: ["remote-space"], imageContext: "Old analysis", imageSummary: "Old summary",
+            patterns: nil, sourceURL: "https://example.com/original", analyzedAt: Date.distantPast
+        )
+        try IntegrationTestSupport.writeSidecarJSON(remote, to: tempRoot)
+        SidecarWriteService.reloadPendingFromDisk()
+        SidecarWriteService.flushPending(rootURL: tempRoot)
+
+        let data = try Data(contentsOf: url)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let merged = try decoder.decode(SidecarMetadata.self, from: data)
+        #expect(merged.imageContext == "New analysis")
+        #expect(merged.spaceIds == ["remote-space"])
+        #expect(merged.sourceURL == "https://example.com/original")
+        #expect(!SidecarWriteService.hasPendingItemEdit(id: id, rootURL: tempRoot))
+    }
+
+    @Test("Pending space edit merges with a downloaded remote space")
+    @MainActor func placeholderSpaceMerge() throws {
+        let url = tempRoot.appendingPathComponent("spaces.json")
+        let placeholder = ICloudFile.placeholderURL(for: url)
+        try Data().write(to: placeholder)
+        let local = Space(id: "local-\(UUID().uuidString)", name: "Local", order: 1)
+        context.insert(local)
+        SidecarWriteService.upsertSpace(local, rootURL: tempRoot)
+        #expect(!FileManager.default.fileExists(atPath: url.path))
+
+        try FileManager.default.removeItem(at: placeholder)
+        let remote = SidecarSpace(
+            id: "remote", name: "Remote", order: 0, createdAt: Date(),
+            customPrompt: nil, useCustomPrompt: false
+        )
+        let file = SidecarSpacesFile(spaces: [remote], allSpaceGuidance: "Keep", useAllSpaceGuidance: true)
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        var raw = try #require(JSONSerialization.jsonObject(with: encoder.encode(file)) as? [String: Any])
+        raw["futureSetting"] = "untouched"
+        var remoteSpaces = try #require(raw["spaces"] as? [[String: Any]])
+        remoteSpaces[0]["futureSpaceField"] = "also untouched"
+        raw["spaces"] = remoteSpaces
+        try JSONSerialization.data(withJSONObject: raw).write(to: url)
+        SidecarWriteService.flushPending(rootURL: tempRoot)
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let merged = try decoder.decode(SidecarSpacesFile.self, from: Data(contentsOf: url))
+        #expect(Set(merged.spaces.map(\.id)) == Set(["remote", local.id]))
+        #expect(merged.allSpaceGuidance == "Keep")
+        let mergedRaw = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        #expect(mergedRaw["futureSetting"] as? String == "untouched")
+        let mergedSpaces = try #require(mergedRaw["spaces"] as? [[String: Any]])
+        #expect(mergedSpaces.first { $0["id"] as? String == "remote" }?["futureSpaceField"] as? String == "also untouched")
+    }
+
     // MARK: - Roundtrip
 
     @Test("ImageImportService files can be synced back by SyncService")

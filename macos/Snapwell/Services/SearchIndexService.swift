@@ -12,6 +12,7 @@ struct SearchResult {
 @Observable
 @MainActor
 final class SearchIndexService {
+    private(set) var generation = 0
 
     // MARK: - BM25 Parameters
 
@@ -107,6 +108,7 @@ final class SearchIndexService {
             await MainActor.run {
                 self.itemEmbeddings = embeddings
                 self.embeddingsReady = true
+                self.generation += 1
                 print("[SearchIndex] Built \(embeddings.count) word-vector embeddings in background")
             }
         }
@@ -169,6 +171,7 @@ final class SearchIndexService {
         let totalLength = docLengths.values.reduce(0, +)
         avgDocLength = docCount > 0 ? totalLength / Double(docCount) : 0
         sortedVocabulary = postings.keys.sorted()
+        generation += 1
     }
 
     // MARK: - Search

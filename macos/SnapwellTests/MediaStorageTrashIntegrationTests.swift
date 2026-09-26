@@ -61,6 +61,40 @@ struct MediaStorageTrashIntegrationTests {
         #expect(fm.fileExists(atPath: storage.thumbnailDir.appendingPathComponent("restore-1.jpg").path))
     }
 
+    @Test("Restore fails when the trashed media file is gone")
+    func restoreMissingMediaFails() {
+        #expect(throws: CocoaError.self) {
+            try storage.restoreFromTrash(filename: "missing.png", id: "missing")
+        }
+    }
+
+    @Test("A sidecar alone cannot make deletion succeed")
+    func missingMediaKeepsSidecar() throws {
+        let sidecar = storage.metadataDir.appendingPathComponent("orphan.json")
+        try Data("{}".utf8).write(to: sidecar)
+        #expect(throws: MediaStorageService.TrashError.self) {
+            try storage.moveToTrash(filename: "orphan.png", id: "orphan")
+        }
+        #expect(FileManager.default.fileExists(atPath: sidecar.path))
+    }
+
+    @Test("A failed thumbnail move restores media and sidecar")
+    func failedMoveRollsBack() throws {
+        try IntegrationTestSupport.createDummyMedia(id: "rollback", in: tempRoot)
+        try IntegrationTestSupport.writeSidecarJSON(
+            IntegrationTestSupport.makeSidecar(id: "rollback"), to: tempRoot
+        )
+        try IntegrationTestSupport.createDummyThumbnail(id: "rollback", in: tempRoot)
+        try FileManager.default.removeItem(at: storage.trashThumbnailDir)
+        try Data("blocked".utf8).write(to: storage.trashThumbnailDir)
+
+        #expect(throws: Error.self) {
+            try storage.moveToTrash(filename: "rollback.png", id: "rollback")
+        }
+        #expect(storage.mediaExists(filename: "rollback.png"))
+        #expect(FileManager.default.fileExists(atPath: storage.metadataDir.appendingPathComponent("rollback.json").path))
+    }
+
     @Test("emptyOldTrash removes expired files but keeps recent ones")
     func emptyOldTrashRemovesExpiredFiles() throws {
         let fm = FileManager.default

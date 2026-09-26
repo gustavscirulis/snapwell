@@ -97,7 +97,7 @@ class ThumbnailCache {
 
         if Task.isCancelled { return (nil, false) }
 
-        if url.pathExtension.lowercased() == "mp4" {
+        if ["mp4", "mov", "m4v", "webm", "avi"].contains(url.pathExtension.lowercased()) {
             guard let thumbnail = generateVideoThumbnail(for: url) else {
                 return (nil, false)
             }
