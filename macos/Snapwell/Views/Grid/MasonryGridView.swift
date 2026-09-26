@@ -24,7 +24,7 @@ struct MasonryGridView: View {
     let thumbnailSize: ThumbnailSize
     let spaces: [Space]
     let activeSpaceId: String?
-    let onSelect: (String, CGRect) -> Void
+    let onSelect: (String, CGRect, NSImage?) -> Void
     let onToggleSelect: (String) -> Void
     let onShiftSelect: (String) -> Void
     let onDelete: (Set<String>) -> Void
@@ -91,8 +91,8 @@ struct MasonryGridView: View {
                                         orderedItems: { items },
                                         itemsFingerprint: fingerprint,
                                         activeSpaceId: activeSpaceId,
-                                        isDetailSource: appState.detailItem == item.id,
-                                        onSelect: { frame in onSelect(item.id, frame) },
+                                        isDetailSource: appState.detailHidesSource && appState.detailItem == item.id,
+                                        onSelect: { frame, image in onSelect(item.id, frame, image) },
                                         onToggleSelect: { onToggleSelect(item.id) },
                                         onShiftSelect: { onShiftSelect(item.id) },
                                         onDelete: onDelete,
@@ -144,6 +144,11 @@ struct MasonryGridView: View {
                 }
             }
             .scrollPosition($scrollPosition)
+            .onGeometryChange(for: CGRect.self) { proxy in
+                proxy.frame(in: .global)
+            } action: { viewport in
+                appState.detailGridViewport = viewport
+            }
             .onChange(of: scrollResetToken) {
                 scrollPosition.scrollTo(edge: .top)
             }

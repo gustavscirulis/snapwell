@@ -117,11 +117,16 @@ struct ContentView: View {
                         items: overlayItems,
                         startItemId: detailId,
                         sourceFrame: sourceFrame,
+                        openingImage: appState.detailOpeningImage,
                         onClose: {
                             appState.detailItem = nil
                             appState.detailSourceFrame = nil
+                            appState.detailOpeningImage = nil
+                            appState.detailGridTarget = nil
+                            appState.detailHidesSource = false
                         },
                         onCurrentItemChanged: { newId in
+                            appState.detailGridTarget = nil
                             appState.detailItem = newId
                         },
                         onShare: { id, frame in
@@ -282,6 +287,9 @@ struct ContentView: View {
                 if appState.detailItem != nil {
                     appState.detailItem = nil
                     appState.detailSourceFrame = nil
+                    appState.detailOpeningImage = nil
+                    appState.detailGridTarget = nil
+                    appState.detailHidesSource = false
                 }
                 debounceTask = Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(100))
@@ -393,6 +401,9 @@ struct ContentView: View {
             if appState.detailItem != nil {
                 appState.detailItem = nil
                 appState.detailSourceFrame = nil
+                appState.detailOpeningImage = nil
+                appState.detailGridTarget = nil
+                appState.detailHidesSource = false
             } else if !appState.selectedIds.isEmpty {
                 appState.clearSelection()
             }
@@ -438,9 +449,12 @@ struct ContentView: View {
                 thumbnailSize: appState.thumbnailSize,
                 spaces: spaces,
                 activeSpaceId: appState.activeSpaceId,
-                onSelect: { id, frame in
+                onSelect: { id, frame, openingImage in
                     videoPreview.stopPreview()
                     appState.detailSourceFrame = frame
+                    appState.detailOpeningImage = openingImage
+                    appState.detailGridTarget = DetailGridTarget(itemID: id, frame: frame)
+                    appState.detailHidesSource = true
                     appState.detailItem = id
                 },
                 onToggleSelect: { id in appState.toggleSelection(id) },
@@ -1053,6 +1067,9 @@ struct ContentView: View {
     private func handleResetAllData() {
         appState.detailItem = nil
         appState.detailSourceFrame = nil
+        appState.detailOpeningImage = nil
+        appState.detailGridTarget = nil
+        appState.detailHidesSource = false
         appState.clearSelection()
         appState.sidebarSelection = .all
     }

@@ -30,6 +30,38 @@ private enum MetadataReveal {
     static let spring = SnapSpring.metadata
 }
 
+private enum DetailTransitionPhase {
+    case opening
+    case settled
+    case closingToGrid
+    case closingCentered
+
+    var isClosing: Bool {
+        self == .closingToGrid || self == .closingCentered
+    }
+}
+
+/// The source bitmap is sliced once per transition or window size, never during the spring.
+private struct PreparedHeroImageView: View {
+    let image: NSImage
+    let size: CGSize
+
+    var body: some View {
+        let drawRect = TopCroppedImage.drawRect(for: image.size, in: size)
+        Color.clear
+            .frame(width: size.width, height: size.height)
+            .overlay(alignment: .topLeading) {
+                Image(nsImage: image)
+                    .resizable()
+                    .frame(width: drawRect.width, height: drawRect.height)
+                    .offset(x: drawRect.minX, y: drawRect.minY)
+                    .allowsHitTesting(false)
+            }
+            .clipped()
+            .contentShape(Rectangle())
+    }
+}
+
 struct DetailItemView: View {
     let startItemId: String
     let sourceFrame: CGRect
@@ -49,6 +81,10 @@ struct DetailItemView: View {
     @State private var items: [MediaItem]
     @State private var currentIndex: Int
     @State private var image: NSImage?
+    @State private var heroImage: NSImage?
+    @State private var preparedHeroImage: NSImage?
+    @State private var preparedHeroSourceID: ObjectIdentifier?
+    @State private var preparedHeroTallness: CGFloat = 0
     /// Full-res bitmap that finished loading mid-hero. Held until the spring lands — see
     /// `loadFullResImageFor`.
     @State private var pendingFullResImage: NSImage?
@@ -58,26 +94,24 @@ struct DetailItemView: View {
     @State private var adjacentImages: [String: NSImage] = [:]
     @State private var loadTask: Task<Void, Never>?
     @State private var lastWindowWidth: CGFloat = 800
+    @State private var lastWindowSize: CGSize = .zero
     @State private var detailColumnLeadingInset: CGFloat = 0
     @State private var trackpadScroll = TrackpadScrollState()
     @State private var scrollOffset: CGFloat = 0
     @State private var metadataStage: Int = 0
     @State private var revealTask: Task<Void, Never>?
     @State private var navigationFallbackTask: Task<Void, Never>?
+    @State private var navigationGeneration = 0
     @State private var isZoomed = false
     @State private var zoomScale: CGFloat = 1.0
     @State private var zoomPanDelta: CGSize = .zero
 
-    /// false = hero image at source position, true = expanded to final frame.
-    /// The spring between these two states IS the hero animation.
-    @State private var isExpanded = false
-    /// true = settled ScrollView layout with metadata (after hero completes).
-    @State private var heroComplete = false
-    @State private var isClosing = false
-    /// Live source frame for close animation (updated by GridItemView during scroll).
-    @State private var closeTargetFrame: CGRect
-    /// Overlay's GeometryReader origin — for global↔local coordinate conversion.
-    @State private var geoOrigin: CGPoint = .zero
+    @State private var phase: DetailTransitionPhase = .opening
+    /// Animatable endpoint; phase owns interaction and content lifecycle.
+    @State private var heroAtDestination = false
+    @State private var frozenCloseTarget: CGRect?
+    @State private var frozenHeroStartFrame: CGRect?
+    @State private var retainScrolledContent = false
 
     // Video playback — owned by this view
     @State private var videoPlayer: AVPlayer?
@@ -95,6 +129,7 @@ struct DetailItemView: View {
         items: [MediaItem],
         startItemId: String,
         sourceFrame: CGRect,
+        openingImage: NSImage?,
         onClose: @escaping () -> Void,
         onCurrentItemChanged: ((String) -> Void)? = nil,
         onShare: ((String, CGRect) -> Void)? = nil,
@@ -110,8 +145,9 @@ struct DetailItemView: View {
         self.sourceFrame = sourceFrame
         self.onClose = onClose
         _currentIndex = State(initialValue: startIndex)
-        _closeTargetFrame = State(initialValue: sourceFrame)
-        _image = State(initialValue: ImageCacheService.shared.image(forKey: items[startIndex].id))
+        let initialImage = openingImage ?? ImageCacheService.shared.image(forKey: items[startIndex].id)
+        _image = State(initialValue: initialImage)
+        _heroImage = State(initialValue: initialImage)
         self.onCurrentItemChanged = onCurrentItemChanged
         self.onShare = onShare
         self.onRedoAnalysis = onRedoAnalysis
@@ -128,7 +164,7 @@ struct DetailItemView: View {
                 Rectangle().fill(.ultraThinMaterial)
                 (colorScheme == .dark ? Color.black : Color.white).opacity(0.55)
             }
-            .opacity(isExpanded ? 1.0 : 0.0)
+            .opacity(phase == .settled || heroAtDestination ? 1.0 : 0.0)
             .ignoresSafeArea()
             .onTapGesture { triggerClose() }
 
@@ -137,23 +173,16 @@ struct DetailItemView: View {
             let currentGeoOrigin = geo.frame(in: .global).origin
             let detailColumnOrigin = geo.frame(in: .named(DetailCoordinateSpace.splitViewRoot)).origin
             let finalFrame = computeImageFrame(windowSize: windowSize, item: currentItem)
-            let localCloseTarget = CGRect(
-                x: closeTargetFrame.origin.x - currentGeoOrigin.x,
-                y: closeTargetFrame.origin.y - currentGeoOrigin.y,
-                width: closeTargetFrame.size.width,
-                height: closeTargetFrame.size.height
-            )
-            let currentFrame = isExpanded ? finalFrame : localCloseTarget
-            // Keep one bitmap slice for both endpoints. The image scales uniformly while the
-            // animated frame reveals it from the top, instead of morphing between two crops.
-            let heroCropBasis = TopCroppedImage.tallestBox(
-                localCloseTarget.size,
-                finalFrame.size
-            )
+            let gridTarget = phase == .closingToGrid ? (frozenCloseTarget ?? sourceFrame) : sourceFrame
+            let localGridTarget = gridTarget.offsetBy(dx: -currentGeoOrigin.x, dy: -currentGeoOrigin.y)
+            let centeredTarget = finalFrame.insetBy(dx: finalFrame.width * 0.06, dy: finalFrame.height * 0.06)
+            let smallFrame = phase == .closingCentered ? centeredTarget : localGridTarget
+            let expandedFrame = phase.isClosing ? (frozenHeroStartFrame ?? finalFrame) : finalFrame
+            let currentFrame = heroAtDestination ? expandedFrame : smallFrame
 
             ZStack {
                 // Adjacent images for swipe navigation (only in settled phase)
-                if heroComplete && !isClosing {
+                if phase == .settled {
                     if currentIndex > 0 {
                         adjacentItemView(for: items[currentIndex - 1], windowSize: windowSize)
                             .offset(x: -pageTravelDistance + swipeOffset)
@@ -164,37 +193,47 @@ struct DetailItemView: View {
                     }
                 }
 
-                if heroComplete && !isClosing {
+                if phase == .settled || (phase.isClosing && retainScrolledContent) {
                     // SETTLED PHASE: ScrollView with image + metadata, swipe navigation
                     let settledFrame = computeSettledImageFrame(windowSize: windowSize, item: currentItem)
                     settledContent(imageFrame: settledFrame, heroFrame: finalFrame, windowSize: windowSize)
                         .offset(x: swipeOffset)
-                } else if let image {
-                    // HERO PHASE: Image springs from source position to final position.
-                    // Uses .position() — NOT inside ScrollView, so frame animates cleanly.
-                    TopCroppedImage(
-                        image: image,
-                        size: currentFrame.size,
-                        cropBasis: heroCropBasis
-                    )
-                        .clipShape(RoundedRectangle(cornerRadius: isExpanded ? 16 : 12))
+                        .opacity(phase == .settled || heroAtDestination ? 1 : 0)
+                        .animation(.easeOut(duration: reduceMotion ? 0.12 : 0.18), value: heroAtDestination)
+                }
+                if phase != .settled {
+                    Group {
+                        if let prepared = preparedHeroImage ?? heroImage {
+                            PreparedHeroImageView(image: prepared, size: currentFrame.size)
+                        } else {
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color.snapMuted)
+                                .frame(width: currentFrame.width, height: currentFrame.height)
+                        }
+                    }
+                        .clipShape(RoundedRectangle(cornerRadius: heroAtDestination ? 16 : 12))
                         .overlay(alignment: .bottomTrailing) { loadingIndicator }
                         .onTapGesture { triggerClose() }
                         .position(x: currentFrame.midX, y: currentFrame.midY)
+                        .opacity(phase == .closingCentered && !heroAtDestination ? 0 : 1)
+                        .animation(SnapSpring.hero(reduced: reduceMotion), value: windowSize)
                 }
             }
-            .onChange(of: windowSize.width) { _, w in lastWindowWidth = w }
+            .frame(width: windowSize.width, height: windowSize.height)
+            .clipped()
+            .onChange(of: windowSize) { _, size in
+                lastWindowWidth = size.width
+                lastWindowSize = size
+                prepareHeroImage(for: size)
+            }
             .onChange(of: detailColumnOrigin.x) { _, x in
                 detailColumnLeadingInset = max(0, x)
             }
-            .onChange(of: currentGeoOrigin) { _, origin in geoOrigin = origin }
-            .onChange(of: appState.detailSourceFrame) { _, newFrame in
-                if let newFrame { closeTargetFrame = newFrame }
-            }
             .onAppear {
                 lastWindowWidth = windowSize.width
+                lastWindowSize = windowSize
                 detailColumnLeadingInset = max(0, detailColumnOrigin.x)
-                geoOrigin = currentGeoOrigin
+                prepareHeroImage(for: windowSize)
             }
         } // GeometryReader
         .ignoresSafeArea(edges: .top)
@@ -211,12 +250,12 @@ struct DetailItemView: View {
             return .handled
         }
         .onKeyPress(.leftArrow) {
-            guard heroComplete && !isNavigating && !isClosing && !isZoomed else { return .ignored }
+            guard phase == .settled && !isNavigating && !isZoomed else { return .ignored }
             navigateTo(currentIndex - 1)
             return .handled
         }
         .onKeyPress(.rightArrow) {
-            guard heroComplete && !isNavigating && !isClosing && !isZoomed else { return .ignored }
+            guard phase == .settled && !isNavigating && !isZoomed else { return .ignored }
             navigateTo(currentIndex + 1)
             return .handled
         }
@@ -225,7 +264,7 @@ struct DetailItemView: View {
         }
         // Trackpad scroll for swipe navigation
         .onChange(of: trackpadScroll.cumulativeOffset) { _, offset in
-            guard heroComplete && !isClosing && !isNavigating && !isZoomed && items.count > 1 else { return }
+            guard phase == .settled && !isNavigating && !isZoomed && items.count > 1 else { return }
             var proposed = offset
             if (currentIndex == 0 && proposed > 0) ||
                (currentIndex == items.count - 1 && proposed < 0) {
@@ -238,12 +277,12 @@ struct DetailItemView: View {
             guard isZoomed else { return }
             zoomPanDelta = delta
         }
-        .onChange(of: trackpadScroll.phase) { _, phase in
-            guard phase == .ended else { return }
+        .onChange(of: trackpadScroll.phase) { _, scrollPhase in
+            guard scrollPhase == .ended else { return }
             if isZoomed {
                 zoomPanDelta = .zero
                 trackpadScroll.reset()
-            } else if heroComplete && !isClosing && !isNavigating && items.count > 1 {
+            } else if phase == .settled && !isNavigating && items.count > 1 {
                 evaluateSwipeEnd()
                 trackpadScroll.reset()
             } else {
@@ -258,17 +297,17 @@ struct DetailItemView: View {
             trackpadScroll.reset()
             zoomPanDelta = .zero
         }
-        .onChange(of: heroComplete) { _, complete in
-            if complete && !isZoomed {
+        .onChange(of: phase) { _, newPhase in
+            if newPhase == .settled && !isZoomed {
                 trackpadScroll.activate()
-            } else if !complete {
+            } else {
                 trackpadScroll.deactivate()
             }
         }
         .task {
             isFocused = true
 
-            // Start hero animation — will complete and set heroComplete = true
+            // Start the opening flight and hand off to settled content on completion.
             await openHero()
         }
         .onDisappear {
@@ -282,29 +321,24 @@ struct DetailItemView: View {
 
     // MARK: - Hero Phase
 
-    /// Animate the hero open, then transition to settled layout.
+    /// The visible grid bitmap stays fixed for the flight; full resolution waits for handoff.
     private func openHero() async {
-        // Load thumbnail if needed
-        if image == nil {
-            await loadThumbnailFor(currentItem)
-        }
-
-        // Spring from source position to final position
-        withAnimation(SnapSpring.hero(reduced: reduceMotion)) {
-            isExpanded = true
-        } completion: {
-            // Switch to settled layout (same image at same position — invisible)
-            heroComplete = true
-            if let pendingFullResImage {
-                image = pendingFullResImage
-                self.pendingFullResImage = nil
-            }
-            startMetadataReveal()
-        }
-
-        // Start loading full-res in parallel with the animation
+        let openingID = currentItem.id
         loadTask = Task { await loadCurrentItem() }
         preloadAdjacentImages()
+        withAnimation(SnapSpring.hero(reduced: reduceMotion)) {
+            heroAtDestination = true
+        } completion: {
+            guard phase == .opening, currentItem.id == openingID else { return }
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                image = heroImage ?? image
+                phase = .settled
+            }
+            startMetadataReveal()
+            applyPendingFullResolution(for: openingID)
+        }
     }
 
     // MARK: - Settled Phase
@@ -372,7 +406,7 @@ struct DetailItemView: View {
         // Covers whatever viewport is left when the content is shorter than
         // the window — the VStack background only spans the content itself.
         .background { backgroundCloseTap }
-        .scrollDisabled(isZoomed)
+        .scrollDisabled(isZoomed || phase != .settled)
         .scrollIndicators(.automatic)
         .defaultScrollAnchor(.top)
         #if compiler(>=6.3)
@@ -410,28 +444,56 @@ struct DetailItemView: View {
     }
 
     private func triggerClose(then afterClose: (() -> Void)? = nil) {
-        guard !isClosing else { return }
-        isClosing = true
-        resetViewState()
+        guard !phase.isClosing else { return }
+        navigationGeneration += 1
+        isNavigating = false
         revealTask?.cancel()
         navigationFallbackTask?.cancel()
+        loadTask?.cancel()
+        startHeroClose(then: afterClose)
+    }
 
-        if currentItem.isVideo {
+    private func startHeroClose(then afterClose: (() -> Void)?) {
+        guard phase == .opening || phase == .settled else { return }
+        let closingID = currentItem.id
+        let startingFrame = computeImageFrame(windowSize: lastWindowSize, item: currentItem)
+        // Follow the media's scrolled position. Once it is entirely above the
+        // viewport, begin just outside the top edge so a deep scroll does not
+        // turn the short spring into thousands of points of invisible travel.
+        let scrolledY = startingFrame.minY - max(0, scrollOffset)
+        frozenHeroStartFrame = CGRect(
+            x: startingFrame.minX + swipeOffset,
+            y: max(scrolledY, -startingFrame.height),
+            width: startingFrame.width,
+            height: startingFrame.height
+        )
+        retainScrolledContent = phase == .settled && scrollOffset > 4
+
+        if currentItem.isVideo && !retainScrolledContent {
             cleanupVideo()
         }
 
-        // Instant switch from settled ScrollView back to hero image
-        // (same image at same position — the switch is invisible)
+        let visibleTarget = appState.detailGridTarget.flatMap { target -> CGRect? in
+            target.itemID == closingID ? target.frame : nil
+        }
+        frozenCloseTarget = visibleTarget
+        heroImage = ImageCacheService.shared.image(forKey: closingID) ?? image
+
+        // Show the same image at the settled frame before shrinking it.
         var t = Transaction()
         t.disablesAnimations = true
         withTransaction(t) {
-            heroComplete = false
+            if !retainScrolledContent { resetViewState() }
+            phase = visibleTarget == nil ? .closingCentered : .closingToGrid
+            heroAtDestination = true
         }
+        prepareHeroImage(for: lastWindowSize)
 
-        // Spring the image back to the grid thumbnail position
-        withAnimation(SnapSpring.hero(reduced: reduceMotion)) {
-            isExpanded = false
+        withAnimation(visibleTarget == nil ? .easeOut(duration: reduceMotion ? 0.15 : 0.2) : SnapSpring.hero(reduced: reduceMotion)) {
+            heroAtDestination = false
         } completion: {
+            guard phase.isClosing, currentItem.id == closingID else { return }
+            if currentItem.isVideo { cleanupVideo() }
             onClose()
             afterClose?()
         }
@@ -518,11 +580,14 @@ struct DetailItemView: View {
     // MARK: - Navigation
 
     private func navigateTo(_ newIndex: Int) {
-        guard newIndex >= 0, newIndex < items.count, newIndex != currentIndex else {
+        guard phase == .settled, !isNavigating,
+              newIndex >= 0, newIndex < items.count, newIndex != currentIndex else {
             withAnimation(SnapSpring.standard(reduced: reduceMotion)) { swipeOffset = 0 }
             return
         }
         isNavigating = true
+        navigationGeneration += 1
+        let generation = navigationGeneration
         let direction: CGFloat = newIndex > currentIndex ? -1 : 1
         let oldItem = currentItem
 
@@ -533,19 +598,19 @@ struct DetailItemView: View {
         withAnimation(SnapSpring.standard(reduced: reduceMotion)) {
             swipeOffset = direction * pageTravelDistance
         } completion: {
-            self.completeNavigation(to: newIndex)
+            self.completeNavigation(to: newIndex, generation: generation)
         }
 
         navigationFallbackTask?.cancel()
         navigationFallbackTask = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(400))
-            guard !Task.isCancelled, isNavigating else { return }
-            completeNavigation(to: newIndex)
+            guard !Task.isCancelled else { return }
+            completeNavigation(to: newIndex, generation: generation)
         }
     }
 
-    private func completeNavigation(to newIndex: Int) {
-        guard isNavigating else { return }
+    private func completeNavigation(to newIndex: Int, generation: Int) {
+        guard phase == .settled, isNavigating, navigationGeneration == generation else { return }
         navigationFallbackTask?.cancel()
 
         let t = Transaction(animation: nil)
@@ -576,22 +641,26 @@ struct DetailItemView: View {
 
     private func loadCurrentItem() async {
         let item = currentItem
+        guard !Task.isCancelled else { return }
 
         if item.isVideo {
             isLoadingFullRes = true
             if image == nil {
                 await loadThumbnailFor(item)
             }
+            guard !Task.isCancelled, currentItem.id == item.id, !phase.isClosing else { return }
             startVideoPlayer(for: item)
         } else {
             if image == nil {
                 await loadThumbnailFor(item)
             }
+            guard !Task.isCancelled, currentItem.id == item.id, !phase.isClosing else { return }
             let mediaURL = MediaStorageService.shared.mediaURL(filename: item.filename)
             if !FileManager.default.fileExists(atPath: mediaURL.path) {
                 isLoadingFullRes = true
             }
             await loadFullResImageFor(item)
+            guard !Task.isCancelled, currentItem.id == item.id, !phase.isClosing else { return }
             withAnimation(.easeOut(duration: 0.2)) {
                 isLoadingFullRes = false
             }
@@ -637,6 +706,9 @@ struct DetailItemView: View {
 
             Task {
                 if let loaded = await ImageCacheService.shared.loadThumbnail(id: adjItem.id, filename: adjItem.filename) {
+                    guard !Task.isCancelled,
+                          abs((items.firstIndex(where: { $0.id == adjItem.id }) ?? -100) - currentIndex) <= 1
+                    else { return }
                     adjacentImages[adjItem.id] = loaded
                 }
             }
@@ -711,6 +783,43 @@ struct DetailItemView: View {
 
     // MARK: - Frame Computation
 
+    private func prepareHeroImage(for windowSize: CGSize) {
+        guard let heroImage, windowSize.width > 0, windowSize.height > 0 else {
+            preparedHeroImage = nil
+            preparedHeroSourceID = nil
+            preparedHeroTallness = 0
+            return
+        }
+        let finalSize = computeImageFrame(windowSize: windowSize, item: currentItem).size
+        let smallSize: CGSize = if phase == .closingToGrid, let frozenCloseTarget {
+            frozenCloseTarget.size
+        } else if phase == .closingCentered {
+            CGSize(width: finalSize.width * 0.88, height: finalSize.height * 0.88)
+        } else {
+            sourceFrame.size
+        }
+        let basis = TopCroppedImage.tallestBox(smallSize, finalSize)
+        let tallness = basis.width > 0 ? basis.height / basis.width : 0
+        let sourceID = ObjectIdentifier(heroImage)
+        if preparedHeroSourceID == sourceID, preparedHeroTallness >= tallness {
+            return
+        }
+        preparedHeroImage = TopCroppedImage.topSlice(of: heroImage, covering: basis)
+        preparedHeroSourceID = sourceID
+        preparedHeroTallness = tallness
+    }
+
+    private func applyPendingFullResolution(for itemID: String) {
+        guard pendingFullResImage != nil else { return }
+        Task { @MainActor in
+            await Task.yield()
+            guard phase == .settled, currentItem.id == itemID,
+                  let pendingFullResImage else { return }
+            image = pendingFullResImage
+            self.pendingFullResImage = nil
+        }
+    }
+
     private func computeImageFrame(windowSize: CGSize, item: MediaItem) -> CGRect {
         let maxW = windowSize.width * 0.95
         let maxH = (windowSize.height * 0.95) - 80
@@ -758,6 +867,7 @@ struct DetailItemView: View {
 
     private func loadThumbnailFor(_ item: MediaItem) async {
         if let loaded = await ImageCacheService.shared.loadThumbnail(id: item.id, filename: item.filename) {
+            guard !Task.isCancelled, currentItem.id == item.id, !phase.isClosing else { return }
             self.image = loaded
         }
     }
@@ -772,9 +882,9 @@ struct DetailItemView: View {
             // Swapping a many-megapixel bitmap in while the hero spring is still running forces
             // a re-raster mid-flight and visibly hitches it. Decode in parallel as before, but
             // hold the swap until the animation lands.
-            if heroComplete {
+            if phase == .settled {
                 self.image = loaded
-            } else {
+            } else if phase == .opening {
                 self.pendingFullResImage = loaded
             }
         }

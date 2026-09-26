@@ -15,7 +15,7 @@ struct GridItemView: View, Equatable {
     /// True while this cell is the source/destination of the detail hero. Passed explicitly so
     /// the EquatableView cannot leave the source thumbnail visible underneath the moving hero.
     let isDetailSource: Bool
-    let onSelect: (CGRect) -> Void
+    let onSelect: (CGRect, NSImage?) -> Void
     let onToggleSelect: () -> Void
     let onShiftSelect: () -> Void
     let onDelete: (Set<String>) -> Void
@@ -59,7 +59,7 @@ struct GridItemView: View, Equatable {
         itemsFingerprint: Int,
         activeSpaceId: String?,
         isDetailSource: Bool,
-        onSelect: @escaping (CGRect) -> Void,
+        onSelect: @escaping (CGRect, NSImage?) -> Void,
         onToggleSelect: @escaping () -> Void,
         onShiftSelect: @escaping () -> Void,
         onDelete: @escaping (Set<String>) -> Void,
@@ -169,7 +169,7 @@ struct GridItemView: View, Equatable {
                     loadFailed = false
                     Task { await loadThumbnail() }
                 } else {
-                    onSelect(globalFrame)
+                    onSelect(globalFrame, thumbnail)
                 }
             } label: {
                 Group {
@@ -416,29 +416,9 @@ struct GridItemView: View, Equatable {
         // Match iOS's shared-element handoff: there must only ever be one visible copy of the
         // selected image. The hero occupies this exact hole until it returns on close.
         .opacity(isDeleting || isDetailSource ? 0 : 1)
-        .onGeometryChange(for: CGRect.self) { proxy in
-            proxy.frame(in: .global)
-        } action: { newValue in
-            // Deadband — skip state write when frame barely moved (< 1pt).
-            // Reduces @State churn for all visible items during scroll.
-            guard abs(newValue.origin.x - globalFrame.origin.x) > 1 ||
-                  abs(newValue.origin.y - globalFrame.origin.y) > 1 ||
-                  abs(newValue.size.width - globalFrame.size.width) > 1 ||
-                  abs(newValue.size.height - globalFrame.size.height) > 1 else { return }
-            globalFrame = newValue
-            // Keep the floating video layer in sync with scroll/resize
-            if itemIsVideo && videoPreview.activeItemId == item.id {
-                videoPreview.updateGridFrame(newValue)
-            }
-            // Keep detail source frame in sync when this item is the active detail
-            if appState.detailItem == item.id {
-                appState.detailSourceFrame = newValue
-            }
-        }
+        .modifier(GridCellFrameTracker(itemID: item.id, isVideo: itemIsVideo, globalFrame: $globalFrame))
         .onChange(of: appState.detailItem) { oldId, newId in
-            if newId == item.id {
-                appState.detailSourceFrame = globalFrame
-            } else if oldId == item.id {
+            if oldId == item.id && newId != item.id {
                 // Detail dismissed — mouse may have moved, so clear stale hover state.
                 isHovered = false
                 suppressHoverExit = false
@@ -604,6 +584,57 @@ struct GridItemView: View, Equatable {
             isAnalyzing: item.isAnalyzing,
             hasError: !item.isAnalyzing && item.analysisError != nil
         )
+    }
+}
+
+private struct GridCellFrameTracker: ViewModifier {
+    let itemID: String
+    let isVideo: Bool
+    @Binding var globalFrame: CGRect
+
+    @Environment(AppState.self) private var appState
+    @Environment(VideoPreviewManager.self) private var videoPreview
+
+    func body(content: Content) -> some View {
+        content
+            .onGeometryChange(for: CGRect.self) { proxy in
+                proxy.frame(in: .global)
+            } action: { frame in
+                // Skip subpoint updates while the grid scrolls or resizes.
+                guard abs(frame.minX - globalFrame.minX) > 1 ||
+                      abs(frame.minY - globalFrame.minY) > 1 ||
+                      abs(frame.width - globalFrame.width) > 1 ||
+                      abs(frame.height - globalFrame.height) > 1 else { return }
+                globalFrame = frame
+                if isVideo && videoPreview.activeItemId == itemID {
+                    videoPreview.updateGridFrame(frame)
+                }
+                updateDetailTarget()
+            }
+            .onChange(of: appState.detailItem) { _, _ in updateDetailTarget() }
+            .onChange(of: appState.detailGridViewport) { _, _ in
+                if appState.detailItem == itemID { updateDetailTarget() }
+            }
+            .onDisappear {
+                if appState.detailGridTarget?.itemID == itemID {
+                    appState.detailGridTarget = nil
+                }
+            }
+    }
+
+    private func updateDetailTarget() {
+        guard appState.detailItem == itemID else { return }
+        let visible = globalFrame.intersection(appState.detailGridViewport)
+        let target: DetailGridTarget? = if globalFrame.width > 0, globalFrame.height > 0,
+                                           !visible.isNull,
+                                           visible.width * visible.height >= globalFrame.width * globalFrame.height * 0.5 {
+            DetailGridTarget(itemID: itemID, frame: globalFrame)
+        } else {
+            nil
+        }
+        if appState.detailGridTarget != target {
+            appState.detailGridTarget = target
+        }
     }
 }
 
