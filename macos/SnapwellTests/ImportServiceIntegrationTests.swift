@@ -73,6 +73,37 @@ struct ImportServiceIntegrationTests {
         #expect(storage.mediaExists(filename: item.filename))
     }
 
+    @Test("Copied JPEG retains its extension and encoded bytes")
+    @MainActor func jpegImportKeepsFormat() async throws {
+        let image = NSImage(size: NSSize(width: 2, height: 2))
+        image.lockFocus()
+        NSColor.blue.drawSwatch(in: NSRect(x: 0, y: 0, width: 2, height: 2))
+        image.unlockFocus()
+        let tiff = try #require(image.tiffRepresentation)
+        let bitmap = try #require(NSBitmapImageRep(data: tiff))
+        let jpeg = try #require(bitmap.representation(using: .jpeg, properties: [:]))
+        let source = tempRoot.appendingPathComponent("source.jpg")
+        try jpeg.write(to: source)
+
+        let service = ImportService(storage: storage, sidecarService: sidecarService)
+        try await service.importSingleFile(source, into: context, spaceId: nil, analyze: false)
+        let item = try #require(context.fetch(FetchDescriptor<MediaItem>()).first)
+        #expect(item.filename.hasSuffix(".jpg"))
+        #expect(try Data(contentsOf: storage.mediaURL(filename: item.filename)) == jpeg)
+    }
+
+    @Test("Batch import reports the actual successes and failures")
+    @MainActor func batchImportReportsFailures() async throws {
+        let image = try createTestPNG()
+        defer { try? FileManager.default.removeItem(at: image) }
+        let unsupported = tempRoot.appendingPathComponent("unsupported.txt")
+        try "bad".write(to: unsupported, atomically: true, encoding: .utf8)
+        let service = ImportService(storage: storage, sidecarService: sidecarService)
+        let result = await service.importFiles([image, unsupported], into: context)
+        #expect(result.successCount == 1)
+        #expect(result.failureCount == 1)
+    }
+
     @Test("Import writes sidecar JSON to metadata directory")
     @MainActor func importFileWritesSidecar() async throws {
         let pngURL = try createTestPNG()

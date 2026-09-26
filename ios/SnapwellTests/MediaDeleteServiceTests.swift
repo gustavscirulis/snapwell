@@ -46,13 +46,26 @@ struct MediaDeleteServiceTests {
         #expect(fm.fileExists(atPath: root.appendingPathComponent(".trash/thumbnails/item1.jpg").path))
     }
 
-    @Test("Gracefully handles missing source files")
+    @Test("Missing source files do not report a successful deletion")
     func missingSourceFiles() throws {
         let root = try makeTempRoot()
         defer { cleanup(root) }
 
-        // No source files exist — should not throw
-        try MediaDeleteService.moveToTrash(filename: "missing.png", id: "missing", rootURL: root)
+        #expect(throws: MediaDeleteService.DeleteError.self) {
+            try MediaDeleteService.moveToTrash(filename: "missing.png", id: "missing", rootURL: root)
+        }
+    }
+
+    @Test("A sidecar alone cannot make deletion succeed")
+    func missingMediaKeepsSidecar() throws {
+        let root = try makeTempRoot()
+        defer { cleanup(root) }
+        let sidecar = root.appendingPathComponent("metadata/orphan.json")
+        try Data("{}".utf8).write(to: sidecar)
+        #expect(throws: MediaDeleteService.DeleteError.self) {
+            try MediaDeleteService.moveToTrash(filename: "orphan.png", id: "orphan", rootURL: root)
+        }
+        #expect(FileManager.default.fileExists(atPath: sidecar.path))
     }
 
     @Test("Handles only image file existing")

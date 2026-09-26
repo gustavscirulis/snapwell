@@ -127,4 +127,60 @@ struct ImageImportServiceTests {
         // ID is a UUID string (e.g. "AB2D0053-8EEE-4D8D-A9B8-A9CB826BC718")
         #expect(UUID(uuidString: filename) != nil)
     }
+
+    @Test("Mixed import reports a video that cannot be decoded")
+    @MainActor func mixedImportReportsInvalidVideo() async throws {
+        let root = try makeTempRoot()
+        defer { cleanup(root) }
+        let video = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(UUID().uuidString).mov")
+        try Data([0, 1, 2, 3]).write(to: video)
+        var progress: [Int] = []
+        let result = await ImageImportService.importItems(
+            [.image(makeTestImage()), .video(video)], to: root
+        ) { completed, _ in progress.append(completed) }
+        #expect(result.successCount == 1)
+        #expect(result.failureCount == 1)
+        #expect(progress == [1, 2])
+        #expect(!FileManager.default.fileExists(atPath: video.path))
+    }
+
+    @Test("Mixed import keeps picker order and writes video metadata and thumbnail")
+    @MainActor func mixedImportKeepsOrder() async throws {
+        let root = try makeTempRoot()
+        defer { cleanup(root) }
+        let fixture = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("site/public/video.mp4")
+        let stagedVideo = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(UUID().uuidString).mp4")
+        try FileManager.default.copyItem(at: fixture, to: stagedVideo)
+        defer { try? FileManager.default.removeItem(at: stagedVideo) }
+
+        var typesAfterEachItem: [[String]] = []
+        let result = await ImageImportService.importItems(
+            [.image(makeTestImage()), .video(stagedVideo), .image(makeTestImage())], to: root
+        ) { _, _ in
+            let metadata = root.appendingPathComponent("metadata")
+            let urls = (try? FileManager.default.contentsOfDirectory(at: metadata, includingPropertiesForKeys: nil)) ?? []
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            typesAfterEachItem.append(urls.compactMap { url in
+                (try? decoder.decode(SidecarMetadata.self, from: Data(contentsOf: url)))?.type
+            }.sorted())
+        }
+
+        #expect(result.successCount == 3)
+        #expect(result.failureCount == 0)
+        #expect(typesAfterEachItem == [["image"], ["image", "video"], ["image", "image", "video"]])
+        let media = try FileManager.default.contentsOfDirectory(
+            at: root.appendingPathComponent("images"), includingPropertiesForKeys: nil
+        )
+        let video = try #require(media.first { $0.pathExtension == "mp4" })
+        let id = video.deletingPathExtension().lastPathComponent
+        #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("thumbnails/\(id).jpg").path))
+        #expect(!FileManager.default.fileExists(atPath: stagedVideo.path))
+    }
 }

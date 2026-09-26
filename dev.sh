@@ -101,18 +101,40 @@ run_mac() {
 
 # ── iOS build & run ─────────────────────────────────────────────
 
+build_ios_or_report_error() {
+    local build_log="$SCRIPT_DIR/.context/ios-run-build.log"
+    mkdir -p "$SCRIPT_DIR/.context"
+    if xcodebuild build "$@" >"$build_log" 2>&1; then
+        return 0
+    fi
+    printf "${RED}iOS build failed. Last output:${RESET}\n"
+    tail -12 "$build_log" | cut -c1-500
+    printf "${DIM}Full build log: %s${RESET}\n" "$build_log"
+    return 1
+}
+
 run_ios() {
     printf "\n${BOLD}Building Snapwell for iOS...${RESET}\n\n"
 
     # Try connected iPhone first, fall back to simulator
     printf "${DIM}Looking for connected iPhone...${RESET}\n"
-    local device_line
-    device_line=$(xcrun devicectl list devices 2>/dev/null | grep -i 'iphone' | grep -E 'connected|available' | head -1 || true)
+    local device_line device_output discovery_failed=false
+    if device_output=$(xcrun devicectl list devices 2>&1); then
+        device_line=$(printf '%s\n' "$device_output" | grep -i 'iphone' | grep -Ei 'connected|available' | head -1 || true)
+    else
+        device_line=""
+        discovery_failed=true
+        printf "${YELLOW}iPhone discovery failed: %s${RESET}\n" "$(printf '%s\n' "$device_output" | tail -1)"
+    fi
 
     if [[ -n "$device_line" ]]; then
         run_ios_device "$device_line"
     else
-        printf "${YELLOW}No connected iPhone found — using Simulator${RESET}\n"
+        if [[ "$discovery_failed" == true ]]; then
+            printf "${YELLOW}Trying Simulator instead...${RESET}\n"
+        else
+            printf "${YELLOW}No connected iPhone found — using Simulator${RESET}\n"
+        fi
         run_ios_simulator
     fi
 }
@@ -121,7 +143,13 @@ run_ios_device() {
     local device_line="$1"
 
     local device_id
-    device_id=$(echo "$device_line" | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}')
+    # Xcode 27 shows the device UDID (8-16 hex) in this column; older
+    # versions showed a CoreDevice UUID (8-4-4-4-12).
+    device_id=$(printf '%s\n' "$device_line" | grep -oE '[0-9A-Fa-f]{8}-[0-9A-Fa-f]{16}|[0-9A-Fa-f]{8}(-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}' | head -1 || true)
+    if [[ -z "$device_id" ]]; then
+        printf "${RED}Found an iPhone but could not read its identifier:${RESET}\n%s\n" "$device_line"
+        return 1
+    fi
     local device_name
     device_name=$(echo "$device_line" | awk -F'   ' '{gsub(/^[ \t]+|[ \t]+$/, "", $1); print $1}')
 
@@ -130,13 +158,12 @@ run_ios_device() {
     cd "$SCRIPT_DIR/ios"
 
     printf "${DIM}Building...${RESET}\n"
-    xcodebuild build \
+    build_ios_or_report_error \
         -project Snapwell.xcodeproj \
         -scheme Snapwell \
         -configuration Debug \
         -destination "platform=iOS,id=$device_id" \
-        -allowProvisioningUpdates \
-        2>&1 | tail -3
+        -allowProvisioningUpdates
 
     local build_dir
     build_dir=$(xcodebuild -showBuildSettings \
@@ -144,7 +171,7 @@ run_ios_device() {
         -scheme Snapwell \
         -configuration Debug \
         -destination "platform=iOS,id=$device_id" \
-        2>/dev/null | grep '^\s*BUILT_PRODUCTS_DIR' | awk '{print $3}')
+        2>/dev/null | awk '$1 == "BUILT_PRODUCTS_DIR" {print $3; exit}')
 
     local app_path="$build_dir/Snapwell.app"
     if [[ ! -d "$app_path" ]]; then
@@ -160,7 +187,7 @@ run_ios_device() {
     echo "$install_output"
 
     local bundle_id
-    bundle_id=$(echo "$install_output" | grep 'bundleID:' | awk '{print $3}')
+    bundle_id=$(echo "$install_output" | grep 'bundleID:' | awk '{print $3}' || true)
     bundle_id="${bundle_id:-co.snapwell.app}"
 
     printf "${DIM}Launching...${RESET}\n"
@@ -171,8 +198,12 @@ run_ios_device() {
 
 run_ios_simulator() {
     local sim_name="iPhone 17 Pro"
-    local sim_id
-    sim_id=$(xcrun simctl list devices available | grep "$sim_name" | head -1 | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}')
+    local sim_id sim_output
+    if ! sim_output=$(xcrun simctl list devices available 2>&1); then
+        printf "${RED}Simulator discovery failed: %s${RESET}\n" "$(printf '%s\n' "$sim_output" | tail -1)"
+        return 1
+    fi
+    sim_id=$(printf '%s\n' "$sim_output" | grep "$sim_name" | head -1 | grep -oE '[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}' || true)
 
     if [[ -z "$sim_id" ]]; then
         printf "${RED}Error: No '$sim_name' simulator found.${RESET}\n"
@@ -185,15 +216,17 @@ run_ios_simulator() {
 
     printf "${DIM}Booting simulator...${RESET}\n"
     xcrun simctl boot "$sim_id" 2>/dev/null || true
-    open -a Simulator
+    if ! open -a Simulator; then
+        printf "${RED}Simulator app is unavailable in this Xcode installation.${RESET}\n"
+        return 1
+    fi
 
     printf "${DIM}Building...${RESET}\n"
-    xcodebuild build \
+    build_ios_or_report_error \
         -project Snapwell.xcodeproj \
         -scheme Snapwell \
         -configuration Debug \
-        -destination "platform=iOS Simulator,id=$sim_id" \
-        2>&1 | tail -3
+        -destination "platform=iOS Simulator,id=$sim_id"
 
     local build_dir
     build_dir=$(xcodebuild -showBuildSettings \
@@ -201,7 +234,7 @@ run_ios_simulator() {
         -scheme Snapwell \
         -configuration Debug \
         -destination "platform=iOS Simulator,id=$sim_id" \
-        2>/dev/null | grep '^\s*BUILT_PRODUCTS_DIR' | awk '{print $3}')
+        2>/dev/null | awk '$1 == "BUILT_PRODUCTS_DIR" {print $3; exit}')
 
     local app_path="$build_dir/Snapwell.app"
     if [[ ! -d "$app_path" ]]; then

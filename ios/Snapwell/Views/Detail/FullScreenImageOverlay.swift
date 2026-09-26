@@ -83,7 +83,7 @@ struct FullScreenImageOverlay: View {
     var onClose: () -> Void
     var onSearchPattern: ((String) -> Void)?
     var onRetryAnalysis: ((MediaItem) -> Void)?
-    var onDelete: ((MediaItem) -> Void)?
+    var onDelete: ((MediaItem) -> Bool)?
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -106,6 +106,7 @@ struct FullScreenImageOverlay: View {
     @State private var isLoadingFullRes = false
     @State private var player: AVPlayer?
     @State private var loadTask: Task<Void, Never>?
+    @State private var videoTask: Task<Void, Never>?
 
     // Swipe navigation
     @State private var swipeOffset: CGFloat = 0
@@ -179,7 +180,7 @@ struct FullScreenImageOverlay: View {
         onClose: @escaping () -> Void,
         onSearchPattern: ((String) -> Void)? = nil,
         onRetryAnalysis: ((MediaItem) -> Void)? = nil,
-        onDelete: ((MediaItem) -> Void)? = nil
+        onDelete: ((MediaItem) -> Bool)? = nil
     ) {
         _items = State(initialValue: items)
         self.sourceRect = sourceRect
@@ -431,6 +432,11 @@ struct FullScreenImageOverlay: View {
                 startMetadataReveal()
             }
         }
+        .onDisappear {
+            loadTask?.cancel()
+            videoTask?.cancel()
+            player?.pause()
+        }
         .onChange(of: closeRequestID) { oldValue, newValue in
             guard newValue != oldValue, !isClosing else { return }
             close()
@@ -589,15 +595,6 @@ struct FullScreenImageOverlay: View {
 
         if let adjImage {
             Image(uiImage: adjImage)
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-                .frame(width: frame.width, height: frame.height)
-                .clipped()
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-                .position(x: frame.midX, y: frame.midY)
-        } else if let thumbURL = adjacentItem.thumbnailURL,
-                  let cached = ThumbnailCache.shared.image(for: thumbURL) {
-            Image(uiImage: cached)
                 .resizable()
                 .aspectRatio(contentMode: .fill)
                 .frame(width: frame.width, height: frame.height)
@@ -869,6 +866,7 @@ struct FullScreenImageOverlay: View {
         let direction: CGFloat = newIndex > currentIndex ? -1 : 1
 
         player?.pause()
+        videoTask?.cancel()
         player = nil
         impactFeedback.impactOccurred()
 
@@ -954,7 +952,11 @@ struct FullScreenImageOverlay: View {
         Task { @MainActor in
             try? await Task.sleep(for: DeleteAnimation.commitDelay)
 
-            onDelete?(deletedItem)
+            guard onDelete?(deletedItem) == true else {
+                withAnimation(DeleteAnimation.shrinkFade) { isDeleting = false }
+                return
+            }
+            videoTask?.cancel()
             items.remove(at: deletedIndex)
 
             if items.isEmpty {
@@ -1004,6 +1006,7 @@ struct FullScreenImageOverlay: View {
         revealTask?.cancel()
         contentOffset = 0
         player?.pause()
+        videoTask?.cancel()
         impactFeedback.impactOccurred()
 
         // Reset zoom instantly
@@ -1120,11 +1123,16 @@ struct FullScreenImageOverlay: View {
 
     private func prepareVideoIfNeeded() {
         guard item.isVideo, let url = item.mediaURL else { return }
-        Task {
+        let expectedID = item.id
+        videoTask?.cancel()
+        videoTask = Task {
             let monitor = iCloudDownloadMonitor.shared
             if !monitor.isDownloaded(url) {
                 await monitor.waitForDownload(of: url, timeout: 60)
             }
+            guard !Task.isCancelled,
+                  item.id == expectedID,
+                  monitor.isDownloaded(url) else { return }
             let newPlayer = AVPlayer(url: url)
             self.player = newPlayer
             newPlayer.play()
@@ -1147,12 +1155,44 @@ struct FullScreenImageOverlay: View {
             let adjItem = items[idx]
             if adjacentImages[adjItem.id] != nil { continue }
 
-            if let url = adjItem.mediaURL ?? adjItem.thumbnailURL {
-                Task {
-                    if let img = await ThumbnailCache.shared.loadImage(for: url).image {
-                        adjacentImages[adjItem.id] = img
+            let preferredURL = adjItem.thumbnailURL ?? adjItem.mediaURL
+            let fallbackURL = adjItem.mediaURL
+            let expectedID = adjItem.id
+            let pixelWidth = screenSize.width * UIScreen.main.scale
+            Task {
+                guard let preferredURL else { return }
+                let cache = ThumbnailCache.shared
+                var preview = await cache.loadImage(
+                    for: preferredURL, targetPixelWidth: pixelWidth
+                ).image
+                if preview == nil {
+                    preview = await withTaskGroup(of: UIImage?.self, returning: UIImage?.self) { group in
+                        group.addTask {
+                            await cache.loadImageWhenReady(
+                                for: preferredURL, timeout: 30, targetPixelWidth: pixelWidth
+                            ).image
+                        }
+                        if let fallbackURL, fallbackURL != preferredURL {
+                            group.addTask {
+                                await cache.loadImageWhenReady(
+                                    for: fallbackURL, timeout: 30, targetPixelWidth: pixelWidth
+                                ).image
+                            }
+                        }
+                        while let result = await group.next() {
+                            if let result {
+                                group.cancelAll()
+                                return result
+                            }
+                        }
+                        return nil
                     }
                 }
+                guard !Task.isCancelled,
+                      let preview,
+                      items.indices.contains(currentIndex),
+                      abs((items.firstIndex(where: { $0.id == expectedID }) ?? -100) - currentIndex) == 1 else { return }
+                adjacentImages[expectedID] = preview
             }
         }
     }

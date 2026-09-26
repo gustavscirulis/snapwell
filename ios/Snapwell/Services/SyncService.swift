@@ -191,14 +191,19 @@ final class SyncService {
         let metadataDir = rootURL.appendingPathComponent("metadata")
         let imagesDir = rootURL.appendingPathComponent("images")
         let isUsingiCloud = isUsingiCloudOverride ?? FileSystemManager.shared?.isUsingiCloud ?? false
+        SidecarWriteService.flushPending(rootURL: rootURL)
+        var skipped = 0
 
         // Phase 1: Import spaces
         let spacesURL = rootURL.appendingPathComponent("spaces.json")
         let spacesState = ICloudFile.downloadState(of: spacesURL, isUsingiCloud: isUsingiCloud)
         if spacesState == .downloading {
             downloadRequester.requestDownload(for: spacesURL)
-        } else if spacesState == .downloaded {
+            skipped += 1
+        } else if spacesState == .downloaded && !SidecarWriteService.hasPendingSpaceEdits(rootURL: rootURL) {
             syncSpaces(rootURL: rootURL, context: context)
+        } else if SidecarWriteService.hasPendingSpaceEdits(rootURL: rootURL) {
+            skipped += 1
         }
 
         // Phase 2: Scan metadata and media once each. Placeholder names are
@@ -208,7 +213,7 @@ final class SyncService {
             isUsingiCloud: isUsingiCloud
         ) else {
             print("[SyncService] Cannot read metadata directory")
-            return 0
+            return skipped
         }
         let mediaFiles = ContainerScanner.scanMedia(
             imagesDir,
@@ -223,11 +228,15 @@ final class SyncService {
             existingById[item.id] = item
         }
 
-        var skipped = 0
         var imported = 0
 
         for metadataFile in metadataFiles.values.sorted(by: { $0.id < $1.id }) {
             let id = metadataFile.id
+            if SidecarWriteService.hasPendingItemEdit(id: id, rootURL: rootURL) {
+                existingById.removeValue(forKey: id)
+                skipped += 1
+                continue
+            }
             guard metadataFile.state == .downloaded else {
                 downloadRequester.requestDownload(for: metadataFile.url)
                 skipped += 1
@@ -304,6 +313,10 @@ final class SyncService {
         // present-but-pending placeholder must protect its SwiftData record.
         var removed = 0
         for (id, orphan) in existingById where metadataFiles[id] == nil {
+            if SidecarWriteService.hasPendingItemEdit(id: id, rootURL: rootURL) {
+                skipped += 1
+                continue
+            }
             context.delete(orphan)
             removed += 1
         }

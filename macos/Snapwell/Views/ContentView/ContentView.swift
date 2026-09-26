@@ -17,10 +17,11 @@ struct ContentView: View {
     @State private var pendingEditSpaceId: String?
     @State private var electronImportURL: URL?
     @State private var showImportPanel = false
-    @State private var debounceTask: Task<Void, Never>?
     @State private var indexRebuildTask: Task<Void, Never>?
+    @State private var apiKeyNudgeTask: Task<Void, Never>?
     /// Pre-computed search scores keyed by item ID. Empty = no active search.
     @State private var searchScores: [String: Double] = [:]
+    @State private var searchScoresQuery = ""
     @State private var isSearchActive = false
     /// Incremented whenever the search result set is replaced, so the grid can reset its scroll
     /// offset instead of resolving a deep offset against a wholly new item list.
@@ -46,10 +47,10 @@ struct ContentView: View {
 
         guard isSearchActive else { return items }
 
-        let scores = searchScores
+        let query = appState.searchText.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        let scores = query == searchScoresQuery ? searchScores : [:]
         guard !scores.isEmpty else {
             // Search is active but no results yet — check for special keywords
-            let query = appState.searchText.lowercased().trimmingCharacters(in: .whitespaces)
             if query == "video" { return items.filter { $0.isVideo } }
             if query == "image" { return items.filter { !$0.isVideo } }
             return []
@@ -277,7 +278,6 @@ struct ContentView: View {
             }
         }
         .onChange(of: appState.searchText) { _, newValue in
-            debounceTask?.cancel()
             let trimmed = newValue.trimmingCharacters(in: .whitespaces)
             if trimmed.isEmpty {
                 isSearchActive = false
@@ -291,29 +291,14 @@ struct ContentView: View {
                     appState.detailGridTarget = nil
                     appState.detailHidesSource = false
                 }
-                debounceTask = Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(100))
-                    guard !Task.isCancelled else { return }
-
-                    let lowered = trimmed.lowercased()
-                    if lowered == "video" || lowered == "image" {
-                        searchScores = [:]
-                        isSearchActive = true
-                        searchGeneration += 1
-                        return
-                    }
-
-                    // BM25 search: <1ms, pure dictionary lookups + arithmetic
-                    let results = searchService.search(query: trimmed)
-                    guard !Task.isCancelled else { return }
-                    searchScores = Dictionary(uniqueKeysWithValues: results.map { ($0.itemId, $0.score) })
-                    // Flipped only once results exist. Setting it on the first keystroke made
-                    // `itemsForSpace` return [] for 100ms, which swapped the whole grid out for the
-                    // empty state and back — two full view-list teardowns per search.
-                    isSearchActive = true
-                    searchGeneration += 1
-                }
+                refreshSearchScores(for: trimmed)
+                isSearchActive = true
+                searchGeneration += 1
             }
+        }
+        .onChange(of: searchService.generation) { _, _ in
+            guard isSearchActive else { return }
+            refreshSearchScores(for: appState.searchText)
         }
         .task {
             // Reset any isAnalyzing flags stuck from a previous crash/kill
@@ -481,15 +466,27 @@ struct ContentView: View {
         appState.sidebarSelection = newId.map { .space($0) } ?? .all
     }
 
+    private func refreshSearchScores(for query: String) {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        searchScoresQuery = trimmed.lowercased()
+        guard !trimmed.isEmpty, !["video", "image"].contains(trimmed.lowercased()) else {
+            searchScores = [:]
+            return
+        }
+        let results = searchService.search(query: trimmed)
+        searchScores = Dictionary(uniqueKeysWithValues: results.map { ($0.itemId, $0.score) })
+    }
+
     // MARK: - Actions
 
     private func handleFileImport(_ result: Result<[URL], Error>) {
         if case .success(let urls) = result {
             syncWatcher.beginLocalChange()
             Task {
-                await importService.importFiles(urls, into: modelContext, spaceId: appState.activeSpaceId)
+                let result = await importService.importFiles(urls, into: modelContext, spaceId: appState.activeSpaceId)
                 syncWatcher.endLocalChange()
-                showAPIKeyNudgeIfNeeded()
+                showImportResult(success: result.successCount, failed: result.failureCount)
+                showAPIKeyNudgeIfNeeded(success: result.successCount)
             }
         }
     }
@@ -546,9 +543,10 @@ struct ContentView: View {
 
         syncWatcher.beginLocalChange()
         Task {
-            await importService.importFiles(mediaURLs, into: modelContext, spaceId: appState.activeSpaceId)
+            let result = await importService.importFiles(mediaURLs, into: modelContext, spaceId: appState.activeSpaceId)
             syncWatcher.endLocalChange()
-            showAPIKeyNudgeIfNeeded()
+            showImportResult(success: result.successCount, failed: result.failureCount)
+            showAPIKeyNudgeIfNeeded(success: result.successCount)
         }
     }
 
@@ -578,12 +576,19 @@ struct ContentView: View {
 
             if !urls.isEmpty || !images.isEmpty {
                 syncWatcher.beginLocalChange()
-                await importService.importFiles(urls, into: modelContext, spaceId: appState.activeSpaceId)
+                let result = await importService.importFiles(urls, into: modelContext, spaceId: appState.activeSpaceId)
+                var success = result.successCount
+                var failed = result.failureCount
                 for image in images {
-                    await importService.importImage(image, into: modelContext, spaceId: appState.activeSpaceId)
+                    if await importService.importImage(image, into: modelContext, spaceId: appState.activeSpaceId) {
+                        success += 1
+                    } else {
+                        failed += 1
+                    }
                 }
                 syncWatcher.endLocalChange()
-                showAPIKeyNudgeIfNeeded()
+                showImportResult(success: success, failed: failed)
+                showAPIKeyNudgeIfNeeded(success: success)
             }
         }
     }
@@ -602,19 +607,22 @@ struct ContentView: View {
 
     private func handlePaste() {
         let pasteboard = NSPasteboard.general
+        var unsupportedFileCount = 0
 
         // Try file URLs first (e.g. copied files from Finder)
         if let urls = pasteboard.readObjects(forClasses: [NSURL.self],
                                               options: [.urlReadingFileURLsOnly: true]) as? [URL],
            !urls.isEmpty {
             let validURLs = urls.filter { SupportedMedia.isSupported($0.pathExtension) }
+            unsupportedFileCount = urls.count - validURLs.count
             if !validURLs.isEmpty {
+                let skippedCount = unsupportedFileCount
                 syncWatcher.beginLocalChange()
                 Task {
-                    await importService.importFiles(validURLs, into: modelContext, spaceId: appState.activeSpaceId)
+                    let result = await importService.importFiles(validURLs, into: modelContext, spaceId: appState.activeSpaceId)
                     syncWatcher.endLocalChange()
-                    appState.showToast("Pasted \(validURLs.count) item\(validURLs.count == 1 ? "" : "s")")
-                    showAPIKeyNudgeIfNeeded()
+                    showImportResult(success: result.successCount, failed: result.failureCount + skippedCount)
+                    showAPIKeyNudgeIfNeeded(success: result.successCount)
                 }
                 return
             }
@@ -624,12 +632,15 @@ struct ContentView: View {
         if let images = pasteboard.readObjects(forClasses: [NSImage.self]) as? [NSImage], !images.isEmpty {
             syncWatcher.beginLocalChange()
             Task {
+                var success = 0
                 for image in images {
-                    await importService.importImage(image, into: modelContext, spaceId: appState.activeSpaceId)
+                    if await importService.importImage(image, into: modelContext, spaceId: appState.activeSpaceId) {
+                        success += 1
+                    }
                 }
                 syncWatcher.endLocalChange()
-                appState.showToast("Pasted \(images.count) image\(images.count == 1 ? "" : "s")")
-                showAPIKeyNudgeIfNeeded()
+                showImportResult(success: success, failed: images.count - success)
+                showAPIKeyNudgeIfNeeded(success: success)
             }
             return
         }
@@ -666,47 +677,49 @@ struct ContentView: View {
                     }
                     syncWatcher.endLocalChange()
                     if successCount > 0 {
-                        appState.showToast("Imported \(successCount) item\(successCount == 1 ? "" : "s")")
-                        showAPIKeyNudgeIfNeeded()
+                        showImportResult(success: successCount, failed: urls.count - successCount)
+                        showAPIKeyNudgeIfNeeded(success: successCount)
                     } else if !hasTwitterURL {
                         appState.showToast("URL doesn't point to a supported image or video")
                     }
                 }
             }
         }
+        if unsupportedFileCount > 0 {
+            showImportResult(success: 0, failed: unsupportedFileCount)
+        }
     }
 
-    private func showAPIKeyNudgeIfNeeded() {
-        let count = UserDefaults.standard.integer(forKey: "apiKeyToastCount")
-        guard !AIProvider.hasAnyAIConfiguration, count < 3 else { return }
-        UserDefaults.standard.set(count + 1, forKey: "apiKeyToastCount")
-        appState.showToast("Choose an AI provider in Settings to enable analysis", duration: 5)
+    private func showImportResult(success: Int, failed: Int) {
+        guard success > 0 || failed > 0 else { return }
+        apiKeyNudgeTask?.cancel()
+        let message: String
+        if failed == 0 {
+            message = "Imported \(success) item\(success == 1 ? "" : "s")"
+        } else if success == 0 {
+            message = "Couldn't import \(failed) item\(failed == 1 ? "" : "s")"
+        } else {
+            message = "Imported \(success); \(failed) failed"
+        }
+        appState.showToast(message, duration: failed > 0 ? 5 : 3)
+    }
+
+    private func showAPIKeyNudgeIfNeeded(success: Int) {
+        guard success > 0, !AIProvider.hasAnyAIConfiguration else { return }
+        apiKeyNudgeTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(5.2))
+            guard !Task.isCancelled, !AIProvider.hasAnyAIConfiguration else { return }
+            let count = UserDefaults.standard.integer(forKey: "apiKeyToastCount")
+            guard count < 3 else { return }
+            UserDefaults.standard.set(count + 1, forKey: "apiKeyToastCount")
+            appState.showToast("Choose an AI provider in Settings to enable analysis", duration: 5)
+        }
     }
 
     private func deleteItems(_ ids: Set<String>) {
         let items = allItems.filter { ids.contains($0.id) }
         guard !items.isEmpty else { return }
 
-        // Snapshot for undo
-        let batch = items.map { item in
-            let ar = item.analysisResult
-            return DeletedItemInfo(
-                id: item.id,
-                filename: item.filename,
-                mediaType: item.mediaType,
-                width: item.width,
-                height: item.height,
-                duration: item.duration,
-                spaceIds: item.orderedSpaceIDs,
-                imageContext: ar?.imageContext,
-                imageSummary: ar?.imageSummary,
-                patterns: ar?.patterns,
-                analyzedAt: ar?.analyzedAt,
-                analysisProvider: ar?.provider,
-                analysisModel: ar?.model
-            )
-        }
-        appState.pushDeleteBatch(batch)
         appState.clearSelection()
 
         let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
@@ -729,12 +742,12 @@ struct ContentView: View {
         let items = allItems.filter { ids.contains($0.id) }
 
         syncWatcher.beginLocalChange()
-        var trashedCount = 0
+        var trashed: [DeletedItemInfo] = []
         for item in items {
             do {
                 try MediaStorageService.shared.moveToTrash(filename: item.filename, id: item.id)
+                trashed.append(DeletedItemInfo.snapshot(of: item))
                 modelContext.delete(item)
-                trashedCount += 1
             } catch {
                 print("[Delete] Failed to trash \(item.id): \(error)")
             }
@@ -743,6 +756,8 @@ struct ContentView: View {
             modelContext.saveOrLog()
         }
         syncWatcher.endLocalChange()
+        if !trashed.isEmpty { appState.pushDeleteBatch(trashed) }
+        let trashedCount = trashed.count
 
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(500))
@@ -766,8 +781,10 @@ struct ContentView: View {
         guard let batch = appState.popUndoBatch() else { return }
         switch batch {
         case .deletion(let items):
-            appState.pushRedoBatch(.deletion(items))
-            restoreDeletedItems(items)
+            let restored = restoreDeletedItems(items)
+            if !restored.isEmpty { appState.pushRedoBatch(.deletion(restored)) }
+            let failed = items.filter { info in !restored.contains(where: { $0.id == info.id }) }
+            if !failed.isEmpty { appState.pushUndoBatch(.deletion(failed)) }
         case .spaceChange(let changes):
             let reverseSnapshot = changes.compactMap { change -> SpaceChangeInfo? in
                 guard let item = allItems.first(where: { $0.id == change.itemId }) else { return nil }
@@ -798,10 +815,16 @@ struct ContentView: View {
         }
     }
 
-    private func restoreDeletedItems(_ batch: [DeletedItemInfo]) {
+    private func restoreDeletedItems(_ batch: [DeletedItemInfo]) -> [DeletedItemInfo] {
         syncWatcher.beginLocalChange()
+        var restored: [DeletedItemInfo] = []
         for info in batch {
-            try? MediaStorageService.shared.restoreFromTrash(filename: info.filename, id: info.id)
+            do {
+                try MediaStorageService.shared.restoreFromTrash(filename: info.filename, id: info.id)
+            } catch {
+                print("[Undo] Failed to restore \(info.id): \(error)")
+                continue
+            }
 
             let item = MediaItem(
                 id: info.id,
@@ -809,8 +832,11 @@ struct ContentView: View {
                 filename: info.filename,
                 width: info.width,
                 height: info.height,
+                createdAt: info.createdAt,
                 duration: info.duration
             )
+            item.sourceId = info.sourceId
+            item.sourceURL = info.sourceURL
             if let ctx = info.imageContext, let summary = info.imageSummary,
                let patterns = info.patterns, let provider = info.analysisProvider,
                let model = info.analysisModel {
@@ -831,44 +857,45 @@ struct ContentView: View {
 
             modelContext.insert(item)
             MetadataSidecarService.shared.writeSidecar(for: item)
+            restored.append(info)
         }
         modelContext.saveOrLog()
         syncWatcher.endLocalChange()
-        appState.showToast("Restored \(batch.count) item\(batch.count == 1 ? "" : "s")")
+        if !restored.isEmpty {
+            appState.showToast("Restored \(restored.count) item\(restored.count == 1 ? "" : "s")")
+        }
+        if restored.count < batch.count {
+            appState.showToast("Couldn't restore \(batch.count - restored.count) item\(batch.count - restored.count == 1 ? "" : "s")")
+        }
+        return restored
     }
 
     private func redoDeletion(_ infos: [DeletedItemInfo]) {
         let items = infos.compactMap { info in allItems.first(where: { $0.id == info.id }) }
         guard !items.isEmpty else { return }
 
-        let batch = items.map { item in
-            let ar = item.analysisResult
-            return DeletedItemInfo(
-                id: item.id,
-                filename: item.filename,
-                mediaType: item.mediaType,
-                width: item.width,
-                height: item.height,
-                duration: item.duration,
-                spaceIds: item.orderedSpaceIDs,
-                imageContext: ar?.imageContext,
-                imageSummary: ar?.imageSummary,
-                patterns: ar?.patterns,
-                analyzedAt: ar?.analyzedAt,
-                analysisProvider: ar?.provider,
-                analysisModel: ar?.model
-            )
-        }
-        appState.pushUndoBatch(.deletion(batch))
-
         syncWatcher.beginLocalChange()
+        var trashed: [DeletedItemInfo] = []
         for item in items {
-            try? MediaStorageService.shared.moveToTrash(filename: item.filename, id: item.id)
-            modelContext.delete(item)
+            do {
+                try MediaStorageService.shared.moveToTrash(filename: item.filename, id: item.id)
+                trashed.append(DeletedItemInfo.snapshot(of: item))
+                modelContext.delete(item)
+            } catch {
+                print("[Redo] Failed to trash \(item.id): \(error)")
+            }
         }
         modelContext.saveOrLog()
         syncWatcher.endLocalChange()
-        appState.showToast("Moved \(items.count) item\(items.count == 1 ? "" : "s") to trash")
+        if !trashed.isEmpty {
+            appState.pushUndoBatch(.deletion(trashed))
+            appState.showToast("Moved \(trashed.count) item\(trashed.count == 1 ? "" : "s") to trash")
+        }
+        let failed = infos.filter { info in !trashed.contains(where: { $0.id == info.id }) }
+        if !failed.isEmpty {
+            appState.pushRedoBatch(.deletion(failed))
+            appState.showToast("Couldn't move \(failed.count) item\(failed.count == 1 ? "" : "s") to trash")
+        }
     }
 
     private func applySpaceChange(_ changes: [SpaceChangeInfo], toast: String) {

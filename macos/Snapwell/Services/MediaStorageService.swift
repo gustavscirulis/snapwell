@@ -2,6 +2,17 @@ import Foundation
 import AppKit
 
 final class MediaStorageService: Sendable {
+    enum TrashError: LocalizedError {
+        case downloading
+        case missingFiles
+
+        var errorDescription: String? {
+            switch self {
+            case .downloading: "The item is still downloading from iCloud. Try again shortly."
+            case .missingFiles: "The item's files could not be found. Refresh and try again."
+            }
+        }
+    }
 
     static let shared = MediaStorageService()
 
@@ -96,6 +107,18 @@ final class MediaStorageService: Sendable {
 
     func moveToTrash(filename: String, id: String) throws {
         let fm = FileManager.default
+        let sources = [
+            mediaDir.appendingPathComponent(filename),
+            metadataDir.appendingPathComponent("\(id).json"),
+            thumbnailDir.appendingPathComponent("\(id).jpg")
+        ]
+        for source in sources where fm.fileExists(atPath: ICloudFile.placeholderURL(for: source).path) {
+            DownloadRequester.shared.requestDownload(for: source)
+            throw TrashError.downloading
+        }
+        guard fm.fileExists(atPath: sources[0].path) else {
+            throw TrashError.missingFiles
+        }
 
         // Track which files we've moved so we can roll back on failure
         var movedPairs: [(src: URL, dst: URL)] = []
@@ -128,6 +151,10 @@ final class MediaStorageService: Sendable {
 
     func restoreFromTrash(filename: String, id: String) throws {
         let fm = FileManager.default
+        let trashedMedia = trashMediaDir.appendingPathComponent(filename)
+        guard fm.fileExists(atPath: trashedMedia.path) else {
+            throw CocoaError(.fileNoSuchFile)
+        }
 
         var movedPairs: [(src: URL, dst: URL)] = []
 
@@ -144,7 +171,7 @@ final class MediaStorageService: Sendable {
         }
 
         do {
-            try moveFile(from: trashMediaDir.appendingPathComponent(filename),
+            try moveFile(from: trashedMedia,
                          to: mediaDir.appendingPathComponent(filename))
             try moveFile(from: trashMetadataDir.appendingPathComponent("\(id).json"),
                          to: metadataDir.appendingPathComponent("\(id).json"))

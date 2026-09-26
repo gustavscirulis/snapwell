@@ -3,6 +3,17 @@ import Foundation
 /// Moves media files to the `.trash/` directory, matching the Mac app's
 /// `MediaStorageService.moveToTrash` convention and shared trash structure.
 enum MediaDeleteService {
+    enum DeleteError: LocalizedError {
+        case downloading
+        case missingFiles
+
+        var errorDescription: String? {
+            switch self {
+            case .downloading: "The item is still downloading from iCloud. Try deleting it again shortly."
+            case .missingFiles: "The item's files could not be found. Refresh the library and try again."
+            }
+        }
+    }
 
     /// Move a media item's files (image/video, metadata sidecar, thumbnail) to `.trash/`.
     /// Uses a rollback pattern: if any move fails, previously moved files are restored.
@@ -16,6 +27,18 @@ enum MediaDeleteService {
         let trashImagesDir = rootURL.appendingPathComponent(".trash/images")
         let trashMetadataDir = rootURL.appendingPathComponent(".trash/metadata")
         let trashThumbnailsDir = rootURL.appendingPathComponent(".trash/thumbnails")
+        let sources = [
+            imagesDir.appendingPathComponent(filename),
+            metadataDir.appendingPathComponent("\(id).json"),
+            thumbnailsDir.appendingPathComponent("\(id).jpg")
+        ]
+        for source in sources where fm.fileExists(atPath: ICloudFile.placeholderURL(for: source).path) {
+            DownloadRequester.shared.requestDownload(for: source)
+            throw DeleteError.downloading
+        }
+        guard fm.fileExists(atPath: sources[0].path) else {
+            throw DeleteError.missingFiles
+        }
 
         // Ensure trash directories exist
         for dir in [trashImagesDir, trashMetadataDir, trashThumbnailsDir] {

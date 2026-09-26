@@ -73,6 +73,25 @@ struct MediaDeleteServiceIntegrationTests {
         #expect(data.count > 1)
     }
 
+    @Test("Failed thumbnail move restores media and sidecar")
+    func failedMoveRollsBack() throws {
+        try IntegrationTestSupport.createDummyMedia(id: "rollback-1", in: tempRoot)
+        try IntegrationTestSupport.writeSidecarJSON(
+            IntegrationTestSupport.makeSidecar(id: "rollback-1"), to: tempRoot)
+        try IntegrationTestSupport.createDummyThumbnail(id: "rollback-1", in: tempRoot)
+        let thumbnailTrashDir = tempRoot.appendingPathComponent(".trash/thumbnails")
+        try FileManager.default.removeItem(at: thumbnailTrashDir)
+        try Data("blocked".utf8).write(to: thumbnailTrashDir)
+
+        #expect(throws: Error.self) {
+            try MediaDeleteService.moveToTrash(
+                filename: "rollback-1.png", id: "rollback-1", rootURL: tempRoot
+            )
+        }
+        #expect(FileManager.default.fileExists(atPath: tempRoot.appendingPathComponent("images/rollback-1.png").path))
+        #expect(FileManager.default.fileExists(atPath: tempRoot.appendingPathComponent("metadata/rollback-1.json").path))
+    }
+
     // MARK: - Old Trash Cleanup
 
     @Test("emptyOldTrash removes old files but keeps recent ones")

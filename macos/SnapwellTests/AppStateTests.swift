@@ -116,6 +116,23 @@ struct AppStateTests {
         #expect(items[0].id == "1")
     }
 
+    @Test("Delete snapshot retains import provenance and original date")
+    func deleteSnapshotRetainsMetadata() {
+        let originalDate = Date(timeIntervalSince1970: 1_650_000_000)
+        let item = MediaItem(
+            id: "snapshot", mediaType: .image, filename: "snapshot.heic",
+            width: 42, height: 24, createdAt: originalDate
+        )
+        item.sourceId = "browser-123"
+        item.sourceURL = "https://example.com/photo"
+
+        let snapshot = DeletedItemInfo.snapshot(of: item)
+        #expect(snapshot.createdAt == originalDate)
+        #expect(snapshot.sourceId == "browser-123")
+        #expect(snapshot.sourceURL == "https://example.com/photo")
+        #expect(snapshot.filename == "snapshot.heic")
+    }
+
     @Test("Push and pop space change batch")
     func spaceChangeUndoStack() {
         let state = AppState()

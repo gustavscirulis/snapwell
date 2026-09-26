@@ -43,7 +43,7 @@ struct MediaDetailModal: View {
     @Binding var gridItemRects: [String: CGRect]
     let onSearchPattern: (String) -> Void
     let onRetryAnalysis: (MediaItem) -> Void
-    let onDelete: (MediaItem) -> Void
+    let onDelete: (MediaItem) -> Bool
     let onOverlayClosed: () -> Void
 
     @State private var closeRequestID = 0

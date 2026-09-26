@@ -94,7 +94,7 @@ struct GridItemView: View {
                     }
                     .onTapGesture {
                         loadFailed = false
-                        Task { await loadThumbnail() }
+                    Task { await loadThumbnail() }
                     }
             } else {
                 Rectangle()
@@ -268,45 +268,33 @@ struct GridItemView: View {
         .background(.red, in: RoundedRectangle(cornerRadius: 10))
     }
 
-    private func loadThumbnail(isRetry: Bool = false) async {
+    private func loadThumbnail() async {
         let cache = ThumbnailCache.shared
-
-        // Try thumbnail first (fast, no wait)
-        if let thumbURL = item.thumbnailURL {
-            let (loaded, wasCached) = await cache.loadImage(for: thumbURL, targetPixelWidth: targetPixelWidth)
-            if let loaded {
-                if wasCached {
-                    thumbnail = loaded
-                } else {
-                    withAnimation(.easeIn(duration: 0.25)) {
-                        thumbnail = loaded
-                    }
+        let thumbURL = item.thumbnailURL
+        let mediaURL = item.mediaURL
+        let pixelWidth = targetPixelWidth
+        let loaded = await withTaskGroup(of: UIImage?.self, returning: UIImage?.self) { group in
+            if let thumbURL {
+                group.addTask {
+                    await cache.loadImageWhenReady(for: thumbURL, timeout: 180, targetPixelWidth: pixelWidth).image
                 }
-                return
             }
-        }
-
-        // Fall back to media file (wait for iCloud download if needed)
-        if let mediaURL = item.mediaURL {
-            let (loaded, wasCached) = await cache.loadImageWhenReady(for: mediaURL, timeout: 180, targetPixelWidth: targetPixelWidth)
-            if let loaded {
-                if wasCached {
-                    thumbnail = loaded
-                } else {
-                    withAnimation(.easeIn(duration: 0.25)) {
-                        thumbnail = loaded
-                    }
+            if let mediaURL {
+                group.addTask {
+                    await cache.loadImageWhenReady(for: mediaURL, timeout: 180, targetPixelWidth: pixelWidth).image
                 }
-                return
             }
+            while let image = await group.next() {
+                if let image {
+                    group.cancelAll()
+                    return image
+                }
+            }
+            return nil
         }
-
-        // Auto-retry once after a short delay — iCloud files may arrive
-        // just after the initial load attempt
-        if !isRetry {
-            try? await Task.sleep(for: .seconds(3))
-            guard !Task.isCancelled else { return }
-            await loadThumbnail(isRetry: true)
+        guard !Task.isCancelled else { return }
+        if let loaded {
+            withAnimation(.easeIn(duration: 0.25)) { thumbnail = loaded }
         } else {
             loadFailed = true
         }

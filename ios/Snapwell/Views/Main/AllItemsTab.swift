@@ -19,6 +19,14 @@ struct AllItemsTab<AddMenu: View>: View {
     let addImagesMenu: AddMenu
 
     var body: some View {
+        if #available(iOS 26, *) {
+            content
+        } else {
+            content.searchable(text: $searchText, prompt: "Search media")
+        }
+    }
+
+    private var content: some View {
         NavigationStack {
             ZStack {
                 Color.snapDarkBackground
