@@ -14,15 +14,18 @@ struct TopCroppedImage: View {
     /// Optional fixed crop basis for animated uses. Keeping this stable while `size` changes
     /// prevents SwiftUI from morphing between bitmap slices with different aspect ratios.
     let cropBasis: CGSize?
+    /// Settled zooming already owns a bounded image frame and must avoid re-slicing on each gesture update.
+    let cropImage: Bool
 
-    init(image: NSImage, size: CGSize, cropBasis: CGSize? = nil) {
+    init(image: NSImage, size: CGSize, cropBasis: CGSize? = nil, cropImage: Bool = true) {
         self.image = image
         self.size = size
         self.cropBasis = cropBasis
+        self.cropImage = cropImage
     }
 
     var body: some View {
-        let source = Self.topSlice(of: image, covering: cropBasis ?? size)
+        let source = cropImage ? Self.topSlice(of: image, covering: cropBasis ?? size) : image
         let drawRect = Self.drawRect(for: source.size, in: size)
 
         Color.clear

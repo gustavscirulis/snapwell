@@ -32,11 +32,11 @@ struct ZoomableImageView: View {
     )
 
     var body: some View {
-        Image(nsImage: image)
-            .resizable()
-            .aspectRatio(contentMode: .fill)
-            .frame(width: frameSize.width * zoomScale, height: frameSize.height * zoomScale)
-            .clipped()
+        TopCroppedImage(
+            image: image,
+            size: CGSize(width: frameSize.width * zoomScale, height: frameSize.height * zoomScale),
+            cropImage: false
+        )
             .clipShape(RoundedRectangle(cornerRadius: 16))
             .offset(panOffset)
             .frame(width: frameSize.width, height: frameSize.height)
@@ -60,6 +60,8 @@ struct ZoomableImageView: View {
                     velocity = .zero
                 }
             }
+            .onChange(of: frameSize) { _, _ in clampPanAfterResize() }
+            .onChange(of: windowSize) { _, _ in clampPanAfterResize() }
             .onChange(of: trackpadPanDelta) { _, delta in
                 guard isZoomed else { return }
                 if delta == .zero {
@@ -191,6 +193,13 @@ struct ZoomableImageView: View {
     }
 
     // MARK: - Pan Boundary Helpers
+
+    private func clampPanAfterResize() {
+        let clamped = clampedPanOffset(panOffset, scale: zoomScale)
+        panOffset = clamped
+        panLastOffset = clamped
+        trackpadPanBaseOffset = clamped
+    }
 
     private func maxPanOffset(scale: CGFloat) -> CGSize {
         let availableW = windowSize.width - edgeInset * 2

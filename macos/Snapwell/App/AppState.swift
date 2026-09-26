@@ -13,6 +13,12 @@ enum SpaceMembershipAction {
     case clearAll
 }
 
+/// A measured grid cell that can receive the detail image on close.
+struct DetailGridTarget: Equatable {
+    let itemID: String
+    let frame: CGRect
+}
+
 @Observable
 @MainActor
 final class AppState {
@@ -48,7 +54,13 @@ final class AppState {
         didSet { UserDefaults.standard.set(thumbnailSize.rawValue, forKey: "thumbnailSize") }
     }
     var detailItem: String? = nil  // MediaItem id
-    var detailSourceFrame: CGRect? = nil  // Global frame of tapped thumbnail for hero animation
+    /// Frozen when detail opens. Grid measurements must never move the opening endpoint.
+    var detailSourceFrame: CGRect? = nil
+    var detailOpeningImage: NSImage? = nil
+    var detailHidesSource = false
+    /// Only the current, visible grid cell may become a close destination.
+    var detailGridTarget: DetailGridTarget? = nil
+    var detailGridViewport: CGRect = .zero
     var isSettingsOpen: Bool = false
     var isDraggingFromApp: Bool = false
 
