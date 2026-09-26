@@ -999,34 +999,63 @@ struct DetailMetadataSection: View {
             }
 
             if let patterns = item.analysisResult?.patterns, !patterns.isEmpty {
-                FlowLayout(spacing: 8) {
-                    ForEach(Array(patterns.enumerated()), id: \.element.name) { index, pattern in
-                        Button {
-                            onSearchPattern?(pattern.name)
-                        } label: {
-                            Text(pattern.name)
-                                .font(.system(size: 12, weight: .medium))
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 7)
-                                .background(Color.primary.opacity(0.065), in: Capsule())
-                                .overlay(Capsule().strokeBorder(Color.primary.opacity(0.1)))
+                Group {
+                    #if compiler(>=6.3)
+                    if #available(macOS 26, *) {
+                        GlassEffectContainer(spacing: 8) {
+                            patternFlow(patterns)
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Pattern: \(pattern.name)")
-                        .accessibilityHint("Searches for items with this pattern")
-                        .opacity(stage >= 2 ? 1 : 0)
-                        .offset(y: reduceMotion || stage >= 2 ? 0 : MetadataReveal.slideDistance)
-                        .animation(
-                            reduceMotion
-                                ? .easeOut(duration: 0.15)
-                                : MetadataReveal.spring.delay(Double(index) * MetadataReveal.tagStagger),
-                            value: stage
-                        )
+                    } else {
+                        patternFlow(patterns)
                     }
+                    #else
+                    patternFlow(patterns)
+                    #endif
                 }
                 .padding(.top, 26)
             }
         }
+    }
+
+    private func patternFlow(_ patterns: [PatternTag]) -> some View {
+        FlowLayout(spacing: 8) {
+            ForEach(Array(patterns.enumerated()), id: \.element.name) { index, pattern in
+                patternButton(pattern)
+                    .opacity(stage >= 2 ? 1 : 0)
+                    .offset(y: reduceMotion || stage >= 2 ? 0 : MetadataReveal.slideDistance)
+                    .animation(
+                        reduceMotion
+                            ? .easeOut(duration: 0.15)
+                            : MetadataReveal.spring.delay(Double(index) * MetadataReveal.tagStagger),
+                        value: stage
+                    )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func patternButton(_ pattern: PatternTag) -> some View {
+        let button = Button {
+            onSearchPattern?(pattern.name)
+        } label: {
+            Text(pattern.name)
+                .font(.system(size: 12, weight: .medium))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Pattern: \(pattern.name)")
+        .accessibilityHint("Searches for items with this pattern")
+
+        #if compiler(>=6.3)
+        if #available(macOS 26, *) {
+            button.glassEffect(.regular.interactive(), in: .capsule)
+        } else {
+            button.background(.ultraThinMaterial, in: Capsule())
+        }
+        #else
+        button.background(.ultraThinMaterial, in: Capsule())
+        #endif
     }
 
     private var record: some View {
