@@ -312,6 +312,11 @@ struct DetailItemView: View {
     /// ScrollView layout with image + metadata. Used after the hero animation completes.
     @ViewBuilder
     private func settledContent(imageFrame: CGRect, heroFrame: CGRect, windowSize: CGSize) -> some View {
+        // The first viewport belongs to the media, even for small images.
+        // Metadata begins just below it and is reached by scrolling.
+        let imageBottom = heroFrame.minY + imageFrame.height
+        let metadataGap = max(56, windowSize.height - imageBottom + 24)
+
         ScrollView(.vertical) {
             VStack(spacing: 0) {
                 Spacer()
@@ -339,7 +344,11 @@ struct DetailItemView: View {
                 .onDrag { makeDragProvider() } preview: { dragPreview }
                 .contextMenu { detailContextMenu(frame: imageFrame) }
 
-                DetailMetadataSection(item: currentItem, stage: metadataStage) { pattern in
+                DetailMetadataSection(
+                    item: currentItem,
+                    compact: windowSize.width < 900,
+                    stage: metadataStage
+                ) { pattern in
                     appState.searchText = pattern
                     Task { @MainActor in
                         try? await Task.sleep(for: .milliseconds(150))
@@ -348,9 +357,9 @@ struct DetailItemView: View {
                         }
                     }
                 }
-                .frame(width: max(min(imageFrame.width, 550), 400))
-                .padding(.top, 40)
-                .padding(.bottom, 40)
+                .frame(width: min(max(windowSize.width - 72, 0), 980))
+                .padding(.top, metadataGap)
+                .padding(.bottom, 64)
                 .opacity(isZoomed ? 0 : metadataScrollOpacity)
                 .animation(SnapSpring.fast, value: isZoomed)
             }
@@ -825,92 +834,165 @@ struct DetailItemView: View {
 
 struct DetailMetadataSection: View {
     let item: MediaItem
+    let compact: Bool
     let stage: Int
     var onSearchPattern: ((String) -> Void)?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if item.isAnalyzing {
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text("Analyzing...")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
+        Group {
+            if compact {
+                VStack(alignment: .leading, spacing: 28) {
+                    narrative
+                    record
                 }
-                .stageReveal(stage: stage, threshold: 1)
-            } else if item.analysisError != nil {
-                HStack(spacing: 8) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .font(.caption)
-                        .foregroundStyle(.red.opacity(0.8))
-                    Text("Analysis failed")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
+            } else {
+                HStack(alignment: .top, spacing: 56) {
+                    narrative
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    record
+                        .frame(width: 250)
                 }
-                .stageReveal(stage: stage, threshold: 1)
-            } else if let result = item.analysisResult {
-                if !result.patterns.isEmpty {
-                    FlowLayout(spacing: 8) {
-                        ForEach(Array(result.patterns.enumerated()), id: \.element.name) { index, pattern in
-                            Button {
-                                onSearchPattern?(pattern.name)
-                            } label: {
-                                PatternPill(name: pattern.name, large: true)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Pattern: \(pattern.name)")
-                            .accessibilityHint("Searches for items with this pattern")
-                            .opacity(stage >= 2 ? 1 : 0)
-                            .offset(y: stage >= 2 ? 0 : MetadataReveal.slideDistance)
-                            .animation(
-                                MetadataReveal.spring.delay(Double(index) * MetadataReveal.tagStagger),
-                                value: stage
-                            )
-                        }
-                    }
-                    .padding(.leading, -8)
-                    .padding(.bottom, 16)
-                }
-
-                if hasDescription(result) {
-                    Text(result.imageContext)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .lineSpacing(2)
-                        .stageReveal(stage: stage, threshold: 3)
-                }
-            }
-
-            HStack(spacing: 0) {
-                Text("\(item.width) \u{00D7} \(item.height)")
-                Text("  \u{00B7}  ")
-                    .foregroundStyle(.secondary.opacity(0.5))
-                Text(item.createdAt, style: .date)
-                if let duration = item.duration {
-                    Text("  \u{00B7}  ")
-                        .foregroundStyle(.secondary.opacity(0.5))
-                    Text(formatDuration(duration))
-                }
-            }
-            .font(.caption.monospaced())
-            .foregroundStyle(.secondary)
-            .stageReveal(stage: stage, threshold: 4)
-            .padding(.top, 16)
-
-            if let urlString = item.sourceURL, let url = URL(string: urlString) {
-                SourceLinkButton(url: url)
-                    .stageReveal(stage: stage, threshold: 4)
-                    .padding(.top, 8)
             }
         }
-        .padding(.horizontal, 16)
+        .padding(compact ? 24 : 30)
+        .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 18))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18)
+                .strokeBorder(Color.primary.opacity(0.09))
+        }
     }
 
-    private func hasDescription(_ result: AnalysisResult) -> Bool {
-        !result.imageContext.isEmpty && result.imageContext != result.imageSummary
+    private var narrative: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(title)
+                .font(.system(size: compact ? 26 : 30, weight: .semibold))
+                .tracking(-0.7)
+                .fixedSize(horizontal: false, vertical: true)
+                .stageReveal(stage: stage, threshold: 1, reduced: reduceMotion)
+
+            if item.isAnalyzing {
+                statusRow("Analyzing…", icon: nil)
+                    .padding(.top, 18)
+            } else if item.analysisError != nil {
+                statusRow("Analysis failed", icon: "exclamationmark.triangle")
+                    .padding(.top, 18)
+            } else if let description {
+                Text(description)
+                    .font(.system(size: 14))
+                    .foregroundStyle(.secondary)
+                    .lineSpacing(4)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 18)
+                    .stageReveal(stage: stage, threshold: 3, reduced: reduceMotion)
+            }
+
+            if let patterns = item.analysisResult?.patterns, !patterns.isEmpty {
+                FlowLayout(spacing: 8) {
+                    ForEach(Array(patterns.enumerated()), id: \.element.name) { index, pattern in
+                        Button {
+                            onSearchPattern?(pattern.name)
+                        } label: {
+                            Text(pattern.name)
+                                .font(.system(size: 12, weight: .medium))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 7)
+                                .background(Color.primary.opacity(0.065), in: Capsule())
+                                .overlay(Capsule().strokeBorder(Color.primary.opacity(0.1)))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Pattern: \(pattern.name)")
+                        .accessibilityHint("Searches for items with this pattern")
+                        .opacity(stage >= 2 ? 1 : 0)
+                        .offset(y: reduceMotion || stage >= 2 ? 0 : MetadataReveal.slideDistance)
+                        .animation(
+                            reduceMotion
+                                ? .easeOut(duration: 0.15)
+                                : MetadataReveal.spring.delay(Double(index) * MetadataReveal.tagStagger),
+                            value: stage
+                        )
+                    }
+                }
+                .padding(.top, 26)
+            }
+        }
     }
 
+    private var record: some View {
+        VStack(spacing: 0) {
+            recordRow("Added", item.createdAt.formatted(date: .abbreviated, time: .omitted))
+            recordRow("Dimensions", "\(item.width) × \(item.height)", monospacedValue: true)
+
+            let fileExtension = URL(fileURLWithPath: item.filename).pathExtension
+            if !fileExtension.isEmpty {
+                recordRow("Format", fileExtension.uppercased(), monospacedValue: true)
+            }
+            if let duration = item.duration {
+                recordRow("Duration", formatDuration(duration))
+            }
+            if let urlString = item.sourceURL, let url = URL(string: urlString) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Original")
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 12)
+                    SourceLinkButton(url: url)
+                }
+                .font(.system(size: 12))
+                .padding(.vertical, 15)
+            }
+        }
+        .stageReveal(stage: stage, threshold: 4, reduced: reduceMotion)
+    }
+
+    private var title: String {
+        if let summary = item.analysisResult?.imageSummary,
+           !summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return summary
+        }
+        return item.isVideo ? "Untitled video" : "Untitled image"
+    }
+
+    private var description: String? {
+        guard let result = item.analysisResult else { return nil }
+        let context = result.imageContext.trimmingCharacters(in: .whitespacesAndNewlines)
+        return context.isEmpty || context == result.imageSummary ? nil : context
+    }
+
+    private func statusRow(_ label: String, icon: String?) -> some View {
+        HStack(spacing: 8) {
+            if let icon {
+                Image(systemName: icon)
+                    .foregroundStyle(.orange)
+            } else {
+                ProgressView()
+                    .controlSize(.small)
+            }
+            Text(label)
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+        }
+        .stageReveal(stage: stage, threshold: 3, reduced: reduceMotion)
+    }
+
+    private func recordRow(_ label: String, _ value: String, monospacedValue: Bool = false) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(label)
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 12)
+            Text(value)
+                .font(monospacedValue ? .system(size: 12, design: .monospaced) : .system(size: 12))
+                .multilineTextAlignment(.trailing)
+                .textSelection(.enabled)
+        }
+        .font(.system(size: 12))
+        .padding(.vertical, 15)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color.primary.opacity(0.1))
+                .frame(height: 1)
+        }
+    }
 }
 
 // MARK: - Source Link Button
@@ -918,7 +1000,6 @@ struct DetailMetadataSection: View {
 private struct SourceLinkButton: View {
     let url: URL
     @Environment(\.openURL) private var openURL
-    @State private var isHovered = false
 
     private var isXPost: Bool {
         guard let host = url.host?.lowercased() else { return false }
@@ -926,32 +1007,27 @@ private struct SourceLinkButton: View {
     }
 
     private var label: String { isXPost ? "View on X" : "View source" }
-    private var iconName: String { isXPost ? "arrow.up.right.square" : "link" }
 
     var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: iconName)
-                .font(.caption2)
-            Text(label)
-                .font(.caption)
+        Button {
+            openURL(url)
+        } label: {
+            Label(label, systemImage: "arrow.up.right")
         }
-        .foregroundStyle(.secondary.opacity(isHovered ? 0.8 : 0.5))
-        .onHover { isHovered = $0 }
-        .contentShape(Rectangle())
-        .onTapGesture { openURL(url) }
-        .accessibilityLabel("View original post on X")
-        .accessibilityHint("Opens the source URL in your browser")
+        .buttonStyle(.plain)
+        .foregroundStyle(.primary)
+        .accessibilityHint("Opens the original source in your browser")
     }
 }
 
 // MARK: - Stage Reveal Modifier
 
 private extension View {
-    func stageReveal(stage: Int, threshold: Int) -> some View {
+    func stageReveal(stage: Int, threshold: Int, reduced: Bool) -> some View {
         self
             .opacity(stage >= threshold ? 1 : 0)
-            .offset(y: stage >= threshold ? 0 : 4)
-            .animation(MetadataReveal.spring, value: stage)
+            .offset(y: reduced || stage >= threshold ? 0 : 4)
+            .animation(reduced ? .easeOut(duration: 0.15) : MetadataReveal.spring, value: stage)
     }
 }
 
