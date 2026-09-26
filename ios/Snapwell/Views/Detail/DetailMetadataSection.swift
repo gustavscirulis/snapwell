@@ -1,71 +1,171 @@
 import SwiftUI
-
-// MARK: - Detail Metadata Section
+import UIKit
 
 struct DetailMetadataSection: View {
     let item: MediaItem
+    let compact: Bool
     let stage: Int
     let onRetryAnalysis: () -> Void
     var onSearchPattern: ((String) -> Void)?
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
+        Group {
+            if !hasNarrative {
+                record
+            } else if compact {
+                VStack(alignment: .leading, spacing: 28) {
+                    narrative
+                    record
+                }
+            } else {
+                HStack(alignment: .top, spacing: 48) {
+                    narrative
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    record
+                        .frame(width: 250)
+                }
+            }
+        }
+    }
+
+    private var narrative: some View {
         VStack(alignment: .leading, spacing: 0) {
             if item.isAnalyzing {
                 HStack(spacing: 8) {
                     ProgressView()
-                        .tint(.white)
-                    Text("Analyzing...")
-                        .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.6))
+                        .controlSize(.small)
+                    Text("Analyzing…")
+                        .foregroundStyle(.secondary)
                 }
-                .stageReveal(stage: stage, threshold: 1)
+                .font(.subheadline)
+                .stageReveal(stage: stage, threshold: 1, reduceMotion: reduceMotion)
             } else if item.analysisError != nil {
                 AnalysisFailureView(onRetry: onRetryAnalysis)
-                    .stageReveal(stage: stage, threshold: 1)
-            } else if let result = item.analysisResult {
-                if !result.patterns.isEmpty {
-                    patternPillsGrid(result.patterns)
-                        .padding(.bottom, 16)
-                }
-
-                if hasDescription(result) {
-                    Text(result.imageContext)
-                        .font(.footnote)
-                        .foregroundStyle(.white.opacity(0.5))
-                        .lineSpacing(3)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .opacity(stage >= 3 ? 1 : 0)
-                        .animation(SnapSpring.resolvedMetadata, value: stage)
-                }
+                    .stageReveal(stage: stage, threshold: 1, reduceMotion: reduceMotion)
+            } else if let description {
+                Text(description)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineSpacing(4)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .stageReveal(stage: stage, threshold: 1, reduceMotion: reduceMotion)
             }
 
-            HStack(spacing: 0) {
-                Text("\(item.width) \u{00D7} \(item.height)")
-                Text("  \u{00B7}  ")
-                    .foregroundStyle(.white.opacity(0.15))
-                Text(item.createdAt, style: .date)
-                if let duration = item.duration {
-                    Text("  \u{00B7}  ")
-                        .foregroundStyle(.white.opacity(0.15))
-                    Text(formatDuration(duration))
+            if let patterns = item.analysisResult?.patterns, !patterns.isEmpty {
+                Group {
+                    if #available(iOS 26, *) {
+                        GlassEffectContainer(spacing: 8) {
+                            patternFlow(patterns)
+                        }
+                    } else {
+                        patternFlow(patterns)
+                    }
                 }
-            }
-            .font(.caption.monospaced())
-            .foregroundStyle(.white.opacity(0.25))
-            .stageReveal(stage: stage, threshold: 4)
-            .padding(.top, 16)
-
-            if let urlString = item.sourceURL, let url = URL(string: urlString) {
-                SourceLinkButton(url: url)
-                    .stageReveal(stage: stage, threshold: 4)
-                    .padding(.top, 8)
+                .padding(.top, hasNarrativeLead ? 24 : 0)
             }
         }
-        .padding(.horizontal, 24)
     }
 
-    private func hasDescription(_ result: AnalysisResult) -> Bool {
-        !result.imageContext.isEmpty && result.imageContext != result.imageSummary
+    private func patternFlow(_ patterns: [PatternTag]) -> some View {
+        FlowLayout(spacing: 8) {
+            ForEach(Array(patterns.enumerated()), id: \.element.name) { index, pattern in
+                patternButton(pattern)
+                    .opacity(stage >= 2 ? 1 : 0)
+                    .offset(y: reduceMotion || stage >= 2 ? 0 : MetadataReveal.slideDistance)
+                    .animation(
+                        reduceMotion
+                            ? .easeOut(duration: 0.15)
+                            : SnapSpring.resolvedMetadata.delay(Double(index) * MetadataReveal.tagStagger),
+                        value: stage
+                    )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func patternButton(_ pattern: PatternTag) -> some View {
+        let button = Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            onSearchPattern?(pattern.name)
+        } label: {
+            Text(pattern.name)
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 44)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Pattern: \(pattern.name)")
+        .accessibilityHint("Searches for items with this pattern")
+
+        if #available(iOS 26, *) {
+            button.glassEffect(.regular.interactive(), in: .capsule)
+        } else {
+            button.background(.ultraThinMaterial, in: Capsule())
+        }
+    }
+
+    private var record: some View {
+        VStack(spacing: 0) {
+            recordRow("Added", item.createdAt.formatted(date: .abbreviated, time: .omitted))
+            recordRow("Dimensions", "\(item.width) × \(item.height)", monospacedValue: true)
+
+            let fileExtension = URL(fileURLWithPath: item.filename).pathExtension
+            if !fileExtension.isEmpty {
+                recordRow("Format", fileExtension.uppercased(), monospacedValue: true)
+            }
+            if let duration = item.duration {
+                recordRow("Duration", formatDuration(duration))
+            }
+            if let urlString = item.sourceURL, let url = URL(string: urlString) {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Text("Original")
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 12)
+                    SourceLinkButton(url: url)
+                }
+                .font(.footnote)
+                .padding(.vertical, 13)
+            }
+        }
+        .stageReveal(stage: stage, threshold: 3, reduceMotion: reduceMotion)
+    }
+
+    private var description: String? {
+        guard let result = item.analysisResult else { return nil }
+        let context = result.imageContext.trimmingCharacters(in: .whitespacesAndNewlines)
+        return context.isEmpty || context == result.imageSummary ? nil : context
+    }
+
+    private var hasNarrativeLead: Bool {
+        item.isAnalyzing || item.analysisError != nil || description != nil
+    }
+
+    private var hasNarrative: Bool {
+        hasNarrativeLead || !(item.analysisResult?.patterns.isEmpty ?? true)
+    }
+
+    private func recordRow(_ label: String, _ value: String, monospacedValue: Bool = false) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(label)
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 12)
+            Text(value)
+                .font(monospacedValue ? .footnote.monospaced() : .footnote)
+                .multilineTextAlignment(.trailing)
+                .textSelection(.enabled)
+        }
+        .font(.footnote)
+        .accessibilityElement(children: .combine)
+        .padding(.vertical, 13)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color.primary.opacity(0.1))
+                .frame(height: 1)
+        }
     }
 
     private func formatDuration(_ seconds: Double) -> String {
@@ -73,71 +173,7 @@ struct DetailMetadataSection: View {
         let total = Int(seconds)
         return "\(total / 60):\(String(format: "%02d", total % 60))"
     }
-
-    // MARK: - Pattern pills (glass on iOS 26+, material fallback)
-
-    @ViewBuilder
-    private func patternPillsGrid(_ patterns: [PatternTag]) -> some View {
-        FlowLayout(spacing: 8) {
-            ForEach(Array(patterns.enumerated()), id: \.element.name) { index, pattern in
-                patternPill(pattern: pattern, index: index)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func patternPill(pattern: PatternTag, index: Int) -> some View {
-        let base = Text(pattern.name)
-            .font(.subheadline)
-            .foregroundStyle(.white.opacity(0.9))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-
-        if #available(iOS 26.0, *) {
-            base
-                .environment(\.colorScheme, .dark)
-                .glassEffect(.regular.interactive(), in: .capsule)
-                .contentShape(Rectangle())
-                .accessibilityLabel("Pattern: \(pattern.name)")
-                .accessibilityAddTraits(.isButton)
-                .accessibilityHint("Double tap to search for this pattern")
-                .onTapGesture {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    onSearchPattern?(pattern.name)
-                }
-                .opacity(stage >= 2 ? 1 : 0)
-                .offset(y: stage >= 2 ? 0 : MetadataReveal.slideDistance)
-                .animation(
-                    UIAccessibility.isReduceMotionEnabled
-                        ? SnapSpring.resolvedMetadata
-                        : SnapSpring.resolvedMetadata.delay(Double(index) * MetadataReveal.tagStagger),
-                    value: stage
-                )
-        } else {
-            base
-                .background(.ultraThinMaterial, in: Capsule())
-                .environment(\.colorScheme, .dark)
-                .contentShape(Rectangle())
-                .accessibilityLabel("Pattern: \(pattern.name)")
-                .accessibilityAddTraits(.isButton)
-                .accessibilityHint("Double tap to search for this pattern")
-                .onTapGesture {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    onSearchPattern?(pattern.name)
-                }
-                .opacity(stage >= 2 ? 1 : 0)
-                .offset(y: stage >= 2 ? 0 : MetadataReveal.slideDistance)
-                .animation(
-                    UIAccessibility.isReduceMotionEnabled
-                        ? SnapSpring.resolvedMetadata
-                        : SnapSpring.resolvedMetadata.delay(Double(index) * MetadataReveal.tagStagger),
-                    value: stage
-                )
-        }
-    }
 }
-
-// MARK: - Analysis Failure
 
 private struct AnalysisFailureView: View {
     let onRetry: () -> Void
@@ -155,28 +191,17 @@ private struct AnalysisFailureView: View {
                 retryButton
             }
         }
-        .padding(12)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
-        .environment(\.colorScheme, .dark)
         .accessibilityElement(children: .contain)
     }
 
     private var failureLabel: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.headline)
-                .foregroundStyle(.red)
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle")
+                .foregroundStyle(.orange)
                 .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Analysis failed")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-
-                Text("Analysis couldn’t be completed.")
-                    .font(.footnote)
-                    .foregroundStyle(.white.opacity(0.6))
-            }
+            Text("Analysis failed")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
         }
         .accessibilityElement(children: .combine)
     }
@@ -187,55 +212,41 @@ private struct AnalysisFailureView: View {
         } label: {
             Label("Try Again", systemImage: "arrow.clockwise")
                 .font(.footnote.weight(.semibold))
-                .foregroundStyle(.white)
         }
         .buttonStyle(.borderedProminent)
         .buttonBorderShape(.capsule)
         .controlSize(.small)
         .tint(.red)
         .frame(minWidth: 44, minHeight: 44, alignment: .leading)
-        .contentShape(Rectangle())
         .accessibilityLabel("Retry analysis")
         .accessibilityHint("Analyzes this item again")
     }
 }
-
-// MARK: - Source Link Button
 
 struct SourceLinkButton: View {
     let url: URL
     @Environment(\.openURL) private var openURL
 
     private var label: String {
-        if let host = url.host?.lowercased(),
-           host.contains("x.com") || host.contains("twitter.com") {
+        guard let host = url.host?.lowercased() else { return "View source" }
+        if host == "x.com" || host.hasSuffix(".x.com") ||
+            host == "twitter.com" || host.hasSuffix(".twitter.com") {
             return "View on X"
         }
         return "View source"
     }
 
-    private var iconName: String {
-        if let host = url.host?.lowercased(),
-           host.contains("x.com") || host.contains("twitter.com") {
-            return "arrow.up.right.square"
-        }
-        return "link"
-    }
-
     var body: some View {
-        HStack(spacing: 5) {
-            Image(systemName: iconName)
-                .font(.caption2)
-            Text(label)
-                .font(.footnote)
-        }
-        .foregroundStyle(.white.opacity(0.35))
-        .contentShape(Rectangle())
-        .onTapGesture {
+        Button {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
             openURL(url)
+        } label: {
+            Label(label, systemImage: "arrow.up.right")
+                .font(.footnote.weight(.medium))
         }
-        .accessibilityLabel("View original post on X")
+        .buttonStyle(.plain)
+        .foregroundStyle(.primary)
         .accessibilityAddTraits(.isLink)
+        .accessibilityHint("Opens the original source in your browser")
     }
 }

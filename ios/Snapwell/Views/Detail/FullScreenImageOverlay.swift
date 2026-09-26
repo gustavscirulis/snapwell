@@ -9,7 +9,7 @@ import AVKit
  *          hero image springs from sourceRect → finalFrame
  *
  * SETTLED (after hero completes)
- *          Image centered with faded inline metadata below
+ *          Image centered; details peek in when there is room
  *          Swipe horizontal to navigate, drag down to dismiss
  *          Pinch/double-tap to zoom
  *
@@ -23,17 +23,15 @@ import AVKit
  *  ~250ms  overlay removed
  *
  * METADATA REVEAL
- *    After hero animation completes, metadata section fades in
- *    with staggered timing: title → pills → description → file info.
- *    Metadata is always visible below the image at low opacity.
+ *    After hero animation completes, details appear in order:
+ *    narrative → patterns → file info.
  * ───────────────────────────────────────────────────────── */
 
 enum MetadataReveal {
-    static let titleDelay:       Duration = .milliseconds(100)
-    static let pillsDelay:       Duration = .milliseconds(300)
+    static let narrativeDelay:   Duration = .milliseconds(100)
+    static let patternsDelay:    Duration = .milliseconds(300)
     static let tagStagger:       Double   = 0.05
-    static let descriptionDelay: Duration = .milliseconds(450)
-    static let fileInfoDelay:    Duration = .milliseconds(600)
+    static let recordDelay:      Duration = .milliseconds(600)
     static let slideDistance:    CGFloat  = 8
 }
 
@@ -46,10 +44,10 @@ private enum DeleteAnimation {
 // MARK: - Stage Reveal Modifier
 
 extension View {
-    func stageReveal(stage: Int, threshold: Int) -> some View {
+    func stageReveal(stage: Int, threshold: Int, reduceMotion: Bool) -> some View {
         self
             .opacity(stage >= threshold ? 1 : 0)
-            .offset(y: stage >= threshold ? 0 : 4)
+            .offset(y: reduceMotion || stage >= threshold ? 0 : 4)
             .animation(SnapSpring.resolvedMetadata, value: stage)
     }
 
@@ -120,7 +118,6 @@ struct FullScreenImageOverlay: View {
     @State private var contentOffset: CGFloat = 0
     @State private var metadataStage: Int = 0
     @State private var revealTask: Task<Void, Never>?
-    @State private var metadataHeight: CGFloat = 0
 
     // Zoom state (owned here to avoid gesture conflicts with child views)
     @State private var isZoomed = false
@@ -483,6 +480,10 @@ struct FullScreenImageOverlay: View {
     @ViewBuilder
     private func settledContentView(finalFrame: CGRect, heroFrame: CGRect) -> some View {
         let screen = CGRect(origin: .zero, size: screenSize)
+        let imageBottom = heroFrame.minY + finalFrame.height
+        // Keep a gap after the media and show up to 96pt of details at rest.
+        // Tall media naturally push details below the first viewport.
+        let metadataGap = max(48, screen.height - imageBottom - 96)
         ScrollView(.vertical) {
             VStack(spacing: 0) {
                 Spacer()
@@ -520,20 +521,16 @@ struct FullScreenImageOverlay: View {
 
                 DetailMetadataSection(
                     item: item,
+                    compact: screen.width < 900,
                     stage: metadataStage,
                     onRetryAnalysis: { onRetryAnalysis?(item) },
                     onSearchPattern: { pattern in searchAndClose(pattern: pattern) }
                 )
                 .id(item.id)
-                .frame(width: screen.width)
-                .background(
-                    GeometryReader { proxy in
-                        Color.clear.preference(key: MetadataHeightKey.self, value: proxy.size.height)
-                    }
-                )
-                .padding(.top, item.isAnalyzing || item.analysisError != nil ? 16 : 32)
-                .padding(.bottom, 50)
-                .opacity(isDeleting ? 0 : (isZoomed ? 0 : metadataOpacity * metadataDismissOpacity))
+                .frame(width: min(max(screen.width - 48, 0), 980))
+                .padding(.top, metadataGap)
+                .padding(.bottom, 64)
+                .opacity(isDeleting || isZoomed ? 0 : metadataDismissOpacity)
                 .offset(y: dismissVisualProgress * 24)
             }
             .frame(maxWidth: .infinity)
@@ -552,11 +549,6 @@ struct FullScreenImageOverlay: View {
                     handleDoubleTap(at: value.location)
                 }
         )
-        .onPreferenceChange(MetadataHeightKey.self) { newHeight in
-            // Skip preference updates during dismiss to avoid extra layout passes
-            guard !(gestureDrag.active && gestureMode == .dismiss) else { return }
-            metadataHeight = newHeight
-        }
         .sheet(isPresented: Binding(
             get: { shareItem != nil },
             set: { if !$0 { shareItem = nil } }
@@ -609,14 +601,6 @@ struct FullScreenImageOverlay: View {
         }
     }
 
-    /// Metadata starts very faded, becomes readable as user scrolls up
-    private var metadataOpacity: Double {
-        if item.isAnalyzing || item.analysisError != nil { return 1.0 }
-        let base = 0.15
-        let progress = min(contentOffset / 80, 1.0)
-        return base + (1.0 - base) * progress
-    }
-
     private var metadataDismissOpacity: Double {
         1.0 - min(dismissVisualProgress * 1.35, 1.0)
     }
@@ -625,22 +609,22 @@ struct FullScreenImageOverlay: View {
 
     private func startMetadataReveal() {
         revealTask?.cancel()
+        if UIAccessibility.isReduceMotionEnabled {
+            withAnimation(.easeOut(duration: 0.15)) { metadataStage = 3 }
+            return
+        }
         revealTask = Task { @MainActor in
-            try? await Task.sleep(for: MetadataReveal.titleDelay)
+            try? await Task.sleep(for: MetadataReveal.narrativeDelay)
             guard !Task.isCancelled, heroComplete else { return }
             withAnimation(SnapSpring.resolvedMetadata) { metadataStage = 1 }
 
-            try? await Task.sleep(for: MetadataReveal.pillsDelay - MetadataReveal.titleDelay)
+            try? await Task.sleep(for: MetadataReveal.patternsDelay - MetadataReveal.narrativeDelay)
             guard !Task.isCancelled, heroComplete else { return }
             withAnimation(SnapSpring.resolvedMetadata) { metadataStage = 2 }
 
-            try? await Task.sleep(for: MetadataReveal.descriptionDelay - MetadataReveal.pillsDelay)
+            try? await Task.sleep(for: MetadataReveal.recordDelay - MetadataReveal.patternsDelay)
             guard !Task.isCancelled, heroComplete else { return }
             withAnimation(SnapSpring.resolvedMetadata) { metadataStage = 3 }
-
-            try? await Task.sleep(for: MetadataReveal.fileInfoDelay - MetadataReveal.descriptionDelay)
-            guard !Task.isCancelled, heroComplete else { return }
-            withAnimation(SnapSpring.resolvedMetadata) { metadataStage = 4 }
         }
     }
 
@@ -879,7 +863,7 @@ struct FullScreenImageOverlay: View {
                 currentIndex = newIndex
                 hasNavigated = true
                 swipeOffset = 0
-                metadataStage = 4
+                metadataStage = 3
                 contentOffset = 0
                 isZoomed = false
                 zoomScale = minZoomScale
@@ -1195,14 +1179,5 @@ struct FullScreenImageOverlay: View {
                 adjacentImages[expectedID] = preview
             }
         }
-    }
-}
-
-// MARK: - Metadata Height Preference Key
-
-private struct MetadataHeightKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
     }
 }
