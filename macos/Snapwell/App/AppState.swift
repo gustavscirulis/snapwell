@@ -54,11 +54,11 @@ final class AppState {
         didSet { UserDefaults.standard.set(thumbnailSize.rawValue, forKey: "thumbnailSize") }
     }
     var detailItem: String? = nil  // MediaItem id
-    /// Frozen when detail opens. Grid measurements must never move the opening endpoint.
+    /// Frozen when detail opens, in DetailSplitViewRoot coordinates.
     var detailSourceFrame: CGRect? = nil
     var detailOpeningImage: NSImage? = nil
     var detailHidesSource = false
-    /// Only the current, visible grid cell may become a close destination.
+    /// Only the current, visible grid cell may become a close destination, in DetailSplitViewRoot coordinates.
     var detailGridTarget: DetailGridTarget? = nil
     var detailGridViewport: CGRect = .zero
     var isSettingsOpen: Bool = false

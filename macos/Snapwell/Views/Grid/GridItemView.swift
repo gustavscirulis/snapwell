@@ -32,6 +32,8 @@ struct GridItemView: View, Equatable {
     @State private var loadFailed = false
     @State private var isDownloading = false
     @State private var globalFrame: CGRect = .zero
+    @State private var detailFrame: CGRect = .zero
+    @State private var isOpeningDetailSource = false
     @State private var hoverTask: Task<Void, Never>?
     /// Suppresses the first `.onHover(false)` after a video preview starts.
     /// The floating NSView (AVPlayerLayer) causes a spurious exit event
@@ -157,57 +159,63 @@ struct GridItemView: View, Equatable {
     var body: some View {
         ZStack(alignment: .topTrailing) {
             // LAYER 1: Background selection button
-            Button {
-                let flags = NSEvent.modifierFlags
-                if flags.contains(.command) {
-                    onToggleSelect()
-                } else if flags.contains(.shift) {
-                    onShiftSelect()
-                } else if loadFailed {
-                    // Retry through the button rather than a tap gesture on the placeholder —
-                    // a gesture inside a Button label competes with the button itself.
-                    loadFailed = false
-                    Task { await loadThumbnail() }
-                } else {
-                    onSelect(globalFrame, thumbnail)
-                }
-            } label: {
-                Group {
-                    if let thumbnail {
-                        TopCroppedImage(
-                            image: thumbnail,
-                            size: CGSize(width: width, height: height)
-                        )
-                    } else if isDownloading {
-                        Rectangle()
-                            .fill(Color.snapMuted)
-                            .frame(width: width, height: height)
-                            .overlay {
-                                ProgressView()
-                                    .controlSize(.small)
-                                    .foregroundStyle(Color.snapMutedForeground)
-                            }
+            GeometryReader { geometry in
+                Button {
+                    let flags = NSEvent.modifierFlags
+                    if flags.contains(.command) {
+                        onToggleSelect()
+                    } else if flags.contains(.shift) {
+                        onShiftSelect()
                     } else if loadFailed {
-                        Rectangle()
-                            .fill(Color.snapMuted)
-                            .frame(width: width, height: height)
-                            .overlay {
-                                VStack(spacing: 8) {
-                                    Image(systemName: "icloud.and.arrow.down")
-                                        .font(.body)
-                                    Text("Click to retry")
-                                        .font(.caption2)
-                                }
-                                .foregroundStyle(Color.snapMutedForeground)
-                            }
+                        // Retry through the button rather than a tap gesture on the placeholder —
+                        // a gesture inside a Button label competes with the button itself.
+                        loadFailed = false
+                        Task { await loadThumbnail() }
                     } else {
-                        Rectangle()
-                            .fill(Color.snapMuted)
-                            .frame(width: width, height: height)
+                        // Read the laid-out cell now. A new cell can be clicked before
+                        // onGeometryChange has delivered its first cached frame.
+                        isOpeningDetailSource = true
+                        onSelect(geometry.frame(in: .named(DetailCoordinateSpace.splitViewRoot)), thumbnail)
+                    }
+                } label: {
+                    Group {
+                        if let thumbnail {
+                            TopCroppedImage(
+                                image: thumbnail,
+                                size: CGSize(width: width, height: height)
+                            )
+                        } else if isDownloading {
+                            Rectangle()
+                                .fill(Color.snapMuted)
+                                .frame(width: width, height: height)
+                                .overlay {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                        .foregroundStyle(Color.snapMutedForeground)
+                                }
+                        } else if loadFailed {
+                            Rectangle()
+                                .fill(Color.snapMuted)
+                                .frame(width: width, height: height)
+                                .overlay {
+                                    VStack(spacing: 8) {
+                                        Image(systemName: "icloud.and.arrow.down")
+                                            .font(.body)
+                                        Text("Click to retry")
+                                            .font(.caption2)
+                                    }
+                                    .foregroundStyle(Color.snapMutedForeground)
+                                }
+                        } else {
+                            Rectangle()
+                                .fill(Color.snapMuted)
+                                .frame(width: width, height: height)
+                        }
                     }
                 }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
+            .frame(width: width, height: height)
 
             // LAYER 2: Non-interactive visual overlays
             Group {
@@ -415,9 +423,20 @@ struct GridItemView: View, Equatable {
         }
         // Match iOS's shared-element handoff: there must only ever be one visible copy of the
         // selected image. The hero occupies this exact hole until it returns on close.
-        .opacity(isDeleting || isDetailSource ? 0 : 1)
-        .modifier(GridCellFrameTracker(itemID: item.id, isVideo: itemIsVideo, globalFrame: $globalFrame))
+        .opacity(
+            isDeleting || isDetailSource || isOpeningDetailSource ||
+            (appState.detailHidesSource && appState.detailItem == item.id) ? 0 : 1
+        )
+        .modifier(GridCellFrameTracker(
+            itemID: item.id,
+            isVideo: itemIsVideo,
+            globalFrame: $globalFrame,
+            detailFrame: $detailFrame
+        ))
         .onChange(of: appState.detailItem) { oldId, newId in
+            if newId != item.id {
+                isOpeningDetailSource = false
+            }
             if oldId == item.id && newId != item.id {
                 // Detail dismissed — mouse may have moved, so clear stale hover state.
                 isHovered = false
@@ -587,29 +606,48 @@ struct GridItemView: View, Equatable {
     }
 }
 
+private struct GridCellFrames: Equatable {
+    let global: CGRect
+    let detail: CGRect
+}
+
 private struct GridCellFrameTracker: ViewModifier {
     let itemID: String
     let isVideo: Bool
     @Binding var globalFrame: CGRect
+    @Binding var detailFrame: CGRect
 
     @Environment(AppState.self) private var appState
     @Environment(VideoPreviewManager.self) private var videoPreview
 
     func body(content: Content) -> some View {
         content
-            .onGeometryChange(for: CGRect.self) { proxy in
-                proxy.frame(in: .global)
-            } action: { frame in
+            .onGeometryChange(for: GridCellFrames.self) { proxy in
+                GridCellFrames(
+                    global: proxy.frame(in: .global),
+                    detail: proxy.frame(in: .named(DetailCoordinateSpace.splitViewRoot))
+                )
+            } action: { frames in
                 // Skip subpoint updates while the grid scrolls or resizes.
-                guard abs(frame.minX - globalFrame.minX) > 1 ||
-                      abs(frame.minY - globalFrame.minY) > 1 ||
-                      abs(frame.width - globalFrame.width) > 1 ||
-                      abs(frame.height - globalFrame.height) > 1 else { return }
-                globalFrame = frame
-                if isVideo && videoPreview.activeItemId == itemID {
-                    videoPreview.updateGridFrame(frame)
+                let globalChanged = abs(frames.global.minX - globalFrame.minX) > 1 ||
+                    abs(frames.global.minY - globalFrame.minY) > 1 ||
+                    abs(frames.global.width - globalFrame.width) > 1 ||
+                    abs(frames.global.height - globalFrame.height) > 1
+                let detailChanged = abs(frames.detail.minX - detailFrame.minX) > 1 ||
+                    abs(frames.detail.minY - detailFrame.minY) > 1 ||
+                    abs(frames.detail.width - detailFrame.width) > 1 ||
+                    abs(frames.detail.height - detailFrame.height) > 1
+                guard globalChanged || detailChanged else { return }
+                if globalChanged {
+                    globalFrame = frames.global
+                    if isVideo && videoPreview.activeItemId == itemID {
+                        videoPreview.updateGridFrame(frames.global)
+                    }
                 }
-                updateDetailTarget()
+                if detailChanged {
+                    detailFrame = frames.detail
+                    updateDetailTarget()
+                }
             }
             .onChange(of: appState.detailItem) { _, _ in updateDetailTarget() }
             .onChange(of: appState.detailGridViewport) { _, _ in
@@ -624,11 +662,13 @@ private struct GridCellFrameTracker: ViewModifier {
 
     private func updateDetailTarget() {
         guard appState.detailItem == itemID else { return }
-        let visible = globalFrame.intersection(appState.detailGridViewport)
-        let target: DetailGridTarget? = if globalFrame.width > 0, globalFrame.height > 0,
-                                           !visible.isNull,
-                                           visible.width * visible.height >= globalFrame.width * globalFrame.height * 0.5 {
-            DetailGridTarget(itemID: itemID, frame: globalFrame)
+        // Keep the click-time target until the first geometry deliveries arrive.
+        guard detailFrame.width > 0, detailFrame.height > 0,
+              appState.detailGridViewport.width > 0, appState.detailGridViewport.height > 0 else { return }
+        let visible = detailFrame.intersection(appState.detailGridViewport)
+        let target: DetailGridTarget? = if !visible.isNull,
+                                           visible.width * visible.height >= detailFrame.width * detailFrame.height * 0.5 {
+            DetailGridTarget(itemID: itemID, frame: detailFrame)
         } else {
             nil
         }

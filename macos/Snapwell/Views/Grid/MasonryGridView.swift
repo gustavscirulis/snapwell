@@ -145,7 +145,7 @@ struct MasonryGridView: View {
             }
             .scrollPosition($scrollPosition)
             .onGeometryChange(for: CGRect.self) { proxy in
-                proxy.frame(in: .global)
+                proxy.frame(in: .named(DetailCoordinateSpace.splitViewRoot))
             } action: { viewport in
                 appState.detailGridViewport = viewport
             }
