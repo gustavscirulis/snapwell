@@ -2,82 +2,68 @@ import Testing
 import SwiftUI
 @testable import Snapwell
 
-@Suite("GridItemRectsPreferenceKey", .tags(.layout))
+@Suite("Detail transition geometry", .tags(.layout))
 @MainActor
-struct GridPreferenceKeyTests {
+struct DetailTransitionGeometryTests {
+    @Test("Opening and closing frames use the measured overlay viewport")
+    func overlayCoordinates() {
+        let viewport = CGRect(x: 12, y: 59, width: 393, height: 759)
+        let source = CGRect(x: 32, y: 180, width: 170, height: 220)
+        let destination = CGRect(x: 215, y: 510, width: 170, height: 180)
 
-    // MARK: - Reduce logic
-
-    @Test("Reduce merges frames from multiple sources")
-    func reduceMerges() {
-        var value: [String: CGRect] = ["a": CGRect(x: 0, y: 0, width: 100, height: 100)]
-        GridItemRectsPreferenceKey.reduce(value: &value) {
-            ["b": CGRect(x: 100, y: 0, width: 100, height: 100)]
-        }
-        #expect(value.count == 2)
-        #expect(value["a"] != nil)
-        #expect(value["b"] != nil)
+        #expect(DetailOverlayGeometry.localFrame(source, in: viewport) == CGRect(x: 20, y: 121, width: 170, height: 220))
+        #expect(DetailOverlayGeometry.localFrame(destination, in: viewport) == CGRect(x: 203, y: 451, width: 170, height: 180))
+        #expect(DetailOverlayGeometry.localFrame(destination, in: viewport.offsetBy(dx: 0, dy: 11)) == CGRect(x: 203, y: 440, width: 170, height: 180))
+        #expect(DetailOverlayGeometry.localTopInset(115, in: viewport) == 56)
     }
 
-    @Test("Reduce does not clear existing frames when next value is empty")
-    func reduceEmptyDoesNotClear() {
-        // This is the exact regression guard: if a child view emits an empty
-        // dictionary (e.g. because frame tracking was gated off), existing
-        // entries must survive. The hero dismiss animation depends on this.
-        var value: [String: CGRect] = [
-            "item1": CGRect(x: 10, y: 20, width: 180, height: 240),
-            "item2": CGRect(x: 200, y: 20, width: 180, height: 300)
-        ]
-        GridItemRectsPreferenceKey.reduce(value: &value) { [:] }
-        #expect(value.count == 2, "Empty child emission must not erase existing item frames")
-        #expect(value["item1"] != nil)
-        #expect(value["item2"] != nil)
+    @Test("Closing hero starts at the dragged and scaled media frame")
+    func displayedMediaFrame() {
+        let media = CGRect(x: 20, y: 100, width: 360, height: 500)
+        let viewport = CGSize(width: 400, height: 800)
+
+        #expect(DetailOverlayGeometry.displayedMediaFrame(
+            media, in: viewport, scrollOffset: 0, dragOffset: 120,
+            scale: 0.9, swipeOffset: 0
+        ) == CGRect(x: 38, y: 250, width: 324, height: 450))
+
+        #expect(DetailOverlayGeometry.displayedMediaFrame(
+            media, in: viewport, scrollOffset: 80, dragOffset: 0,
+            scale: 1, swipeOffset: 12
+        ) == CGRect(x: 32, y: 20, width: 360, height: 500))
+
+        #expect(DetailOverlayGeometry.displayedMediaFrame(
+            media, in: viewport, scrollOffset: -20, dragOffset: 120,
+            scale: 0.9, swipeOffset: 0
+        ) == CGRect(x: 38, y: 268, width: 324, height: 450))
     }
 
-    @Test("Reduce prefers on-screen frames over off-screen when same key exists")
-    func reduceOnScreenPreferred() {
-        let screen = CGRect(x: 0, y: 0, width: 393, height: 852)
-        GridItemRectsPreferenceKey.screenBounds = screen
-        defer { GridItemRectsPreferenceKey.screenBounds = .zero }
+    @Test("Close target needs at least half the cell visible")
+    func targetVisibility() {
+        let viewport = CGRect(x: 0, y: 0, width: 300, height: 400)
+        let mostlyVisible = CGRect(x: 20, y: 350, width: 100, height: 100)
+        let mostlyHidden = CGRect(x: 20, y: 351, width: 100, height: 100)
+        #expect(DetailGridTarget.visible(itemID: "a", host: .all, frame: mostlyVisible, viewport: viewport) != nil)
+        #expect(DetailGridTarget.visible(itemID: "a", host: .all, frame: mostlyHidden, viewport: viewport) == nil)
+        #expect(DetailGridTarget.visible(itemID: "a", host: .all, frame: .zero, viewport: viewport) == nil)
+    }
 
-        let onScreen = CGRect(
-            x: screen.midX - 50, y: screen.midY - 50,
-            width: 100, height: 100
+    @Test("Close target records its grid host")
+    func targetHost() {
+        let frame = CGRect(x: 10, y: 10, width: 100, height: 100)
+        let target = DetailGridTarget.visible(itemID: "a", host: .space("one"), frame: frame, viewport: frame)
+        #expect(target?.host == .space("one"))
+        #expect(target?.itemID == "a")
+    }
+
+    @Test("Hero crop covers the taller endpoint with one top slice")
+    func heroCrop() {
+        let basis = DetailHeroCrop.tallestBox(
+            CGSize(width: 100, height: 200), CGSize(width: 300, height: 300)
         )
-        let offScreen = CGRect(x: -500, y: -500, width: 100, height: 100)
-
-        // Existing has off-screen frame, next provides on-screen for same key
-        var value: [String: CGRect] = ["item": offScreen]
-        GridItemRectsPreferenceKey.reduce(value: &value) { ["item": onScreen] }
-        #expect(value["item"] == onScreen, "On-screen frame should replace off-screen one")
-    }
-
-    @Test("Reduce keeps existing on-screen frame when next value is off-screen")
-    func reduceKeepsExistingOnScreen() {
-        let screen = CGRect(x: 0, y: 0, width: 393, height: 852)
-        GridItemRectsPreferenceKey.screenBounds = screen
-        defer { GridItemRectsPreferenceKey.screenBounds = .zero }
-
-        let onScreen = CGRect(
-            x: screen.midX - 50, y: screen.midY - 50,
-            width: 100, height: 100
-        )
-        let offScreen = CGRect(x: -500, y: -500, width: 100, height: 100)
-
-        var value: [String: CGRect] = ["item": onScreen]
-        GridItemRectsPreferenceKey.reduce(value: &value) { ["item": offScreen] }
-        #expect(value["item"] == onScreen, "Existing on-screen frame should be kept")
-    }
-
-    @Test("Reduce takes the newest frame before screen bounds are known")
-    func reduceWithoutScreenBoundsPrefersNewest() {
-        GridItemRectsPreferenceKey.screenBounds = .zero
-        let old = CGRect(x: 0, y: 0, width: 100, height: 100)
-        let new = CGRect(x: 50, y: 50, width: 100, height: 100)
-
-        var value: [String: CGRect] = ["item": old]
-        GridItemRectsPreferenceKey.reduce(value: &value) { ["item": new] }
-        #expect(value["item"] == new)
+        #expect(basis == CGSize(width: 100, height: 200))
+        #expect(DetailHeroCrop.sliceHeight(pixelWidth: 800, pixelHeight: 4000, covering: basis) == 1600)
+        #expect(DetailHeroCrop.sliceHeight(pixelWidth: 800, pixelHeight: 1000, covering: basis) == nil)
     }
 }
 

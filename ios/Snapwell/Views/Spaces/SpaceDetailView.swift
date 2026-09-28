@@ -38,6 +38,7 @@ struct SpaceDetailView<AddMenu: View>: View {
                             items: spaceItems,
                             spaces: spaces,
                             availableWidth: gridWidth,
+                            detailHost: .space(spaceId),
                             selectedItemId: showOverlay ? selectedItemId : nil,
                             onItemSelected: onItemSelected,
                             onRetryAnalysis: onRetryAnalysis,
@@ -48,6 +49,7 @@ struct SpaceDetailView<AddMenu: View>: View {
                         .padding(.horizontal, 12)
                         .padding(.bottom, 70)
                     }
+                    .modifier(DetailGridViewportReporter(host: .space(spaceId)))
                 }
             }
         }

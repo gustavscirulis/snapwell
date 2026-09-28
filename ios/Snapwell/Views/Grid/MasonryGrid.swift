@@ -4,6 +4,7 @@ struct MasonryGrid: View {
     let items: [MediaItem]
     var spaces: [Space] = []
     let availableWidth: CGFloat
+    let detailHost: DetailHost
     var selectedItemId: String?
     var onItemSelected: ((MediaItem, CGRect, UIImage?) -> Void)?
     var onRetryAnalysis: ((MediaItem) -> Void)?
@@ -33,6 +34,7 @@ struct MasonryGrid: View {
                             GridItemView(
                                 item: item,
                                 width: columnWidth,
+                                detailHost: detailHost,
                                 isSelected: selectedItemId == item.id,
                                 onSelect: onItemSelected,
                                 onRetryAnalysis: onRetryAnalysis.map { callback in

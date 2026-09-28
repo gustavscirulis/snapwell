@@ -1,40 +1,10 @@
 import SwiftUI
 
-struct GridItemRectsPreferenceKey: PreferenceKey {
-    nonisolated static let defaultValue: [String: CGRect] = [:]
-
-    /// Snapshot of the screen bounds. `reduce` is nonisolated and runs on every preference merge,
-    /// so it must not read main-actor UIKit state; `MainView` refreshes this on appear.
-    nonisolated(unsafe) static var screenBounds: CGRect = .zero
-
-    static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) {
-        // When multiple grids exist (space pages in a horizontal pager),
-        // prefer rects that are on the visible screen over off-screen ones.
-        let screen = screenBounds
-        value.merge(nextValue()) { existing, new in
-            if screen.isEmpty || screen.intersects(new) { return new }
-            return existing
-        }
-    }
-}
-
-private struct GridPublishesFramesKey: EnvironmentKey {
-    static let defaultValue = false
-}
-
 private struct GridSpacesKey: EnvironmentKey {
     static let defaultValue: [Space] = []
 }
 
 extension EnvironmentValues {
-    /// Gates per-cell frame reporting. The rects are only read by the detail overlay's hero-close
-    /// animation, so publishing them while merely scrolling invalidates the whole view tree on
-    /// every frame.
-    var gridPublishesFrames: Bool {
-        get { self[GridPublishesFramesKey.self] }
-        set { self[GridPublishesFramesKey.self] = newValue }
-    }
-
     /// Passed through the environment rather than as a stored property on `GridItemView`, so the
     /// array is not compared element-by-element for every cell on every update pass.
     var gridSpaces: [Space] {
@@ -43,19 +13,44 @@ extension EnvironmentValues {
     }
 }
 
+struct DetailGridViewportReporter: ViewModifier {
+    let host: DetailHost
+    @Environment(AppState.self) private var appState
+    @State private var frame: CGRect = .zero
+
+    func body(content: Content) -> some View {
+        content
+            .onGeometryChange(for: CGRect.self) { geo in geo.frame(in: .global) } action: { newFrame in
+                frame = newFrame
+                publish()
+            }
+            .onChange(of: appState.showOverlay) { _, _ in publish() }
+            .onChange(of: appState.detailHost) { _, _ in publish() }
+    }
+
+    private func publish() {
+        guard appState.showOverlay, appState.detailHost == host else { return }
+        if appState.detailGridViewport != frame {
+            appState.detailGridViewport = frame
+        }
+    }
+}
+
 struct GridItemView: View {
     let item: MediaItem
     let width: CGFloat
+    let detailHost: DetailHost
     var isSelected: Bool = false
     var onSelect: ((MediaItem, CGRect, UIImage?) -> Void)?
     var onRetryAnalysis: (() -> Void)?
     var onShare: (() -> Void)?
     var onDelete: (() -> Void)?
     var onAssignToSpace: ((String, String?) -> Void)?
-    @Environment(\.gridPublishesFrames) private var publishesFrames
+    @Environment(AppState.self) private var appState
     @Environment(\.gridSpaces) private var spaces
     @State private var thumbnail: UIImage?
     @State private var loadFailed = false
+    @State private var globalFrame: CGRect = .zero
 
     private var height: CGFloat {
         width / item.gridAspectRatio
@@ -156,12 +151,23 @@ struct GridItemView: View {
                         let frame = geo.frame(in: .global)
                         onSelect?(item, frame, thumbnail)
                     }
-                    .preference(
-                        key: GridItemRectsPreferenceKey.self,
-                        value: publishesFrames ? [item.id: geo.frame(in: .global)] : [:]
-                    )
             }
         )
+        .onGeometryChange(for: CGRect.self) { geo in
+            geo.frame(in: .global)
+        } action: { frame in
+            globalFrame = frame
+            updateDetailTarget()
+        }
+        .onChange(of: appState.selectedItemId) { _, _ in updateDetailTarget() }
+        .onChange(of: appState.detailGridViewport) { _, _ in updateDetailTarget() }
+        .onChange(of: appState.showOverlay) { _, _ in updateDetailTarget() }
+        .onDisappear {
+            if appState.detailGridTarget?.itemID == item.id,
+               appState.detailGridTarget?.host == detailHost {
+                appState.detailGridTarget = nil
+            }
+        }
         .overlay(alignment: .bottomLeading) {
             if !item.isAnalyzing && item.analysisError != nil {
                 Button {
@@ -238,6 +244,21 @@ struct GridItemView: View {
     }
 
     // MARK: - Thumbnail Loading
+
+    private func updateDetailTarget() {
+        guard appState.showOverlay,
+              appState.detailHost == detailHost,
+              appState.selectedItemId == item.id else { return }
+        let target = DetailGridTarget.visible(
+            itemID: item.id,
+            host: detailHost,
+            frame: globalFrame,
+            viewport: appState.detailGridViewport
+        )
+        if appState.detailGridTarget != target {
+            appState.detailGridTarget = target
+        }
+    }
 
     @ViewBuilder
     private var shimmerBadge: some View {
