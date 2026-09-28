@@ -602,9 +602,11 @@ struct FullScreenImageOverlay: View {
     private func settledContentView(finalFrame: CGRect, heroFrame: CGRect) -> some View {
         let screen = CGRect(origin: .zero, size: screenSize)
         let imageBottom = heroFrame.minY + finalFrame.height
-        // Keep a gap after the media and show up to 96pt of details at rest.
-        // Tall media naturally push details below the first viewport.
-        let metadataGap = max(48, screen.height - imageBottom - 96)
+        let compactMetadata = screen.width < 900
+        let metadataMaxWidth: CGFloat = compactMetadata ? 640 : 800
+        // The first viewport belongs to the media, even for small images.
+        // Metadata begins just below it and is reached by scrolling.
+        let metadataGap = max(56, screen.height - imageBottom + 24)
         ScrollView(.vertical) {
             VStack(spacing: 0) {
                 Spacer()
@@ -642,13 +644,13 @@ struct FullScreenImageOverlay: View {
 
                 DetailMetadataSection(
                     item: item,
-                    compact: screen.width < 900,
+                    compact: compactMetadata,
                     stage: metadataStage,
                     onRetryAnalysis: { onRetryAnalysis?(item) },
                     onSearchPattern: { pattern in searchAndClose(pattern: pattern) }
                 )
                 .id(item.id)
-                .frame(width: min(max(screen.width - 48, 0), 980))
+                .frame(width: min(max(screen.width - 48, 0), metadataMaxWidth))
                 .padding(.top, metadataGap)
                 .padding(.bottom, 64)
                 .opacity(isDeleting || isZoomed ? 0 : metadataDismissOpacity)
@@ -668,6 +670,7 @@ struct FullScreenImageOverlay: View {
         .scrollDisabled(isZoomed)
         .scrollIndicators(.hidden)
         .defaultScrollAnchor(.top)
+        .id(item.id)
         .coordinateSpace(name: "detailScroll")
         .detailScrollTracking(contentOffset: $contentOffset)
         .contentShape(Rectangle())
