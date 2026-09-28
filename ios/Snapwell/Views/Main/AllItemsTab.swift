@@ -49,6 +49,7 @@ struct AllItemsTab<AddMenu: View>: View {
                             items: items,
                             spaces: spaces,
                             availableWidth: gridWidth,
+                            detailHost: .all,
                             selectedItemId: showOverlay ? selectedItemId : nil,
                             onItemSelected: onItemSelected,
                             onRetryAnalysis: onRetryAnalysis,
@@ -59,6 +60,7 @@ struct AllItemsTab<AddMenu: View>: View {
                         .padding(.horizontal, 12)
                         .padding(.bottom, 70)
                     }
+                    .modifier(DetailGridViewportReporter(host: .all))
                     .scrollDismissesKeyboard(.interactively)
                     .refreshable {
                         await onLoadContent()

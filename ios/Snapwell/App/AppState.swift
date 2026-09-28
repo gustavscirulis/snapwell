@@ -12,6 +12,22 @@ enum DetailHost: Equatable {
     case space(String)
 }
 
+struct DetailGridTarget: Equatable {
+    let itemID: String
+    let host: DetailHost
+    let frame: CGRect
+
+    static func visible(itemID: String, host: DetailHost, frame: CGRect, viewport: CGRect) -> Self? {
+        guard frame.width > 0, frame.height > 0, !viewport.isEmpty else { return nil }
+        let intersection = frame.intersection(viewport)
+        guard !intersection.isNull,
+              intersection.width * intersection.height >= frame.width * frame.height * 0.5 else {
+            return nil
+        }
+        return Self(itemID: itemID, host: host, frame: frame)
+    }
+}
+
 @Observable
 @MainActor
 final class AppState {
@@ -21,6 +37,8 @@ final class AppState {
     var selectedItemId: String?
     var sourceRect: CGRect = .zero
     var thumbnailImage: UIImage?
+    var detailGridTarget: DetailGridTarget?
+    var detailGridViewport: CGRect = .zero
     var showOverlay = false
     var pendingSearchActivation = false
     var pendingSearchPattern: String?

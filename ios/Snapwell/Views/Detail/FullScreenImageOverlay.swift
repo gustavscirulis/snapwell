@@ -15,12 +15,12 @@ import AVKit
  *
  * CLOSE (hero back to grid)
  *    0ms   switch to hero image, backdrop 1.0 → 0
- *          hero springs back to closeTargetFrame
+ *          hero springs back to a frozen visible grid target
  *  ~360ms  overlay removed
  *
- * CLOSE (slide down, when grid cell not visible)
- *    0ms   slide down + fade
- *  ~250ms  overlay removed
+ * CLOSE (when grid cell not visible)
+ *    0ms   media shrinks in place and fades
+ *  ~200ms  overlay removed
  *
  * METADATA REVEAL
  *    After hero animation completes, details appear in order:
@@ -33,6 +33,68 @@ enum MetadataReveal {
     static let tagStagger:       Double   = 0.05
     static let recordDelay:      Duration = .milliseconds(600)
     static let slideDistance:    CGFloat  = 8
+}
+
+private enum DetailTransitionPhase {
+    case opening, settled, closingToGrid, closingCentered
+
+    var isClosing: Bool { self == .closingToGrid || self == .closingCentered }
+}
+
+enum DetailHeroCrop {
+    static func tallestBox(_ boxes: CGSize...) -> CGSize {
+        boxes.filter { $0.width > 0 && $0.height > 0 }
+            .max { $0.height / $0.width < $1.height / $1.width } ?? .zero
+    }
+
+    static func sliceHeight(pixelWidth: CGFloat, pixelHeight: CGFloat, covering box: CGSize) -> Int? {
+        guard pixelWidth > 0, pixelHeight > 0, box.width > 0, box.height > 0 else { return nil }
+        let needed = Int((pixelWidth * box.height / box.width).rounded(.up))
+        return needed < Int(pixelHeight) ? needed : nil
+    }
+
+    static func topSlice(_ image: UIImage, covering box: CGSize) -> UIImage {
+        guard let cgImage = image.cgImage,
+              let height = sliceHeight(
+                pixelWidth: CGFloat(cgImage.width), pixelHeight: CGFloat(cgImage.height), covering: box
+              ),
+              let sliced = cgImage.cropping(to: CGRect(x: 0, y: 0, width: cgImage.width, height: height))
+        else { return image }
+        return UIImage(cgImage: sliced, scale: image.scale, orientation: image.imageOrientation)
+    }
+}
+
+enum DetailOverlayGeometry {
+    static func localFrame(_ globalFrame: CGRect, in viewport: CGRect) -> CGRect {
+        globalFrame.offsetBy(dx: -viewport.minX, dy: -viewport.minY)
+    }
+
+    static func localTopInset(_ globalTopY: CGFloat, in viewport: CGRect) -> CGFloat {
+        max(0, globalTopY - viewport.minY)
+    }
+
+    static func displayedMediaFrame(
+        _ mediaFrame: CGRect,
+        in viewport: CGSize,
+        scrollOffset: CGFloat,
+        dragOffset: CGFloat,
+        scale: CGFloat,
+        swipeOffset: CGFloat
+    ) -> CGRect {
+        let viewportCenter = CGPoint(x: viewport.width / 2, y: viewport.height / 2)
+        let mediaCenter = CGPoint(x: mediaFrame.midX, y: mediaFrame.midY - scrollOffset)
+        let size = CGSize(width: mediaFrame.width * scale, height: mediaFrame.height * scale)
+        let center = CGPoint(
+            x: viewportCenter.x + (mediaCenter.x - viewportCenter.x) * scale + swipeOffset,
+            y: viewportCenter.y + (mediaCenter.y - viewportCenter.y) * scale + dragOffset
+        )
+        return CGRect(
+            x: center.x - size.width / 2,
+            y: center.y - size.height / 2,
+            width: size.width,
+            height: size.height
+        )
+    }
 }
 
 private enum DeleteAnimation {
@@ -54,28 +116,36 @@ extension View {
     @ViewBuilder
     func detailScrollTracking(contentOffset: Binding<CGFloat>) -> some View {
         if #available(iOS 18.0, *) {
-            self.onScrollGeometryChange(for: CGFloat.self) { geo in
-                max(geo.contentOffset.y, 0)
+            self.onScrollGeometryChange(for: CGFloat.self) { geometry in
+                // Preserve negative rubber-band offset during a dismiss drag.
+                // The closing hero needs the image's actual displayed position.
+                geometry.contentOffset.y + geometry.contentInsets.top
             } action: { _, newOffset in
                 contentOffset.wrappedValue = newOffset
             }
         } else {
-            self
+            self.onPreferenceChange(DetailScrollOffsetKey.self) { newOffset in
+                contentOffset.wrappedValue = newOffset
+            }
         }
     }
+}
+
+private struct DetailScrollOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }
 
 // MARK: - Full Screen Image Overlay
 
 struct FullScreenImageOverlay: View {
     let sourceRect: CGRect
-    let screenSize: CGSize
     let thumbnailImage: UIImage?
-    @Binding var gridItemRects: [String: CGRect]
+    @Binding var detailGridTarget: DetailGridTarget?
     let closeRequestID: Int
     let shareRequestID: Int
     let deleteRequestID: Int
-    let topReservedInset: CGFloat
+    let topReservedGlobalY: CGFloat
     var onCurrentItemChanged: ((String) -> Void)?
     var onHeroSettledChanged: ((Bool) -> Void)?
     var onClose: () -> Void
@@ -88,19 +158,24 @@ struct FullScreenImageOverlay: View {
     /// Captured at open time — stays stable even when parent re-filters.
     @State private var items: [MediaItem]
     @State private var currentIndex: Int
-    /// Identity of the item the hero animation started from. `startIndex` is deliberately not
-    /// stored: the parent recomputes it against the live filtered array, so using it to index the
-    /// frozen `items` snapshot goes out of range as soon as a search settles or sync delivers items.
-    @State private var originalItemId: String?
+    @State private var openingItemID: String?
 
-    // Phase control
-    @State private var isExpanded = false
-    @State private var isClosing = false
-    @State private var heroComplete = false
-    @State private var hasNavigated = false
+    // The phase owns interaction and content lifecycle; this flag owns the animated endpoint.
+    @State private var phase: DetailTransitionPhase = .opening
+    @State private var heroAtDestination = false
+    @State private var frozenCloseTargetGlobal: CGRect?
+    @State private var frozenHeroStartGlobal: CGRect?
+    @State private var retainScrolledContent = false
+    @State private var viewportGlobalFrame: CGRect = .zero
+    @State private var closeFlightTask: Task<Void, Never>?
 
     // Content
     @State private var image: UIImage?
+    @State private var heroBitmap: UIImage?
+    @State private var preparedHeroBitmap: UIImage?
+    @State private var preparedHeroSourceID: ObjectIdentifier?
+    @State private var preparedHeroTallness: CGFloat = 0
+    @State private var pendingFullResImage: UIImage?
     @State private var isLoadingFullRes = false
     @State private var player: AVPlayer?
     @State private var loadTask: Task<Void, Never>?
@@ -109,6 +184,7 @@ struct FullScreenImageOverlay: View {
     // Swipe navigation
     @State private var swipeOffset: CGFloat = 0
     @State private var isNavigating = false
+    @State private var navigationGeneration = 0
     @State private var adjacentImages: [String: UIImage] = [:]
 
     // Dismiss gesture
@@ -136,18 +212,12 @@ struct FullScreenImageOverlay: View {
     // Share sheet
     @State private var shareItem: URL?
 
-    // Search-triggered close (skips rect correction since grid has re-laid out)
-    @State private var isSearchDismiss = false
-
     // Real-time gesture translation (synchronous updates, no frame delay)
     private struct GestureDrag: Equatable {
         var active: Bool = false
         var translation: CGSize = .zero
     }
     @GestureState private var gestureDrag = GestureDrag()
-
-    // Close target frame (updated reactively from grid rects)
-    @State private var closeTargetFrame: CGRect
 
     private let impactFeedback = UIImpactFeedbackGenerator(style: .light)
     private let minZoomScale: CGFloat = 1.0
@@ -157,7 +227,15 @@ struct FullScreenImageOverlay: View {
     /// Current item derived from index
     private var item: MediaItem { items[currentIndex] }
 
-    private var displayImage: UIImage? { image ?? thumbnailImage }
+    private var displayImage: UIImage? {
+        image ?? (item.id == openingItemID ? thumbnailImage : adjacentImages[item.id])
+    }
+    private var isClosing: Bool { phase.isClosing }
+    private var heroComplete: Bool { phase == .settled }
+    private var screenSize: CGSize { viewportGlobalFrame.size }
+    private var localTopReservedInset: CGFloat {
+        DetailOverlayGeometry.localTopInset(topReservedGlobalY, in: viewportGlobalFrame)
+    }
 
     private var zoomedCornerRadius: CGFloat { isZoomed ? 0 : 16 }
 
@@ -165,13 +243,12 @@ struct FullScreenImageOverlay: View {
         items: [MediaItem],
         startIndex: Int,
         sourceRect: CGRect,
-        screenSize: CGSize,
         thumbnailImage: UIImage?,
-        gridItemRects: Binding<[String: CGRect]>,
+        detailGridTarget: Binding<DetailGridTarget?>,
         closeRequestID: Int = 0,
         shareRequestID: Int = 0,
         deleteRequestID: Int = 0,
-        topReservedInset: CGFloat = 0,
+        topReservedGlobalY: CGFloat = 0,
         onCurrentItemChanged: ((String) -> Void)? = nil,
         onHeroSettledChanged: ((Bool) -> Void)? = nil,
         onClose: @escaping () -> Void,
@@ -181,13 +258,12 @@ struct FullScreenImageOverlay: View {
     ) {
         _items = State(initialValue: items)
         self.sourceRect = sourceRect
-        self.screenSize = screenSize
         self.thumbnailImage = thumbnailImage
-        _gridItemRects = gridItemRects
+        _detailGridTarget = detailGridTarget
         self.closeRequestID = closeRequestID
         self.shareRequestID = shareRequestID
         self.deleteRequestID = deleteRequestID
-        self.topReservedInset = topReservedInset
+        self.topReservedGlobalY = topReservedGlobalY
         self.onCurrentItemChanged = onCurrentItemChanged
         self.onHeroSettledChanged = onHeroSettledChanged
         self.onClose = onClose
@@ -196,8 +272,9 @@ struct FullScreenImageOverlay: View {
         self.onDelete = onDelete
         let clampedStart = items.indices.contains(startIndex) ? startIndex : 0
         _currentIndex = State(initialValue: clampedStart)
-        _originalItemId = State(initialValue: items.indices.contains(clampedStart) ? items[clampedStart].id : nil)
-        _closeTargetFrame = State(initialValue: sourceRect)
+        _openingItemID = State(initialValue: items.indices.contains(clampedStart) ? items[clampedStart].id : nil)
+        _image = State(initialValue: thumbnailImage)
+        _heroBitmap = State(initialValue: thumbnailImage)
     }
 
     // MARK: - Computed Properties
@@ -301,13 +378,13 @@ struct FullScreenImageOverlay: View {
     }
 
     private var backdropOpacity: Double {
-        if !isExpanded { return 0 }
+        if phase == .opening && !heroAtDestination || isClosing && !heroAtDestination { return 0 }
         let dragProgress = dismissVisualProgress
         return 1.0 - dragProgress * 0.5
     }
 
     private var blurOpacity: Double {
-        if !isExpanded { return 0 }
+        if phase == .opening && !heroAtDestination || isClosing && !heroAtDestination { return 0 }
         let dragProgress = dismissVisualProgress
         return 1.0 - dragProgress * 0.75
     }
@@ -321,7 +398,7 @@ struct FullScreenImageOverlay: View {
         let screen = screenSize
         let maxW = screen.width - 24
         let bottomReservedInset: CGFloat = 88
-        let availableHeight = max(screen.height - topReservedInset - bottomReservedInset, 1)
+        let availableHeight = max(screen.height - localTopReservedInset - bottomReservedInset, 1)
         let maxH = min(screen.height * 0.85, availableHeight)
         let itemW = max(CGFloat(mediaItem.width), 1)
         let itemH = max(CGFloat(mediaItem.height), 1)
@@ -331,7 +408,7 @@ struct FullScreenImageOverlay: View {
             let h = min(w / mediaItem.aspectRatio, maxH)
             return CGRect(
                 x: (screen.width - w) / 2,
-                y: topReservedInset + ((availableHeight - h) / 2),
+                y: localTopReservedInset,
                 width: w,
                 height: h
             )
@@ -344,7 +421,7 @@ struct FullScreenImageOverlay: View {
         let h = itemH * scale
         return CGRect(
             x: (screen.width - w) / 2,
-            y: topReservedInset + ((availableHeight - h) / 2),
+            y: localTopReservedInset + ((availableHeight - h) / 2),
             width: w,
             height: h
         )
@@ -361,7 +438,7 @@ struct FullScreenImageOverlay: View {
         let h = w / mediaItem.aspectRatio
         return CGRect(
             x: (screen.width - w) / 2,
-            y: topReservedInset,
+            y: localTopReservedInset,
             width: w,
             height: h
         )
@@ -370,12 +447,29 @@ struct FullScreenImageOverlay: View {
     // MARK: - Body
 
     var body: some View {
-        if items.isEmpty {
-            Color.clear
-                .onAppear { onClose() }
-        } else {
-            bodyContent
+        GeometryReader { geo in
+            let measuredFrame = geo.frame(in: .global)
+            Group {
+                if items.isEmpty {
+                    Color.clear.onAppear { onClose() }
+                } else if viewportGlobalFrame.isEmpty {
+                    Color.clear
+                } else {
+                    bodyContent
+                }
+            }
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
+            .onAppear { updateViewport(measuredFrame) }
+            .onChange(of: measuredFrame) { _, frame in updateViewport(frame) }
         }
+        .ignoresSafeArea()
+    }
+
+    private func updateViewport(_ frame: CGRect) {
+        guard !frame.isEmpty, viewportGlobalFrame != frame else { return }
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { viewportGlobalFrame = frame }
     }
 
     @ViewBuilder
@@ -391,10 +485,9 @@ struct FullScreenImageOverlay: View {
                 (colorScheme == .dark ? Color.black : Color.white).opacity(0.55)
                     .opacity(backdropOpacity)
             }
-            .ignoresSafeArea()
 
             // 2. Adjacent images — only after hero, hidden during close
-            if heroComplete && !isClosing {
+            if phase == .settled {
                 if currentIndex > 0 {
                     adjacentItemView(for: items[currentIndex - 1])
                         .offset(x: -screenSize.width + effectiveSwipeOffset)
@@ -406,30 +499,49 @@ struct FullScreenImageOverlay: View {
             }
 
             // 3. Current content — hero image OR settled ScrollView
-            if heroComplete && !isClosing {
+            if phase == .settled || (isClosing && retainScrolledContent) {
                 settledContentView(finalFrame: settledFrame, heroFrame: finalFrame)
                     .offset(x: effectiveSwipeOffset)
-            } else {
+                    .opacity(phase == .settled || heroAtDestination ? 1 : 0)
+                    .animation(.easeOut(duration: 0.18), value: heroAtDestination)
+                    .allowsHitTesting(phase == .settled)
+            }
+            if phase != .settled {
                 heroImage(finalFrame: finalFrame)
             }
 
         }
-        .ignoresSafeArea()
+        .frame(width: screenSize.width, height: screenSize.height, alignment: .topLeading)
         .onAppear {
             impactFeedback.prepare()
             loadFullImage()
             prepareVideoIfNeeded()
             preloadAdjacentImages()
             onCurrentItemChanged?(item.id)
+            prepareHeroImage(for: finalFrame.size)
+        }
+        .task {
+            // Let the first geometry pass establish the overlay's global origin.
+            await Task.yield()
+            guard !Task.isCancelled, phase == .opening else { return }
             withAnimation(SnapSpring.resolvedHero) {
-                isExpanded = true
+                heroAtDestination = true
             } completion: {
-                heroComplete = true
+                guard phase == .opening else { return }
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    image = heroBitmap ?? image
+                    phase = .settled
+                }
                 onHeroSettledChanged?(true)
                 startMetadataReveal()
+                applyPendingFullResolution(for: item.id)
             }
         }
+        .onChange(of: screenSize) { _, _ in prepareHeroImage(for: computeFinalFrame(for: item).size) }
         .onDisappear {
+            closeFlightTask?.cancel()
             loadTask?.cancel()
             videoTask?.cancel()
             player?.pause()
@@ -452,17 +564,25 @@ struct FullScreenImageOverlay: View {
 
     @ViewBuilder
     private func heroImage(finalFrame: CGRect) -> some View {
-        let currentFrame = isExpanded ? finalFrame : closeTargetFrame
-        let cornerRadius: CGFloat = isExpanded ? 16 : 12
+        let source = DetailOverlayGeometry.localFrame(sourceRect, in: viewportGlobalFrame)
+        let smallFrame = isClosing
+            ? frozenCloseTargetGlobal.map { DetailOverlayGeometry.localFrame($0, in: viewportGlobalFrame) } ?? source
+            : source
+        let largeFrame = isClosing
+            ? frozenHeroStartGlobal.map { DetailOverlayGeometry.localFrame($0, in: viewportGlobalFrame) } ?? finalFrame
+            : finalFrame
+        let currentFrame = heroAtDestination ? largeFrame : smallFrame
+        let cornerRadius: CGFloat = heroAtDestination ? 16 : 12
 
         Group {
-            if let displayImage {
-                let imgH = displayImage.size.width > 0
-                    ? currentFrame.width * (displayImage.size.height / displayImage.size.width)
-                    : currentFrame.height
-                Image(uiImage: displayImage)
+            if let bitmap = preparedHeroBitmap ?? heroBitmap {
+                let scale = max(
+                    currentFrame.width / max(bitmap.size.width, 1),
+                    currentFrame.height / max(bitmap.size.height, 1)
+                )
+                Image(uiImage: bitmap)
                     .resizable()
-                    .frame(width: currentFrame.width, height: imgH)
+                    .frame(width: bitmap.size.width * scale, height: bitmap.size.height * scale)
                     .frame(width: currentFrame.width, height: currentFrame.height, alignment: .top)
                     .clipped()
             } else {
@@ -472,7 +592,8 @@ struct FullScreenImageOverlay: View {
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
-        .position(x: currentFrame.midX, y: currentFrame.midY + dismissOffset)
+        .position(x: currentFrame.midX, y: currentFrame.midY)
+        .opacity(phase == .closingCentered && !heroAtDestination ? 0 : 1)
     }
 
     // MARK: - Settled Content View (Phase B)
@@ -534,11 +655,20 @@ struct FullScreenImageOverlay: View {
                 .offset(y: dismissVisualProgress * 24)
             }
             .frame(maxWidth: .infinity)
+            .background {
+                GeometryReader { proxy in
+                    Color.clear.preference(
+                        key: DetailScrollOffsetKey.self,
+                        value: -proxy.frame(in: .named("detailScroll")).minY
+                    )
+                }
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .scrollDisabled(isZoomed)
         .scrollIndicators(.hidden)
         .defaultScrollAnchor(.top)
+        .coordinateSpace(name: "detailScroll")
         .detailScrollTracking(contentOffset: $contentOffset)
         .contentShape(Rectangle())
         .simultaneousGesture(settledDragGesture)
@@ -559,8 +689,8 @@ struct FullScreenImageOverlay: View {
             }
         }
         // Dismiss visual effects
-        .offset(y: effectiveDismissOffset)
         .scaleEffect(effectiveDismissOffset > 0 ? dismissScale : 1.0)
+        .offset(y: effectiveDismissOffset)
     }
 
     /// Copy file to temp directory so share sheet shows "Send a Copy" only (no iCloud collaboration).
@@ -654,7 +784,7 @@ struct FullScreenImageOverlay: View {
                 } else if ty > 0 && contentOffset <= 0.5 {
                     gestureMode = .dismiss
                 } else {
-                    gestureMode = .none
+                    gestureMode = .scroll
                 }
             }
             .onEnded { value in
@@ -847,6 +977,8 @@ struct FullScreenImageOverlay: View {
             return
         }
         isNavigating = true
+        navigationGeneration += 1
+        let generation = navigationGeneration
         let direction: CGFloat = newIndex > currentIndex ? -1 : 1
 
         player?.pause()
@@ -857,12 +989,13 @@ struct FullScreenImageOverlay: View {
         withAnimation(SnapSpring.resolvedStandard) {
             swipeOffset = direction * screenSize.width
         } completion: {
+            guard phase == .settled, navigationGeneration == generation else { return }
             // Swap without animation
             let t = Transaction(animation: nil)
             withTransaction(t) {
                 currentIndex = newIndex
-                hasNavigated = true
                 swipeOffset = 0
+                pendingFullResImage = nil
                 metadataStage = 3
                 contentOffset = 0
                 isZoomed = false
@@ -890,21 +1023,15 @@ struct FullScreenImageOverlay: View {
 
     private func searchAndClose(pattern: String) {
         guard !isClosing else { return }
-        isSearchDismiss = true
         onSearchPattern?(pattern)
 
-        // Wait for the grid to re-filter and report the current item's
-        // updated rect on the visible screen.  The search debounce is 100ms,
-        // then SwiftUI needs 1-2 render cycles for layout + preference
-        // propagation.  Poll at short intervals instead of a fixed delay
-        // so we close as soon as the rect is ready.
+        // Give the current grid a brief opportunity to publish a valid visible
+        // target. If none arrives, close with the centered fallback.
         let targetId = items[currentIndex].id
-        let screen = UIScreen.main.bounds
         Task { @MainActor in
             for _ in 0..<20 { // 20 × 30ms = 600ms max
                 try? await Task.sleep(for: .milliseconds(30))
-                if let rect = gridItemRects[targetId],
-                   screen.intersects(rect) {
+                if detailGridTarget?.itemID == targetId {
                     break
                 }
             }
@@ -935,16 +1062,20 @@ struct FullScreenImageOverlay: View {
 
         Task { @MainActor in
             try? await Task.sleep(for: DeleteAnimation.commitDelay)
+            guard !Task.isCancelled, !isClosing, items.indices.contains(deletedIndex),
+                  items[deletedIndex].id == deletedItem.id else { return }
 
             guard onDelete?(deletedItem) == true else {
                 withAnimation(DeleteAnimation.shrinkFade) { isDeleting = false }
                 return
             }
             videoTask?.cancel()
+            pendingFullResImage = nil
             items.remove(at: deletedIndex)
 
             if items.isEmpty {
-                close()
+                onHeroSettledChanged?(false)
+                onClose()
                 return
             }
 
@@ -983,87 +1114,68 @@ struct FullScreenImageOverlay: View {
 
     private func close() {
         guard !isClosing else { return }
-        isClosing = true
-        heroComplete = false
-        onHeroSettledChanged?(false)
+        navigationGeneration += 1
+        isNavigating = false
         metadataStage = 0
         revealTask?.cancel()
-        contentOffset = 0
         player?.pause()
         videoTask?.cancel()
+        loadTask?.cancel()
         impactFeedback.impactOccurred()
 
-        // Reset zoom instantly
+        let wasSettled = phase == .settled
+        let scrollAtClose = contentOffset
+        let dragAtClose = dismissOffset
+        let finalFrame = computeFinalFrame(for: item)
+        let settledFrame = computeSettledFrame(for: item)
+        let heroStart = DetailOverlayGeometry.displayedMediaFrame(
+            settledFrame,
+            in: screenSize,
+            scrollOffset: scrollAtClose,
+            dragOffset: dragAtClose,
+            scale: dragAtClose > 0 ? dismissScale : 1,
+            swipeOffset: effectiveSwipeOffset
+        )
+        frozenHeroStartGlobal = heroStart.offsetBy(
+            dx: viewportGlobalFrame.minX, dy: viewportGlobalFrame.minY
+        )
+        retainScrolledContent = wasSettled && scrollAtClose > 4
+
+        let closingID = item.id
+        let target = detailGridTarget.flatMap { $0.itemID == closingID ? $0.frame : nil }
+        frozenCloseTargetGlobal = target ?? finalFrame
+            .insetBy(dx: finalFrame.width * 0.06, dy: finalFrame.height * 0.06)
+            .offsetBy(dx: viewportGlobalFrame.minX, dy: viewportGlobalFrame.minY)
+        heroBitmap = closingID == openingItemID
+            ? (thumbnailImage ?? image)
+            : (adjacentImages[closingID] ?? image)
+        // Commit the hero at exactly the visible content position before shrinking it.
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            phase = target == nil ? .closingCentered : .closingToGrid
+            heroAtDestination = true
+        }
+        prepareHeroImage(for: heroStart.size)
+        onHeroSettledChanged?(false)
+
+        // Zoom is no longer interactive during the close flight.
         zoomScale = minZoomScale
         zoomLastScale = minZoomScale
         zoomPanOffset = .zero
         zoomPanLastOffset = .zero
         isZoomed = false
 
-        // If all items were deleted, just fade out — no hero target
-        guard !items.isEmpty else {
-            withAnimation(.easeOut(duration: 0.25)) {
-                dismissOffset = screenSize.height
-                isExpanded = false
+        closeFlightTask?.cancel()
+        closeFlightTask = Task { @MainActor in
+            // The hero must be laid out at the frozen displayed frame before
+            // animating; otherwise insertion and endpoint changes coalesce.
+            try? await Task.sleep(for: .milliseconds(20))
+            guard !Task.isCancelled, phase.isClosing, item.id == closingID else { return }
+            withAnimation(target == nil ? .easeOut(duration: UIAccessibility.isReduceMotionEnabled ? 0.15 : 0.2) : SnapSpring.resolvedHero) {
+                heroAtDestination = false
             } completion: {
-                onClose()
-            }
-            return
-        }
-
-        let currentItemId = items[currentIndex].id
-        onCurrentItemChanged?(currentItemId)
-        let rawRect = gridItemRects[currentItemId]
-
-        // For search dismiss, only accept rects on the visible screen.
-        // Preference rects from non-visible space pages can have off-screen
-        // coordinates that would send the hero animation out of view.
-        let targetRect: CGRect? = if isSearchDismiss {
-            rawRect.flatMap { UIScreen.main.bounds.intersects($0) ? $0 : nil }
-        } else {
-            rawRect
-        }
-
-        if let targetRect {
-            // Grid cell is visible — hero animation back to it
-            var correctedRect = targetRect
-            if !isSearchDismiss && !hasNavigated {
-                // Apply correction: sourceRect is ground truth for the original item.
-                // Preference-based rects may have a systematic offset (e.g. from
-                // off-screen TabView pages), so anchor to sourceRect.
-                // Skip this after search-triggered close — grid has re-laid out
-                // with new items, so the original correction is invalid.
-                if let originalItemId, let originalGridRect = gridItemRects[originalItemId] {
-                    let xCorrection = sourceRect.midX - originalGridRect.midX
-                    let yCorrection = sourceRect.midY - originalGridRect.midY
-                    correctedRect = CGRect(
-                        x: targetRect.origin.x + xCorrection,
-                        y: targetRect.origin.y + yCorrection,
-                        width: targetRect.width,
-                        height: targetRect.height
-                    )
-                }
-            }
-
-            closeTargetFrame = CGRect(
-                x: correctedRect.origin.x,
-                y: correctedRect.origin.y - dismissOffset,
-                width: correctedRect.width,
-                height: correctedRect.height
-            )
-
-            withAnimation(SnapSpring.resolvedHero) {
-                isExpanded = false
-            } completion: {
-                dismissOffset = 0
-                onClose()
-            }
-        } else {
-            // Grid cell not visible — slide down and fade
-            withAnimation(.easeOut(duration: 0.25)) {
-                dismissOffset = screenSize.height
-                isExpanded = false
-            } completion: {
+                guard phase.isClosing, item.id == closingID else { return }
                 onClose()
             }
         }
@@ -1071,18 +1183,53 @@ struct FullScreenImageOverlay: View {
 
     // MARK: - Image Loading
 
+    private func prepareHeroImage(for finalSize: CGSize) {
+        guard let heroBitmap else {
+            preparedHeroBitmap = nil
+            preparedHeroSourceID = nil
+            preparedHeroTallness = 0
+            return
+        }
+        let smallSize: CGSize = if phase.isClosing, let frozenCloseTargetGlobal {
+            frozenCloseTargetGlobal.size
+        } else {
+            sourceRect.size
+        }
+        let basis = DetailHeroCrop.tallestBox(smallSize, finalSize)
+        let tallness = basis.width > 0 ? basis.height / basis.width : 0
+        let sourceID = ObjectIdentifier(heroBitmap)
+        guard preparedHeroSourceID != sourceID || preparedHeroTallness < tallness else { return }
+        preparedHeroBitmap = DetailHeroCrop.topSlice(heroBitmap, covering: basis)
+        preparedHeroSourceID = sourceID
+        preparedHeroTallness = tallness
+    }
+
+    private func applyPendingFullResolution(for itemID: String) {
+        guard pendingFullResImage != nil else { return }
+        Task { @MainActor in
+            await Task.yield()
+            guard phase == .settled, item.id == itemID, let pendingFullResImage else { return }
+            image = pendingFullResImage
+            self.pendingFullResImage = nil
+        }
+    }
+
     private func loadFullImage() {
         guard let url = item.mediaURL, !item.isVideo else {
             isLoadingFullRes = false
             return
         }
         isLoadingFullRes = true
+        let expectedID = item.id
         loadTask = Task {
             let loaded = await ThumbnailCache.shared.loadImage(for: url).image
-            if !Task.isCancelled {
+            guard !Task.isCancelled, !items.isEmpty, item.id == expectedID else { return }
+            if phase == .settled {
                 image = loaded
-                isLoadingFullRes = false
+            } else if phase == .opening {
+                pendingFullResImage = loaded
             }
+            isLoadingFullRes = false
         }
     }
 

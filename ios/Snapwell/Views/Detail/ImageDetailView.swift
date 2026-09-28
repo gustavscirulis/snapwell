@@ -39,8 +39,9 @@ struct MediaDetailModal: View {
     @Binding var selectedItemId: String?
     @Binding var selectedIndex: Int?
     let sourceRect: CGRect
+    let topReservedGlobalY: CGFloat
     @Binding var thumbnailImage: UIImage?
-    @Binding var gridItemRects: [String: CGRect]
+    @Binding var detailGridTarget: DetailGridTarget?
     let onSearchPattern: (String) -> Void
     let onRetryAnalysis: (MediaItem) -> Void
     let onDelete: (MediaItem) -> Bool
@@ -79,14 +80,8 @@ struct MediaDetailModal: View {
         return min(max(selectedIndex, 0), items.count - 1)
     }
 
+    @ViewBuilder
     var body: some View {
-        GeometryReader { geo in
-            let overlaySize = CGSize(
-                width: geo.size.width,
-                height: geo.size.height + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom
-            )
-            let topReservedInset = DetailChrome.reservedTopInset(safeAreaTop: geo.safeAreaInsets.top)
-
             if let startIndex = resolvedStartIndex {
                 NavigationStack {
                     Color.clear
@@ -97,14 +92,14 @@ struct MediaDetailModal: View {
                                 items: items,
                                 startIndex: startIndex,
                                 sourceRect: sourceRect,
-                                screenSize: overlaySize,
                                 thumbnailImage: thumbnailImage,
-                                gridItemRects: $gridItemRects,
+                                detailGridTarget: $detailGridTarget,
                                 closeRequestID: closeRequestID,
                                 shareRequestID: shareRequestID,
                                 deleteRequestID: deleteRequestID,
-                                topReservedInset: topReservedInset,
+                                topReservedGlobalY: topReservedGlobalY,
                                 onCurrentItemChanged: { itemId in
+                                    if selectedItemId != itemId { detailGridTarget = nil }
                                     selectedItemId = itemId
                                 },
                                 onHeroSettledChanged: { settled in
@@ -156,7 +151,6 @@ struct MediaDetailModal: View {
                         }
                 }
             }
-        }
     }
 
     private func handleOverlayClosed() {

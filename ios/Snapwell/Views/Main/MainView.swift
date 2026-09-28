@@ -23,7 +23,6 @@ struct MainView: View {
     @State private var showRenameSpaceAlert = false
     @State private var renameSpaceName = ""
     @State private var renameSpaceId: String?
-    @State private var gridItemRects: [String: CGRect] = [:]
     @State private var nudgeMetrics = NudgeSheetMetrics()
     private let nudges = NudgeStore()
 
@@ -90,6 +89,9 @@ struct MainView: View {
 
         GeometryReader { geo in
             let gridWidth = geo.size.width - 24
+            // Keep the detail toolbar clearance in the same global space as grid cells.
+            let screenTop = geo.frame(in: .global).minY - geo.safeAreaInsets.top
+            let detailTopGlobalY = screenTop + DetailChrome.reservedTopInset(safeAreaTop: geo.safeAreaInsets.top)
             // Computed once per pass. Each access filters `allItems` (faulting every item's
             // `spaces` relationship) and re-sorts, and body reached it four times.
             let searchItems = searchContentItems
@@ -98,10 +100,7 @@ struct MainView: View {
             ZStack {
                 tabContent(gridWidth: gridWidth, searchItems: searchItems)
                     .allowsHitTesting(!appState.showOverlay)
-                    // Only the overlay's hero-close reads these rects. Publishing them while
-                    // scrolling rewrote this view's state every frame, which re-ran the search
-                    // filter (and faulted every item's `spaces` relationship) per frame.
-                    .environment(\.gridPublishesFrames, appState.showOverlay)
+                    .environment(appState)
 
                 if appState.showOverlay, appState.selectedIndex != nil, !overlayItems.isEmpty {
                     MediaDetailModal(
@@ -111,8 +110,9 @@ struct MainView: View {
                         selectedItemId: $appState.selectedItemId,
                         selectedIndex: $appState.selectedIndex,
                         sourceRect: appState.sourceRect,
+                        topReservedGlobalY: detailTopGlobalY,
                         thumbnailImage: $appState.thumbnailImage,
-                        gridItemRects: $gridItemRects,
+                        detailGridTarget: $appState.detailGridTarget,
                         onSearchPattern: handleSearchPattern,
                         onRetryAnalysis: handleRetryAnalysis,
                         onDelete: handleItemDeleted,
@@ -120,13 +120,6 @@ struct MainView: View {
                     )
                     .zIndex(1)
                 }
-            }
-            .onPreferenceChange(GridItemRectsPreferenceKey.self) { gridItemRects = $0 }
-            .onAppear {
-                GridItemRectsPreferenceKey.screenBounds = geo.frame(in: .global)
-            }
-            .onChange(of: geo.size) { _, _ in
-                GridItemRectsPreferenceKey.screenBounds = geo.frame(in: .global)
             }
         }
         .overlay(alignment: .bottom) {
@@ -377,6 +370,7 @@ struct MainView: View {
                             items: items,
                             spaces: spaces,
                             availableWidth: gridWidth,
+                            detailHost: .search,
                             selectedItemId: appState.showOverlay ? appState.selectedItemId : nil,
                             onItemSelected: { item, rect, thumbnail in
                                 handleItemSelected(item, rect, thumbnail, host: .search)
@@ -389,6 +383,7 @@ struct MainView: View {
                         .padding(.horizontal, 12)
                         .padding(.bottom, 70)
                     }
+                    .modifier(DetailGridViewportReporter(host: .search))
                     .scrollDismissesKeyboard(.interactively)
                 }
             }
@@ -432,11 +427,15 @@ struct MainView: View {
         appState.selectedItemId = item.id
         appState.sourceRect = rect
         appState.thumbnailImage = thumb
+        appState.detailGridTarget = DetailGridTarget(itemID: item.id, host: host, frame: rect)
+        appState.detailGridViewport = .zero
         appState.showOverlay = true
     }
 
     private func handleOverlayClosed() {
         appState.detailHost = nil
+        appState.detailGridTarget = nil
+        appState.detailGridViewport = .zero
         appState.applyPendingSearchIfNeeded(prefersDedicatedSearchTab: supportsDedicatedSearchTab)
     }
 
