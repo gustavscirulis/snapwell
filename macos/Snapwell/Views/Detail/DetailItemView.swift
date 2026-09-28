@@ -41,6 +41,11 @@ private enum DetailTransitionPhase {
     }
 }
 
+private struct DetailOpeningLayout: Equatable {
+    let size: CGSize
+    let origin: CGPoint
+}
+
 /// The source bitmap is sliced once per transition or window size, never during the spring.
 private struct PreparedHeroImageView: View {
     let image: NSImage
@@ -59,6 +64,35 @@ private struct PreparedHeroImageView: View {
             }
             .clipped()
             .contentShape(Rectangle())
+    }
+}
+
+/// Interpolates one rectangle for the bitmap, clipping box, and position.
+/// Separate implicit frame animations can briefly show the image at two scales.
+private struct HeroFlightView<Content: View>: View, @MainActor Animatable {
+    var frame: CGRect
+    @ViewBuilder let content: (CGSize) -> Content
+
+    var animatableData: AnimatablePair<AnimatablePair<CGFloat, CGFloat>, AnimatablePair<CGFloat, CGFloat>> {
+        get {
+            AnimatablePair(
+                AnimatablePair(frame.minX, frame.minY),
+                AnimatablePair(frame.width, frame.height)
+            )
+        }
+        set {
+            frame = CGRect(
+                x: newValue.first.first,
+                y: newValue.first.second,
+                width: newValue.second.first,
+                height: newValue.second.second
+            )
+        }
+    }
+
+    var body: some View {
+        content(frame.size)
+            .position(x: frame.midX, y: frame.midY)
     }
 }
 
@@ -109,6 +143,8 @@ struct DetailItemView: View {
     @State private var phase: DetailTransitionPhase = .opening
     /// Animatable endpoint; phase owns interaction and content lifecycle.
     @State private var heroAtDestination = false
+    @State private var openingEndFrameInRoot: CGRect?
+    @State private var openingTask: Task<Void, Never>?
     @State private var frozenCloseTarget: CGRect?
     @State private var frozenHeroStartFrame: CGRect?
     @State private var retainScrolledContent = false
@@ -170,14 +206,18 @@ struct DetailItemView: View {
 
         GeometryReader { geo in
             let windowSize = geo.size
-            let currentGeoOrigin = geo.frame(in: .global).origin
             let detailColumnOrigin = geo.frame(in: .named(DetailCoordinateSpace.splitViewRoot)).origin
+            let openingLayout = DetailOpeningLayout(size: windowSize, origin: detailColumnOrigin)
             let finalFrame = computeImageFrame(windowSize: windowSize, item: currentItem)
             let gridTarget = phase == .closingToGrid ? (frozenCloseTarget ?? sourceFrame) : sourceFrame
-            let localGridTarget = gridTarget.offsetBy(dx: -currentGeoOrigin.x, dy: -currentGeoOrigin.y)
+            let localGridTarget = gridTarget.offsetBy(dx: -detailColumnOrigin.x, dy: -detailColumnOrigin.y)
+            let localOpeningEndFrame = openingEndFrameInRoot?
+                .offsetBy(dx: -detailColumnOrigin.x, dy: -detailColumnOrigin.y)
             let centeredTarget = finalFrame.insetBy(dx: finalFrame.width * 0.06, dy: finalFrame.height * 0.06)
             let smallFrame = phase == .closingCentered ? centeredTarget : localGridTarget
-            let expandedFrame = phase.isClosing ? (frozenHeroStartFrame ?? finalFrame) : finalFrame
+            let expandedFrame = phase.isClosing
+                ? (frozenHeroStartFrame ?? finalFrame)
+                : (phase == .opening ? (localOpeningEndFrame ?? finalFrame) : finalFrame)
             let currentFrame = heroAtDestination ? expandedFrame : smallFrame
 
             ZStack {
@@ -202,21 +242,21 @@ struct DetailItemView: View {
                         .animation(.easeOut(duration: reduceMotion ? 0.12 : 0.18), value: heroAtDestination)
                 }
                 if phase != .settled {
-                    Group {
-                        if let prepared = preparedHeroImage ?? heroImage {
-                            PreparedHeroImageView(image: prepared, size: currentFrame.size)
-                        } else {
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(Color.snapMuted)
-                                .frame(width: currentFrame.width, height: currentFrame.height)
+                    HeroFlightView(frame: currentFrame) { size in
+                        Group {
+                            if let prepared = preparedHeroImage ?? heroImage {
+                                PreparedHeroImageView(image: prepared, size: size)
+                            } else {
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color.snapMuted)
+                                    .frame(width: size.width, height: size.height)
+                            }
                         }
-                    }
                         .clipShape(RoundedRectangle(cornerRadius: heroAtDestination ? 16 : 12))
                         .overlay(alignment: .bottomTrailing) { loadingIndicator }
                         .onTapGesture { triggerClose() }
-                        .position(x: currentFrame.midX, y: currentFrame.midY)
                         .opacity(phase == .closingCentered && !heroAtDestination ? 0 : 1)
-                        .animation(SnapSpring.hero(reduced: reduceMotion), value: windowSize)
+                    }
                 }
             }
             .frame(width: windowSize.width, height: windowSize.height)
@@ -229,11 +269,15 @@ struct DetailItemView: View {
             .onChange(of: detailColumnOrigin.x) { _, x in
                 detailColumnLeadingInset = max(0, x)
             }
+            .onChange(of: openingLayout) { _, layout in
+                scheduleOpening(for: layout)
+            }
             .onAppear {
                 lastWindowWidth = windowSize.width
                 lastWindowSize = windowSize
                 detailColumnLeadingInset = max(0, detailColumnOrigin.x)
                 prepareHeroImage(for: windowSize)
+                scheduleOpening(for: openingLayout)
             }
         } // GeometryReader
         .ignoresSafeArea(edges: .top)
@@ -304,13 +348,11 @@ struct DetailItemView: View {
                 trackpadScroll.deactivate()
             }
         }
-        .task {
+        .onAppear {
             isFocused = true
-
-            // Start the opening flight and hand off to settled content on completion.
-            await openHero()
         }
         .onDisappear {
+            openingTask?.cancel()
             trackpadScroll.deactivate()
             cleanupVideo()
             loadTask?.cancel()
@@ -320,6 +362,33 @@ struct DetailItemView: View {
     }
 
     // MARK: - Hero Phase
+
+    /// Wait for the detail geometry to stop changing, then freeze both animation endpoints.
+    /// The first layout after launch or import can still change while the overlay is inserted.
+    private func scheduleOpening(for layout: DetailOpeningLayout) {
+        guard phase == .opening, openingEndFrameInRoot == nil,
+              layout.size.width > 0, layout.size.height > 0,
+              sourceFrame.width > 0, sourceFrame.height > 0 else { return }
+        openingTask?.cancel()
+        openingTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(30))
+            guard !Task.isCancelled, phase == .opening else { return }
+
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                openingEndFrameInRoot = computeImageFrame(windowSize: layout.size, item: currentItem)
+                    .offsetBy(dx: layout.origin.x, dy: layout.origin.y)
+                lastWindowWidth = layout.size.width
+                lastWindowSize = layout.size
+                prepareHeroImage(for: layout.size)
+            }
+            // Render the frozen source once before starting the spring.
+            try? await Task.sleep(for: .milliseconds(16))
+            guard !Task.isCancelled, phase == .opening else { return }
+            await openHero()
+        }
+    }
 
     /// The visible grid bitmap stays fixed for the flight; full resolution waits for handoff.
     private func openHero() async {
@@ -790,7 +859,8 @@ struct DetailItemView: View {
             preparedHeroTallness = 0
             return
         }
-        let finalSize = computeImageFrame(windowSize: windowSize, item: currentItem).size
+        let finalSize = (phase == .opening ? openingEndFrameInRoot?.size : nil)
+            ?? computeImageFrame(windowSize: windowSize, item: currentItem).size
         let smallSize: CGSize = if phase == .closingToGrid, let frozenCloseTarget {
             frozenCloseTarget.size
         } else if phase == .closingCentered {

@@ -125,7 +125,8 @@ struct FloatingVideoLayer: View {
     var body: some View {
         GeometryReader { geo in
             let origin = geo.frame(in: .global).origin
-            if videoPreview.displayState == .grid, let player = videoPreview.player {
+            if appState.detailItem == nil, videoPreview.displayState == .grid,
+               let player = videoPreview.player {
                 VideoPlayerNSView(player: player, showGradient: true)
                     // Pattern pills overlay
                     .overlay {
