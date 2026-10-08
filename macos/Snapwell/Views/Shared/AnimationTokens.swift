@@ -35,6 +35,45 @@ enum SnapSpring {
     }
 }
 
+/// Shared hover scale for media thumbnails and their floating video previews.
+enum MediaHover {
+    static let scale: CGFloat = 1.015
+
+    /// Native springs preserve the current presentation and velocity on rapid reversals.
+    /// Critical damping gives the card weight without a bounce on every hover.
+    static func spring(reduced: Bool) -> Animation {
+        reduced ? .easeInOut(duration: 0.12)
+            : .spring(response: 0.28, dampingFraction: 1, blendDuration: 0.08)
+    }
+
+    static func pillAnimation(index: Int, entering: Bool, reduced: Bool) -> Animation {
+        spring(reduced: reduced).delay(entering && !reduced ? Double(index) * 0.02 : 0)
+    }
+}
+
+/// Keep the native animatable properties together, with an explicit value trigger.
+struct MediaHoverEffect: ViewModifier {
+    let isActive: Bool
+    var isEnabled: Bool = true
+    var showsShadow: Bool = true
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        let scaled = isActive && isEnabled && !reduceMotion
+        content
+            .shadow(
+                color: .black.opacity(showsShadow && isEnabled ? (isActive ? 0.1 : 0.05) : 0),
+                radius: isActive ? 6 : 2,
+                x: 0,
+                y: isActive ? 4 : 1
+            )
+            .scaleEffect(scaled ? MediaHover.scale : 1)
+            .animation(MediaHover.spring(reduced: reduceMotion), value: isActive && isEnabled)
+            .animation(MediaHover.spring(reduced: reduceMotion), value: reduceMotion)
+    }
+}
+
 /// Single-stage delete animation: scale down + fade out, then animated reflow.
 enum DeleteAnim {
     static let shrinkFade = Animation.spring(response: 0.2, dampingFraction: 0.85)

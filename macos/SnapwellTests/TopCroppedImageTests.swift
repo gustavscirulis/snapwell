@@ -274,3 +274,78 @@ struct TopCroppedImageTests {
         return NSImage(cgImage: cgImage, size: NSSize(width: width, height: height))
     }
 }
+
+@Suite("Thumbnail bitmap edges", .tags(.layout))
+struct ThumbnailBitmapTests {
+    @Test("Fractional resize fills every JPEG pixel without a white top row")
+    func resizedThumbnailHasNoPadding() throws {
+        let source = try image(width: 1578, height: 720, size: CGSize(width: 789, height: 360))
+        let data = try #require(source.thumbnailData())
+        let bitmap = try #require(NSBitmapImageRep(data: data))
+
+        #expect(bitmap.pixelsWide == 800)
+        #expect(bitmap.pixelsHigh == 365)
+        for (x, y) in [(0, 0), (400, 0), (799, 0), (799, 364), (0, 364)] {
+            let color = try #require(bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB))
+            #expect(color.redComponent < 0.1)
+            #expect(color.greenComponent < 0.1)
+            #expect(color.blueComponent < 0.1)
+        }
+        let decoded = try #require(NSImage(data: data))
+        #expect(decoded.removingThumbnailFocusPadding() === decoded)
+    }
+
+    @Test("Legacy retina thumbnails lose only the extra top and right pixels")
+    func legacyPaddingIsRemoved() throws {
+        let source = try image(
+            width: 1601, height: 731, size: CGSize(width: 800, height: 365), padded: true
+        )
+        let repaired = source.removingThumbnailFocusPadding()
+        let cg = try #require(repaired.cgImage(forProposedRect: nil, context: nil, hints: nil))
+        #expect(cg.width == 1600)
+        #expect(cg.height == 730)
+        #expect(repaired.size == source.size)
+        let bitmap = NSBitmapImageRep(cgImage: cg)
+        for (x, y) in [(0, 0), (800, 0), (1599, 0), (1599, 729)] {
+            let color = try #require(bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB))
+            #expect(color.redComponent < 0.1)
+        }
+    }
+
+    @Test("Correctly sized thumbnails retain their genuine white top row")
+    func genuineBorderIsPreserved() throws {
+        let source = try image(
+            width: 1600, height: 730, size: CGSize(width: 800, height: 365), padded: true
+        )
+        #expect(source.removingThumbnailFocusPadding() === source)
+    }
+
+    @Test("Unrecognized pixel density is left unchanged")
+    func unrelatedDimensionsArePreserved() throws {
+        let source = try image(width: 1700, height: 760, size: CGSize(width: 800, height: 365))
+        #expect(source.removingThumbnailFocusPadding() === source)
+    }
+
+    private func image(width: Int, height: Int, size: CGSize, padded: Bool = false) throws -> NSImage {
+        var pixels = [UInt8](repeating: 11, count: width * height * 4)
+        for y in 0..<height {
+            for x in 0..<width {
+                let offset = (y * width + x) * 4
+                if padded && (y == 0 || x == width - 1) {
+                    pixels[offset] = 255
+                    pixels[offset + 1] = 255
+                    pixels[offset + 2] = 255
+                }
+                pixels[offset + 3] = 255
+            }
+        }
+        let provider = try #require(CGDataProvider(data: Data(pixels) as CFData))
+        let cg = try #require(CGImage(
+            width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32,
+            bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+            provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent
+        ))
+        return NSImage(cgImage: cg, size: size)
+    }
+}

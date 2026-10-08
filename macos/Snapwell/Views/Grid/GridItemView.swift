@@ -144,19 +144,23 @@ struct GridItemView: View, Equatable {
     /// The NSView-backed AVPlayerLayer causes a spurious onHover(false) when it appears
     /// on top; this keeps hover UI visible for the duration of the grid preview.
     private var effectiveHover: Bool {
-        isHovered || (itemIsVideo && videoPreview.activeItemId == item.id && videoPreview.displayState == .grid)
+        isHovered || (usesFloatingHoverOverlay && videoPreview.isHovering)
+    }
+
+    private var usesFloatingHoverOverlay: Bool {
+        itemIsVideo && videoPreview.hoverItemId == item.id
     }
 
     /// Whether to show the SwiftUI gradient scrim behind pattern pills.
     /// Suppressed for video items when the floating video layer provides its own CAGradientLayer.
-    /// Guarded by `itemIsVideo` so non-video items never subscribe to `activeItemId` changes.
+    /// Guarded by `itemIsVideo` so image cells never subscribe to video hover changes.
     private var showHoverGradient: Bool {
         guard effectiveHover else { return false }
         guard itemIsVideo else { return true }
-        return videoPreview.activeItemId != item.id
+        return !usesFloatingHoverOverlay
     }
 
-    var body: some View {
+    private var cardContent: some View {
         ZStack(alignment: .topTrailing) {
             // LAYER 1: Background selection button
             GeometryReader { geometry in
@@ -172,8 +176,9 @@ struct GridItemView: View, Equatable {
                         loadFailed = false
                         Task { await loadThumbnail() }
                     } else {
-                        // Read the laid-out cell now. A new cell can be clicked before
-                        // onGeometryChange has delivered its first cached frame.
+                        // This reader is inside the visual lift, so detail opens from the
+                        // displayed bounds. The outer tracker retains the resting return target.
+                        // Read now: a new cell can be clicked before its first geometry delivery.
                         isOpeningDetailSource = true
                         onSelect(geometry.frame(in: .named(DetailCoordinateSpace.splitViewRoot)), thumbnail)
                     }
@@ -263,7 +268,8 @@ struct GridItemView: View, Equatable {
                             )
                         )
                     } else if item.analysisError == nil, let patterns = item.analysisResult?.patterns, !patterns.isEmpty {
-                        // Gradient backdrop + staggered pattern tags (hover only)
+                        // The video overlay owns its pills from hover entry, before playback.
+                        // Image pills stay mounted so reversing hover preserves their motion.
                         ZStack(alignment: .bottomLeading) {
                             LinearGradient(
                                 colors: [.black.opacity(0.35), .black.opacity(0.1), .clear],
@@ -271,23 +277,13 @@ struct GridItemView: View, Equatable {
                                 endPoint: .init(x: 0.5, y: 0.55)
                             )
                             .opacity(showHoverGradient ? 1 : 0)
-                            .offset(y: effectiveHover ? 0 : (reduceMotion ? 0 : 20))
-                            .animation(SnapSpring.standard(reduced: reduceMotion), value: effectiveHover)
+                            .animation(MediaHover.spring(reduced: reduceMotion), value: showHoverGradient)
 
                             HStack {
-                                FlowLayout(spacing: 4) {
-                                    ForEach(Array(patterns.prefix(5).enumerated()), id: \.element.name) { index, pattern in
-                                        PatternPill(name: pattern.name, useGlass: false)
-                                            .opacity(effectiveHover ? 1 : 0)
-                                            .offset(y: effectiveHover ? 0 : (reduceMotion ? 0 : 8))
-                                            .animation(
-                                                reduceMotion
-                                                    ? .easeInOut(duration: 0.1)
-                                                    : SnapSpring.fast.delay(Double(index) * 0.025),
-                                                value: effectiveHover
-                                            )
-                                    }
-                                }
+                                HoverPatternPills(
+                                    names: patterns.prefix(5).map(\.name),
+                                    isVisible: effectiveHover && !usesFloatingHoverOverlay
+                                )
                                 Spacer()
                             }
                             .padding(8)
@@ -302,28 +298,34 @@ struct GridItemView: View, Equatable {
         .frame(width: width, height: height)
         // LAYER 3: Interactive action buttons as overlays
         .overlay(alignment: .topTrailing) {
-            if effectiveHover {
-                Button { onDelete(effectiveIds) } label: {
-                    hoverButtonIcon("trash", size: 10)
+            Group {
+                if effectiveHover && !usesFloatingHoverOverlay {
+                    Button { onDelete(effectiveIds) } label: {
+                        hoverButtonIcon("trash", size: 10)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(8)
+                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.96)))
+                    .accessibilityLabel("Delete")
+                    .accessibilityHint("Moves this item to the trash")
                 }
-                .buttonStyle(.plain)
-                .padding(8)
-                .transition(.opacity.combined(with: .scale(scale: 0.8)))
-                .accessibilityLabel("Delete")
-                .accessibilityHint("Moves this item to the trash")
             }
+            .animation(MediaHover.spring(reduced: reduceMotion), value: effectiveHover)
         }
         .overlay(alignment: .topLeading) {
-            if effectiveHover && isInActiveSpace, let activeSpaceId {
-                Button { onChangeSpaceMembership(effectiveIds, .remove(activeSpaceId)) } label: {
-                    hoverButtonIcon("folder.badge.minus", size: 10)
+            Group {
+                if effectiveHover && isInActiveSpace, let activeSpaceId {
+                    Button { onChangeSpaceMembership(effectiveIds, .remove(activeSpaceId)) } label: {
+                        hoverButtonIcon("folder.badge.minus", size: 10)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(8)
+                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.96)))
+                    .accessibilityLabel("Remove from space")
+                    .accessibilityHint("Removes this item from the current space")
                 }
-                .buttonStyle(.plain)
-                .padding(8)
-                .transition(.opacity.combined(with: .scale(scale: 0.8)))
-                .accessibilityLabel("Remove from space")
-                .accessibilityHint("Removes this item from the current space")
             }
+            .animation(MediaHover.spring(reduced: reduceMotion), value: effectiveHover)
         }
         .overlay(alignment: .bottomLeading) {
             if !item.isAnalyzing && item.analysisError != nil {
@@ -342,17 +344,24 @@ struct GridItemView: View, Equatable {
         // this frame to implement aspect-fill, and clipping alone does not constrain hit testing.
         .contentShape(.interaction, RoundedRectangle(cornerRadius: 12))
         .scaleEffect(isDeleting ? DeleteAnim.targetScale : 1.0)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(isSelected && !isDeleting ? Color.accentColor : Color.clear, lineWidth: 2)
-        )
-        .shadow(
-            color: .black.opacity(isDeleting ? 0 : (effectiveHover ? 0.1 : 0.05)),
-            radius: effectiveHover ? 6 : 2,
-            x: 0,
-            y: effectiveHover ? 4 : 1
-        )
-        .animation(SnapSpring.fast(reduced: reduceMotion), value: effectiveHover)
+        .overlay {
+            if isSelected && !isDeleting {
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(Color.accentColor, lineWidth: 2)
+                    .allowsHitTesting(false)
+            }
+        }
+        .modifier(MediaHoverEffect(isActive: effectiveHover, isEnabled: !isDeleting))
+    }
+
+    var body: some View {
+        // Keep tracking and drag geometry outside the transform. Moving the tracking area
+        // with the card can trigger repeated hover exits/re-entries along its lower edge.
+        ZStack {
+            cardContent
+        }
+        .frame(width: width, height: height)
+        .contentShape(.interaction, RoundedRectangle(cornerRadius: 12))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityDescription)
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
@@ -362,13 +371,22 @@ struct GridItemView: View, Equatable {
                 isHovered = false
                 return
             }
-            isHovered = hovering
+            withAnimation(MediaHover.spring(reduced: reduceMotion)) {
+                isHovered = hovering
+            }
             hoverTask?.cancel()
             if itemIsVideo {
                 if hovering {
                     // Don't start preview during rubber band selection or drag
                     guard NSEvent.pressedMouseButtons & 1 == 0 else { return }
                     suppressHoverExit = false
+                    videoPreview.beginHover(
+                        itemId: item.id,
+                        frame: globalFrame,
+                        patternNames: item.analysisResult?.patterns.prefix(5).map(\.name) ?? [],
+                        isAnalyzing: item.isAnalyzing,
+                        hasAnalysisError: !item.isAnalyzing && item.analysisError != nil
+                    )
                     hoverTask = Task {
                         try? await Task.sleep(for: .milliseconds(200))
                         guard !Task.isCancelled else { return }
@@ -386,7 +404,7 @@ struct GridItemView: View, Equatable {
                             hasAnalysisError: !item.isAnalyzing && item.analysisError != nil
                         )
                     }
-                } else if videoPreview.activeItemId == item.id {
+                } else if usesFloatingHoverOverlay {
                     // The floating NSView causes one spurious onHover(false) when it
                     // first appears. Suppress that single exit; subsequent exits are genuine.
                     if suppressHoverExit {
@@ -397,24 +415,18 @@ struct GridItemView: View, Equatable {
                             hoverTask = Task {
                                 while !Task.isCancelled {
                                     try? await Task.sleep(for: .milliseconds(100))
-                                    guard !Task.isCancelled else { return }
+                                    guard !Task.isCancelled, videoPreview.hoverItemId == item.id else { return }
                                     if !mouseIsInsideGridItem() {
-                                        videoPreview.stopPreview()
+                                        videoPreview.endHover(itemId: item.id)
                                         return
                                     }
                                 }
                             }
                             return
                         }
-                        // Mouse already left — fall through to delayed stopPreview
+                        // Mouse already left — begin the same continuous exit as a normal leave.
                     }
-                    hoverTask = Task {
-                        try? await Task.sleep(for: .milliseconds(100))
-                        guard !Task.isCancelled else { return }
-                        videoPreview.stopPreview()
-                    }
-                } else {
-                    videoPreview.stopPreview()
+                    videoPreview.endHover(itemId: item.id)
                 }
             }
         }
@@ -474,6 +486,10 @@ struct GridItemView: View, Equatable {
         .task {
             guard thumbnail == nil else { return }
             await loadThumbnail()
+        }
+        .onDisappear {
+            hoverTask?.cancel()
+            if usesFloatingHoverOverlay { videoPreview.stopPreview() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .thumbnailsRegenerated)) { _ in
             thumbnail = nil
@@ -598,7 +614,7 @@ struct GridItemView: View, Equatable {
     }
 
     private func updateVideoPreviewAnalysisState() {
-        guard videoPreview.activeItemId == item.id else { return }
+        guard usesFloatingHoverOverlay else { return }
         videoPreview.updateAnalysisState(
             isAnalyzing: item.isAnalyzing,
             hasError: !item.isAnalyzing && item.analysisError != nil
@@ -640,7 +656,7 @@ private struct GridCellFrameTracker: ViewModifier {
                 guard globalChanged || detailChanged else { return }
                 if globalChanged {
                     globalFrame = frames.global
-                    if isVideo && videoPreview.activeItemId == itemID {
+                    if isVideo && videoPreview.hoverItemId == itemID {
                         videoPreview.updateGridFrame(frames.global)
                     }
                 }

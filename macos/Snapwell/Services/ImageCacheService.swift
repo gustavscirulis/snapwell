@@ -62,7 +62,7 @@ final class ImageCacheService: @unchecked Sendable {
             switch ICloudFile.downloadState(of: thumbnailURL, isUsingiCloud: storage.isUsingiCloud) {
             case .downloaded:
                 if let thumbnail = NSImage(contentsOf: thumbnailURL) {
-                    return .loaded(thumbnail)
+                    return .loaded(thumbnail.removingThumbnailFocusPadding())
                 }
             case .downloading:
                 requester.requestDownload(for: thumbnailURL)
@@ -86,7 +86,7 @@ final class ImageCacheService: @unchecked Sendable {
 
             if let _ = try? ThumbnailService.generateThumbnail(from: original, id: id, storage: storage) {
                 if let thumbnail = NSImage(contentsOf: thumbnailURL) {
-                    return .loaded(thumbnail)
+                    return .loaded(thumbnail.removingThumbnailFocusPadding())
                 }
             }
 

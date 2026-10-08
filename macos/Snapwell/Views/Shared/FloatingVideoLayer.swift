@@ -103,8 +103,8 @@ struct HoverActionIcon: View {
 
 // MARK: - Floating Video Layer
 
-/// A single floating video view placed at the ContentView ZStack level.
-/// Shows grid hover video previews — positioned at the hovered grid cell.
+/// The hover overlay exists before the player, keeping one continuous presentation
+/// for the lift, pills, and controls when playback starts underneath them.
 struct FloatingVideoLayer: View {
     /// Deletes the previewed item(s). The layer is drawn above the grid, so
     /// the grid cell's own delete button is hidden behind it — this one takes
@@ -125,82 +125,130 @@ struct FloatingVideoLayer: View {
     var body: some View {
         GeometryReader { geo in
             let origin = geo.frame(in: .global).origin
-            if appState.detailItem == nil, videoPreview.displayState == .grid,
-               let player = videoPreview.player {
-                VideoPlayerNSView(player: player, showGradient: true)
-                    // Pattern pills overlay
-                    .overlay {
-                        if !videoPreview.gridPatternNames.isEmpty {
-                            VStack {
-                                Spacer()
-                                HStack {
-                                    FlowLayout(spacing: 4) {
-                                        ForEach(videoPreview.gridPatternNames, id: \.self) { name in
-                                            PatternPill(name: name, useGlass: false)
-                                        }
-                                    }
-                                    Spacer()
-                                }
-                                .padding(8)
-                            }
-                            .allowsHitTesting(false)
-                        }
-                    }
-                    .overlay(alignment: .bottomLeading) {
-                        Group {
-                            if videoPreview.isAnalyzing {
-                                ShimmerText("Analyzing...")
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 3)
-                                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
-                                    .environment(\.colorScheme, .dark)
-                            } else if videoPreview.hasAnalysisError {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "arrow.clockwise")
-                                        .font(.caption2)
-                                    Text("Retry")
-                                        .font(.caption.weight(.medium))
-                                }
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(.red.opacity(0.7))
-                                .clipShape(RoundedRectangle(cornerRadius: 6))
-                            }
-                        }
-                        .padding(8)
-                        .allowsHitTesting(false)
-                    }
-                    .frame(width: videoPreview.currentFrame.width, height: videoPreview.currentFrame.height)
-                    .clipShape(RoundedRectangle(cornerRadius: videoPreview.cornerRadius))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: videoPreview.cornerRadius)
-                            .strokeBorder(
-                                appState.selectedIds.contains(videoPreview.activeItemId ?? "")
-                                    ? Color.accentColor : Color.clear,
-                                lineWidth: 2
-                            )
-                    )
-                    // Everything above is decorative — it must not steal hover
-                    // tracking from the grid item underneath.
-                    .allowsHitTesting(false)
-                    // The delete button is the one exception: it replaces the
-                    // grid cell's button, which this layer is covering.
-                    .overlay(alignment: .topTrailing) {
-                        if let itemId = videoPreview.activeItemId {
-                            Button { onDelete(effectiveIds(for: itemId)) } label: {
-                                HoverActionIcon(systemName: "trash")
-                            }
-                            .buttonStyle(.plain)
-                            .padding(8)
-                            .accessibilityLabel("Delete")
-                            .accessibilityHint("Moves this item to the trash")
-                        }
-                    }
+            if appState.detailItem == nil, let itemId = videoPreview.hoverItemId,
+               appState.deleteStage(for: itemId) == 0 {
+                FloatingVideoHoverCard(itemId: itemId, onDelete: { onDelete(effectiveIds(for: itemId)) })
+                    .id(itemId)
                     .position(
                         x: videoPreview.currentFrame.midX - origin.x,
                         y: videoPreview.currentFrame.midY - origin.y
                     )
+            }
+        }
+    }
+}
+
+private struct FloatingVideoHoverCard: View {
+    let itemId: String
+    let onDelete: () -> Void
+
+    @Environment(VideoPreviewManager.self) private var videoPreview
+    @Environment(AppState.self) private var appState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var hoverVisible = false
+
+    var body: some View {
+        ZStack {
+            Color.clear
+            // This scrim stays behind playback throughout its crossfade. The player
+            // supplies the identical native gradient above its own video pixels.
+            LinearGradient(
+                stops: [
+                    .init(color: .black.opacity(0.35), location: 0),
+                    .init(color: .black.opacity(0.1), location: 0.25),
+                    .init(color: .clear, location: 0.45),
+                ],
+                startPoint: .bottom,
+                endPoint: .top
+            )
+            .opacity(hoverVisible ? 1 : 0)
+            .animation(MediaHover.spring(reduced: reduceMotion), value: hoverVisible)
+            if videoPreview.displayState == .grid, let player = videoPreview.player {
+                VideoPlayerNSView(player: player, showGradient: true)
+                    .opacity(hoverVisible ? 1 : 0)
+                    .animation(.easeInOut(duration: 0.12), value: hoverVisible)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.12), value: videoPreview.displayState)
+        // Pattern pills overlay
+        .overlay {
+            if !videoPreview.isAnalyzing, !videoPreview.hasAnalysisError,
+               !videoPreview.gridPatternNames.isEmpty {
+                VStack {
+                    Spacer()
+                    HStack {
+                        HoverPatternPills(names: videoPreview.gridPatternNames, isVisible: hoverVisible)
+                        Spacer()
+                    }
+                    .padding(8)
+                }
+                .allowsHitTesting(false)
+            }
+        }
+        .overlay(alignment: .bottomLeading) {
+            Group {
+                if videoPreview.isAnalyzing {
+                    ShimmerText("Analyzing...")
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+                        .environment(\.colorScheme, .dark)
+                } else if videoPreview.hasAnalysisError {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.caption2)
+                        Text("Retry")
+                            .font(.caption.weight(.medium))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(.red.opacity(0.7))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
+            }
+            .padding(8)
+            .allowsHitTesting(false)
+        }
+        .frame(width: videoPreview.currentFrame.width, height: videoPreview.currentFrame.height)
+        .clipShape(RoundedRectangle(cornerRadius: videoPreview.cornerRadius))
+        .overlay {
+            if appState.selectedIds.contains(itemId) {
+                RoundedRectangle(cornerRadius: videoPreview.cornerRadius)
+                    .strokeBorder(Color.accentColor, lineWidth: 2)
+            }
+        }
+        // Everything above is decorative — it must not steal hover
+        // tracking from the grid item underneath.
+        .allowsHitTesting(false)
+        // The delete button is the one exception: it replaces the
+        // grid cell's button, which this layer is covering.
+        .overlay(alignment: .topTrailing) {
+            Button(action: onDelete) {
+                HoverActionIcon(systemName: "trash")
+            }
+            .buttonStyle(.plain)
+            .padding(8)
+            .opacity(hoverVisible ? 1 : 0)
+            .scaleEffect(hoverVisible || reduceMotion ? 1 : 0.96)
+            .allowsHitTesting(videoPreview.isHovering)
+            .animation(MediaHover.spring(reduced: reduceMotion), value: hoverVisible)
+            .accessibilityLabel("Delete")
+            .accessibilityHint("Moves this item to the trash")
+            .accessibilityHidden(!videoPreview.isHovering)
+        }
+        // currentFrame is the resting cell frame. Match the card's visual lift
+        // here, including its controls, without feeding it back into grid geometry.
+        .modifier(MediaHoverEffect(isActive: hoverVisible, showsShadow: false))
+        .onAppear {
+            withAnimation(MediaHover.spring(reduced: reduceMotion)) {
+                hoverVisible = videoPreview.isHovering
+            }
+        }
+        .onChange(of: videoPreview.isHovering) {
+            withAnimation(MediaHover.spring(reduced: reduceMotion)) {
+                hoverVisible = videoPreview.isHovering
             }
         }
     }
