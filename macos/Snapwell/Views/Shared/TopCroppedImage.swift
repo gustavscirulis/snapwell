@@ -33,6 +33,7 @@ struct TopCroppedImage: View {
             .overlay(alignment: .topLeading) {
                 Image(nsImage: source)
                     .resizable()
+                    .interpolation(.high)
                     .frame(width: drawRect.width, height: drawRect.height)
                     .offset(x: drawRect.minX, y: drawRect.minY)
                     // Clipping only affects drawing. Keep the overflowing image out of hit

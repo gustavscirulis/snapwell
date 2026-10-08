@@ -48,3 +48,27 @@ struct PatternPill: View {
         #endif
     }
 }
+
+/// Stable pill views animate both ways instead of being inserted at full opacity.
+/// Shared by image cards and the video overlay, which exists before playback starts.
+struct HoverPatternPills: View {
+    let names: [String]
+    let isVisible: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        FlowLayout(spacing: 4) {
+            ForEach(Array(names.enumerated()), id: \.element) { index, name in
+                PatternPill(name: name, useGlass: false)
+                    .opacity(isVisible ? 1 : 0)
+                    .offset(y: isVisible || reduceMotion ? 0 : 8)
+                    .scaleEffect(isVisible || reduceMotion ? 1 : 0.97, anchor: .bottomLeading)
+                    .animation(
+                        MediaHover.pillAnimation(index: index, entering: isVisible, reduced: reduceMotion),
+                        value: isVisible
+                    )
+            }
+        }
+    }
+}
