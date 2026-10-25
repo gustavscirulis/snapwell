@@ -46,6 +46,17 @@ enum AIProvider: String, CaseIterable, Codable, Sendable {
 final class AIAnalysisService: Sendable {
     static let shared = AIAnalysisService()
 
+    private let session: URLSession
+    private let retryDelay: @Sendable (Int) async throws -> Void
+
+    init(session: URLSession = .shared,
+         retryDelay: @escaping @Sendable (Int) async throws -> Void = { attempt in
+             try await Task.sleep(for: .seconds(Double(attempt) * 2.0))
+         }) {
+        self.session = session
+        self.retryDelay = retryDelay
+    }
+
     private let systemPrompt = """
     You are an expert image analyst.
 
@@ -104,6 +115,9 @@ final class AIAnalysisService: Sendable {
     private let maxRetries = 2
 
     func analyze(image: UIImage, provider: AIProvider, model: String, apiKey: String, guidance: String? = nil, spaceContext: String? = nil) async throws -> AnalysisResult {
+        #if SNAPWELL_AUTOMATION
+        if AutomationEnvironment.usesFixtureProviders { return AutomationFixtures.analysis(provider: provider.rawValue, model: model) }
+        #endif
         guard let base64 = imageToBase64(image) else {
             throw AnalysisError.imageConversionFailed
         }
@@ -115,10 +129,18 @@ final class AIAnalysisService: Sendable {
 
         let prompt = buildPrompt(guidance: guidance, spaceContext: spaceContext)
 
+        return try await analyzeEncodedImage(
+            base64Image: base64, provider: provider, model: model, apiKey: apiKey, prompt: prompt
+        )
+    }
+
+    /// Provider transport boundary, shared by image preparation and deterministic HTTP tests.
+    func analyzeEncodedImage(base64Image: String, provider: AIProvider, model: String,
+                             apiKey: String, prompt: String) async throws -> AnalysisResult {
         return try await performWithAnalysisRetries {
             let req = buildProviderRequest(
                 provider: provider, apiKey: apiKey, model: model,
-                base64Image: base64, prompt: prompt
+                base64Image: base64Image, prompt: prompt
             )
             let responseText = try await sendProviderRequest(req)
             return try parseResponse(responseText, provider: provider.rawValue, model: model)
@@ -154,13 +176,16 @@ final class AIAnalysisService: Sendable {
                     throw error
                 }
                 transientRetryCount += 1
-                try await Task.sleep(for: .seconds(Double(transientRetryCount) * 2.0))
+                try await retryDelay(transientRetryCount)
                 print("[Analysis] Retry attempt \(transientRetryCount)")
             }
         }
     }
 
     func analyzeVideo(frames: [UIImage], provider: AIProvider, model: String, apiKey: String, guidance: String? = nil, spaceContext: String? = nil) async throws -> AnalysisResult {
+        #if SNAPWELL_AUTOMATION
+        if AutomationEnvironment.usesFixtureProviders { return AutomationFixtures.analysis(provider: provider.rawValue, model: model) }
+        #endif
         // Analyze each frame and merge results
         var allPatterns: [String: [Double]] = [:]
         var contexts: [String] = []
@@ -435,7 +460,7 @@ final class AIAnalysisService: Sendable {
         }
         request.httpBody = try JSONSerialization.data(withJSONObject: req.body)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         try validateHTTPResponse(response, data: data, provider: req.provider)
 
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {

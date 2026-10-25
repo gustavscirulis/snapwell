@@ -62,7 +62,7 @@ Snapwell is built with Swift 6, SwiftUI, and SwiftData. The Mac app uses [XcodeG
 
 ```sh
 cd macos
-xcodegen generate
+xcodegen generate && scripts/post-xcodegen.sh
 open Snapwell.xcodeproj
 ```
 
@@ -75,16 +75,15 @@ open ios/Snapwell.xcodeproj
 ### Running tests
 
 ```sh
-# Mac
-cd macos && xcodegen generate && xcodebuild test \
-  -project Snapwell.xcodeproj -scheme Snapwell \
-  -destination 'platform=macOS' 2>&1 | xcbeautify --quiet
-
-# iOS
-cd ios && xcodebuild test \
-  -project Snapwell.xcodeproj -scheme Snapwell \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' 2>&1 | xcbeautify --quiet
+bash scripts/setup.sh
+./dev.sh doctor
+./dev.sh test --platform changed --suite all
+./dev.sh test --suite core # Regression tests without an app host or simulator
 ```
+
+See [testing](docs/testing.md) for isolated native UI tests and result artifacts,
+[releases](docs/releases.md) for changelog-driven App Store publishing, and
+[agent workflow](docs/workflows/agent-loop.md) for handoffs and review.
 
 ## Contributing
 

@@ -1,0 +1,14 @@
+{
+  "id": "shared-video",
+  "type": "video",
+  "width": 320,
+  "height": 240,
+  "duration": 1,
+  "createdAt": "2026-01-01T12:00:00Z",
+  "spaceIds": ["inspiration", "work"],
+  "imageContext": "An orange video used for compatibility testing.",
+  "imageSummary": "Orange motion",
+  "patterns": [{"name": "Orange", "confidence": 0.9}],
+  "sourceURL": "https://example.com/source",
+  "analyzedAt": "2026-01-01T12:01:00Z"
+}

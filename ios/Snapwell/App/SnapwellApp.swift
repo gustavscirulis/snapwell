@@ -17,6 +17,13 @@ struct SnapwellApp: App {
             || defaults.object(forKey: "settings_defaults_v2") != nil
         NudgeStore(defaults: defaults).stampFirstLaunchIfNeeded(now: Date(), isReturningUser: isReturningUser)
 
+        #if SNAPWELL_AUTOMATION
+        do {
+            try AutomationFixtures.prepare()
+            let config = ModelConfiguration(isStoredInMemoryOnly: true)
+            container = try ModelContainer(for: MediaItem.self, Space.self, AnalysisResult.self, configurations: config)
+        } catch { fatalError("Automation setup failed: \(error)") }
+        #else
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let snapwellDir = appSupport.appendingPathComponent("Snapwell", isDirectory: true)
         try? FileManager.default.createDirectory(at: snapwellDir, withIntermediateDirectories: true)
@@ -40,6 +47,7 @@ struct SnapwellApp: App {
                 fatalError("Failed to create ModelContainer after recovery: \(error)")
             }
         }
+        #endif
     }
 
     private static func deleteStoreFiles(at storeURL: URL) {

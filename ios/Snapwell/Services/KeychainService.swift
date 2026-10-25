@@ -14,6 +14,7 @@ enum KeychainService {
     #endif
 
     static func set(key: String, forService service: String) throws {
+        if AutomationEnvironment.isEnabled { AutomationEnvironment.setKey(key, service: service); return }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: serviceName,
@@ -40,6 +41,7 @@ enum KeychainService {
     }
 
     static func get(service: String) throws -> String? {
+        if AutomationEnvironment.isEnabled { return AutomationEnvironment.key(service) }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: serviceName,
@@ -70,6 +72,7 @@ enum KeychainService {
     }
 
     static func delete(service: String) throws {
+        if AutomationEnvironment.isEnabled { AutomationEnvironment.setKey(nil, service: service); return }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: serviceName,

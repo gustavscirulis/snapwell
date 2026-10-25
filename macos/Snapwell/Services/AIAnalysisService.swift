@@ -57,8 +57,16 @@ final class AIAnalysisService: Sendable {
 
     private let ollamaClient: OllamaClient
 
-    init(ollamaClient: OllamaClient = .shared) {
+    private let session: URLSession
+    private let retryDelay: @Sendable (Int) async throws -> Void
+
+    init(ollamaClient: OllamaClient = .shared, session: URLSession = .shared,
+         retryDelay: @escaping @Sendable (Int) async throws -> Void = { attempt in
+             try await Task.sleep(for: .seconds(Double(attempt) * 2.0))
+         }) {
         self.ollamaClient = ollamaClient
+        self.session = session
+        self.retryDelay = retryDelay
     }
 
     private let systemPrompt = """
@@ -119,6 +127,9 @@ final class AIAnalysisService: Sendable {
     private let maxRetries = 2
 
     func analyze(image: NSImage, provider: AIProvider, model: String, guidance: String? = nil, spaceContext: String? = nil) async throws -> AnalysisResult {
+        #if SNAPWELL_AUTOMATION
+        if AutomationEnvironment.usesFixtureProviders { return AutomationFixtures.analysis(provider: provider.rawValue, model: model) }
+        #endif
         let apiKey: String
         if provider.requiresAPIKey {
             guard let storedKey = try KeychainService.get(service: provider.keychainService) else {
@@ -140,18 +151,26 @@ final class AIAnalysisService: Sendable {
 
         let prompt = buildPrompt(guidance: guidance, spaceContext: spaceContext)
 
+        return try await analyzeEncodedImage(
+            base64Image: base64, provider: provider, model: model, apiKey: apiKey, prompt: prompt
+        )
+    }
+
+    /// Provider transport boundary, shared by image preparation and deterministic HTTP tests.
+    func analyzeEncodedImage(base64Image: String, provider: AIProvider, model: String,
+                             apiKey: String, prompt: String) async throws -> AnalysisResult {
         return try await performWithAnalysisRetries {
             let responseText: String
             if provider == .ollama {
                 responseText = try await ollamaClient.analyze(
                     model: model,
                     prompt: prompt,
-                    base64Image: base64
+                    base64Image: base64Image
                 )
             } else {
                 let req = buildProviderRequest(
                     provider: provider, apiKey: apiKey, model: model,
-                    base64Image: base64, prompt: prompt
+                    base64Image: base64Image, prompt: prompt
                 )
                 responseText = try await sendProviderRequest(req)
             }
@@ -169,8 +188,10 @@ final class AIAnalysisService: Sendable {
 
         while true {
             do {
+                try Task.checkCancellation()
                 return try await operation()
             } catch {
+                try Task.checkCancellation()
                 if let analysisError = error as? AnalysisError,
                    case .invalidAnalysisFormat = analysisError,
                    formatRetryCount < 1 {
@@ -183,7 +204,7 @@ final class AIAnalysisService: Sendable {
                     throw error
                 }
                 transientRetryCount += 1
-                try? await Task.sleep(for: .seconds(Double(transientRetryCount) * 2.0))
+                try await retryDelay(transientRetryCount)
                 print("[Analysis] Retry attempt \(transientRetryCount)")
             }
         }
@@ -203,6 +224,9 @@ final class AIAnalysisService: Sendable {
     }
 
     func analyzeVideo(frames: [NSImage], provider: AIProvider, model: String, guidance: String? = nil, spaceContext: String? = nil) async throws -> AnalysisResult {
+        #if SNAPWELL_AUTOMATION
+        if AutomationEnvironment.usesFixtureProviders { return AutomationFixtures.analysis(provider: provider.rawValue, model: model) }
+        #endif
         // Analyze each frame and merge results
         var allPatterns: [String: [Double]] = [:]
         var contexts: [String] = []
@@ -464,7 +488,7 @@ final class AIAnalysisService: Sendable {
         }
         request.httpBody = try JSONSerialization.data(withJSONObject: req.body)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         try validateHTTPResponse(response, data: data, provider: req.provider)
 
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {

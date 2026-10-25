@@ -612,12 +612,6 @@ class ShareViewController: UIViewController {
             }
 
             let pendingDir = containerURL.appendingPathComponent("pending", isDirectory: true)
-            let imagesDir = pendingDir.appendingPathComponent("images", isDirectory: true)
-            let metadataDir = pendingDir.appendingPathComponent("metadata", isDirectory: true)
-
-            let fm = FileManager.default
-            try? fm.createDirectory(at: imagesDir, withIntermediateDirectories: true)
-            try? fm.createDirectory(at: metadataDir, withIntermediateDirectories: true)
 
             let timestamp = Int(Date().timeIntervalSince1970 * 1000)
             let chars = "abcdefghijklmnopqrstuvwxyz0123456789"
@@ -633,16 +627,6 @@ class ShareViewController: UIViewController {
 
             let width = Int(image.size.width * image.scale)
             let height = Int(image.size.height * image.scale)
-
-            let imageURL = imagesDir.appendingPathComponent("\(id).png")
-            do {
-                try pngData.write(to: imageURL, options: .atomic)
-            } catch {
-                DispatchQueue.main.async {
-                    self.completeWithError("Couldn't save the image")
-                }
-                return
-            }
 
             let sidecar = ShareSidecarMetadata(
                 id: id,
@@ -662,9 +646,12 @@ class ShareViewController: UIViewController {
             encoder.dateEncodingStrategy = .iso8601
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
 
-            let metadataURL = metadataDir.appendingPathComponent("\(id).json")
-            if let jsonData = try? encoder.encode(sidecar) {
-                try? jsonData.write(to: metadataURL, options: .atomic)
+            do {
+                try ShareStagingStore.stage(media: pngData, sidecar: encoder.encode(sidecar),
+                                            id: id, mediaExtension: "png", in: pendingDir)
+            } catch {
+                DispatchQueue.main.async { self.completeWithError("Couldn't save the image") }
+                return
             }
 
             DispatchQueue.main.async {
@@ -687,19 +674,14 @@ class ShareViewController: UIViewController {
             }
 
             let pendingDir = containerURL.appendingPathComponent("pending", isDirectory: true)
-            let imagesDir = pendingDir.appendingPathComponent("images", isDirectory: true)
-            let metadataDir = pendingDir.appendingPathComponent("metadata", isDirectory: true)
-
-            let fm = FileManager.default
-            try? fm.createDirectory(at: imagesDir, withIntermediateDirectories: true)
-            try? fm.createDirectory(at: metadataDir, withIntermediateDirectories: true)
 
             let timestamp = Int(Date().timeIntervalSince1970 * 1000)
             let chars = "abcdefghijklmnopqrstuvwxyz0123456789"
             let random = String((0..<7).map { _ in chars.randomElement()! })
             let id = "vid_\(timestamp)_\(random)"
 
-            let videoURL = imagesDir.appendingPathComponent("\(id).mp4")
+            let videoURL = FileManager.default.temporaryDirectory.appendingPathComponent("\(id).mp4")
+            defer { try? FileManager.default.removeItem(at: videoURL) }
             do {
                 try videoData.write(to: videoURL, options: .atomic)
             } catch {
@@ -747,9 +729,12 @@ class ShareViewController: UIViewController {
             encoder.dateEncodingStrategy = .iso8601
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
 
-            let metadataURL = metadataDir.appendingPathComponent("\(id).json")
-            if let jsonData = try? encoder.encode(sidecar) {
-                try? jsonData.write(to: metadataURL, options: .atomic)
+            do {
+                try ShareStagingStore.stage(media: videoData, sidecar: encoder.encode(sidecar),
+                                            id: id, mediaExtension: "mp4", in: pendingDir)
+            } catch {
+                await MainActor.run { self.completeWithError("Couldn't save the video") }
+                return
             }
 
             log.info("Saved video: \(id).mp4, \(videoData.count) bytes")

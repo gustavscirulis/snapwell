@@ -11,6 +11,7 @@ enum KeySyncService {
     // MARK: - Write local keys to iCloud
 
     static func syncToiCloud() {
+        guard !AutomationEnvironment.isEnabled else { return }
         guard MediaStorageService.shared.isUsingiCloud else { return }
 
         let url = MediaStorageService.shared.baseURL.appendingPathComponent(fileName)
@@ -49,6 +50,7 @@ enum KeySyncService {
     // MARK: - Read keys from iCloud (written by iOS or another Mac)
 
     static func syncFromiCloud() {
+        guard !AutomationEnvironment.isEnabled else { return }
         guard MediaStorageService.shared.isUsingiCloud else { return }
 
         let url = MediaStorageService.shared.baseURL.appendingPathComponent(fileName)

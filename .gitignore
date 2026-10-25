@@ -26,3 +26,8 @@ ios/build/
 .playwright-mcp/
 .screenshots/
 .vercel
+
+# Agent validation and release artifacts
+.context/
+tools/ReleaseTools/.build/
+__pycache__/

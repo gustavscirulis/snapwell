@@ -84,6 +84,21 @@
 		F2AD76603369201957F4E1FD /* SearchIndexService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CFAB07291230EAED58390B4 /* SearchIndexService.swift */; };
 		FF030F761044AEE25ACAEA04 /* SyncServiceDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCAFF8A2EC042170AE7D0DA4 /* SyncServiceDataTests.swift */; };
 		KC00000002 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = KC00000001 /* KeychainService.swift */; };
+		FCEF2C84A3C108E5471D4C1C /* AutomationEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CD1AF2521D1D60CDF001ADC /* AutomationEnvironment.swift */; };
+		8B15D014508B33FAC1833D9D /* AutomationFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF78BAEC765CE1C4866FA058 /* AutomationFixtures.swift */; };
+		D5D1502F966D3298E9BAFAED /* SnapwellUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 530816DD0B984CBED92577A9 /* SnapwellUITests.swift */; };
+		3D45F9F5AB9F80832B324968 /* clip.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 8074F06F4F46B30358C45AD4 /* clip.mp4 */; };
+		5E0B612B916F0987798C3CAD /* sidecar.json in Resources */ = {isa = PBXBuildFile; fileRef = 59351B7C5B6E086315D4C140 /* sidecar.json */; };
+		A999417BFFC90A058E9DE065 /* SharedSidecarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 073B33B3DD3195CABB30C8C9 /* SharedSidecarTests.swift */; };
+		797BF4729CB7EC468297A82B /* spaces.json in Resources */ = {isa = PBXBuildFile; fileRef = 8AB59D214811584D3E635E52 /* spaces.json */; };
+		4C52566AF14DBA31E43BE0B7 /* AnalysisRecovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = D894A2B17FC6B7AAFEC4146E /* AnalysisRecovery.swift */; };
+		260DE9E1F4286E54A7A7B113 /* ShareStagingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA8764363557AF5DA12B065F /* ShareStagingStore.swift */; };
+		47A2103621CC89CB4DCFBB26 /* ShareStagingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA8764363557AF5DA12B065F /* ShareStagingStore.swift */; };
+		5046121C3F16993EBB7660FF /* CloudProviderHTTPTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEDCC77AD507D69BE7C4466F /* CloudProviderHTTPTests.swift */; };
+		3B0B5DE73713816DFB4A7C24 /* PersistenceIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D175704165CC7EE976FA89 /* PersistenceIntegrationTests.swift */; };
+		8CC1DA5D2EB161CF45A1E211 /* ShareStagingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EA52B37A49624485F6A2C2F /* ShareStagingTests.swift */; };
+		9D2C4594C2F90E87240AF564 /* ShareHandoffIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5FB92466008EB2B566A499B /* ShareHandoffIntegrationTests.swift */; };
+		A90000000000000000000002 /* LocalMigrationIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A90000000000000000000001 /* LocalMigrationIntegrationTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -101,6 +116,7 @@
 			remoteGlobalIDString = A0E9D3CF2F7328AC00E35403;
 			remoteInfo = ShareExtension;
 		};
+		BCAFF7ECD552E83EADB0A19E = {isa = PBXContainerItemProxy; containerPortal = H100000001; proxyType = 1; remoteGlobalIDString = F100000001; remoteInfo = Snapwell; };
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -198,6 +214,21 @@
 		FC24EBA6AD6068C4ADA26030 /* SyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncService.swift; sourceTree = "<group>"; };
 		FCAFF8A2EC042170AE7D0DA4 /* SyncServiceDataTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SyncServiceDataTests.swift; sourceTree = "<group>"; };
 		KC00000001 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
+		8CD1AF2521D1D60CDF001ADC /* AutomationEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Shared/AutomationEnvironment.swift"; sourceTree = SOURCE_ROOT; };
+		DF78BAEC765CE1C4866FA058 /* AutomationFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Shared/AutomationFixtures.swift"; sourceTree = SOURCE_ROOT; };
+		530816DD0B984CBED92577A9 /* SnapwellUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Tests/UI/SnapwellUITests.swift"; sourceTree = SOURCE_ROOT; };
+		F797279C27D91A1775B574D3 /* SnapwellUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = SnapwellUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		8074F06F4F46B30358C45AD4 /* clip.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mpeg4; path = "../Tests/Fixtures/clip.mp4"; sourceTree = SOURCE_ROOT; };
+		59351B7C5B6E086315D4C140 /* sidecar.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "../Tests/Fixtures/sidecar.json"; sourceTree = SOURCE_ROOT; };
+		073B33B3DD3195CABB30C8C9 /* SharedSidecarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Tests/Compatibility/SharedSidecarTests.swift"; sourceTree = SOURCE_ROOT; };
+		8AB59D214811584D3E635E52 /* spaces.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "../Tests/Fixtures/spaces.json"; sourceTree = SOURCE_ROOT; };
+		D894A2B17FC6B7AAFEC4146E /* AnalysisRecovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Shared/AnalysisRecovery.swift"; sourceTree = SOURCE_ROOT; };
+		EA8764363557AF5DA12B065F /* ShareStagingStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Shared/ShareStagingStore.swift"; sourceTree = SOURCE_ROOT; };
+		DEDCC77AD507D69BE7C4466F /* CloudProviderHTTPTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Tests/Compatibility/CloudProviderHTTPTests.swift"; sourceTree = SOURCE_ROOT; };
+		A1D175704165CC7EE976FA89 /* PersistenceIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Tests/Compatibility/PersistenceIntegrationTests.swift"; sourceTree = SOURCE_ROOT; };
+		4EA52B37A49624485F6A2C2F /* ShareStagingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Tests/Compatibility/ShareStagingTests.swift"; sourceTree = SOURCE_ROOT; };
+		F5FB92466008EB2B566A499B /* ShareHandoffIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SnapwellTests/ShareHandoffIntegrationTests.swift"; sourceTree = SOURCE_ROOT; };
+		A90000000000000000000001 /* LocalMigrationIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SnapwellTests/LocalMigrationIntegrationTests.swift"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -297,6 +328,20 @@
 		E100000001 = {
 			isa = PBXGroup;
 			children = (
+				A90000000000000000000001 /* LocalMigrationIntegrationTests.swift */,
+				F5FB92466008EB2B566A499B /* ShareHandoffIntegrationTests.swift */,
+				4EA52B37A49624485F6A2C2F /* ShareStagingTests.swift */,
+				A1D175704165CC7EE976FA89 /* PersistenceIntegrationTests.swift */,
+				DEDCC77AD507D69BE7C4466F /* CloudProviderHTTPTests.swift */,
+				EA8764363557AF5DA12B065F /* ShareStagingStore.swift */,
+				D894A2B17FC6B7AAFEC4146E /* AnalysisRecovery.swift */,
+				8AB59D214811584D3E635E52 /* spaces.json */,
+				073B33B3DD3195CABB30C8C9 /* SharedSidecarTests.swift */,
+				59351B7C5B6E086315D4C140 /* sidecar.json */,
+				8074F06F4F46B30358C45AD4 /* clip.mp4 */,
+				530816DD0B984CBED92577A9 /* SnapwellUITests.swift */,
+				DF78BAEC765CE1C4866FA058 /* AutomationFixtures.swift */,
+				8CD1AF2521D1D60CDF001ADC /* AutomationEnvironment.swift */,
 				F500000001 /* Shared Sync */,
 				E100000002 /* Snapwell */,
 				A0E9D3D12F7328AC00E35403 /* ShareExtension */,
@@ -482,6 +527,7 @@
 		E100000099 /* Products */ = {
 			isa = PBXGroup;
 			children = (
+				F797279C27D91A1775B574D3 /* SnapwellUITests.xctest */,
 				C100000001 /* Snapwell.app */,
 				A0E9D3D02F7328AC00E35403 /* ShareExtension.appex */,
 				E986591D29AF09AB23D9FF4A /* SnapwellTests.xctest */,
@@ -552,6 +598,7 @@
 			productReference = E986591D29AF09AB23D9FF4A /* SnapwellTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		6C98632A0AF48F37F32C5AC7 /* SnapwellUITests */ = {isa = PBXNativeTarget; buildConfigurationList = 57970EC31B4F9BF6D6E76F5E; buildPhases = (FC8DF176E6FA3883B8D9DDE8,); buildRules = (); dependencies = (AF5076F9A8C4E90C04D6D0F5,); name = SnapwellUITests; productName = SnapwellUITests; productReference = F797279C27D91A1775B574D3; productType = "com.apple.product-type.bundle.ui-testing"; };
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -586,6 +633,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
+				6C98632A0AF48F37F32C5AC7 /* SnapwellUITests */,
 				F100000001 /* Snapwell */,
 				A0E9D3CF2F7328AC00E35403 /* ShareExtension */,
 				F9A925E6CB89A0F0B97BBEA2 /* SnapwellTests */,
@@ -605,6 +653,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				797BF4729CB7EC468297A82B /* spaces.json in Resources */,
+				5E0B612B916F0987798C3CAD /* sidecar.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -612,6 +662,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3D45F9F5AB9F80832B324968 /* clip.mp4 in Resources */,
 				A100000019 /* Assets.xcassets in Resources */,
 				A100000022 /* AppIcon.icon in Resources */,
 				A100000060 /* PrivacyInfo.xcprivacy in Resources */,
@@ -625,6 +676,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A90000000000000000000002 /* LocalMigrationIntegrationTests.swift in Sources */,
+				9D2C4594C2F90E87240AF564 /* ShareHandoffIntegrationTests.swift in Sources */,
+				8CC1DA5D2EB161CF45A1E211 /* ShareStagingTests.swift in Sources */,
+				3B0B5DE73713816DFB4A7C24 /* PersistenceIntegrationTests.swift in Sources */,
+				5046121C3F16993EBB7660FF /* CloudProviderHTTPTests.swift in Sources */,
+				A999417BFFC90A058E9DE065 /* SharedSidecarTests.swift in Sources */,
 				D500000011 /* IntegrationTestSupport.swift in Sources */,
 				D500000012 /* SyncServiceIntegrationTests.swift in Sources */,
 				00B9B3A1CE6741B63334035B /* AIAnalysisParsingTests.swift in Sources */,
@@ -654,6 +711,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				47A2103621CC89CB4DCFBB26 /* ShareStagingStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -661,6 +719,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				260DE9E1F4286E54A7A7B113 /* ShareStagingStore.swift in Sources */,
+				4C52566AF14DBA31E43BE0B7 /* AnalysisRecovery.swift in Sources */,
+				8B15D014508B33FAC1833D9D /* AutomationFixtures.swift in Sources */,
+				FCEF2C84A3C108E5471D4C1C /* AutomationEnvironment.swift in Sources */,
 				D500000001 /* ICloudFile.swift in Sources */,
 				D500000002 /* ContainerScanner.swift in Sources */,
 				D500000003 /* DownloadRequester.swift in Sources */,
@@ -713,6 +775,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		FC8DF176E6FA3883B8D9DDE8 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (D5D1502F966D3298E9BAFAED /* SnapwellUITests.swift in Sources */,); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -727,6 +790,7 @@
 			target = F100000001 /* Snapwell */;
 			targetProxy = 50D27E1D2BB0C54CF01334B4 /* PBXContainerItemProxy */;
 		};
+		AF5076F9A8C4E90C04D6D0F5 = {isa = PBXTargetDependency; target = F100000001; targetProxy = BCAFF7ECD552E83EADB0A19E; };
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
@@ -952,6 +1016,7 @@
 		G100000020 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				EXCLUDED_SOURCE_FILE_NAMES = clip.mp4;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
@@ -989,6 +1054,7 @@
 		G100000021 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				EXCLUDED_SOURCE_FILE_NAMES = clip.mp4;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
@@ -1023,6 +1089,200 @@
 			};
 			name = Release;
 		};
+		4670E1945E5CBC3DF05E5155 /* Automation */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG SNAPWELL_AUTOMATION";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				CODE_SIGN_ENTITLEMENTS = Automation.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 12;
+				DEVELOPMENT_TEAM = HJ4HYUU2Y6;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ShareExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Snapwell;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0.8;
+				PRODUCT_BUNDLE_IDENTIFIER = co.snapwell.automation.ShareExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Automation;
+		};
+		CAED0EE93A55974E2780C9D5 /* Automation */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG SNAPWELL_AUTOMATION";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = HJ4HYUU2Y6;
+				ENABLE_TESTING_SEARCH_PATHS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = co.snapwell.automation.tests;
+				PRODUCT_NAME = SnapwellTests;
+				SDKROOT = iphoneos;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Snapwell.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Snapwell";
+			};
+			name = Automation;
+		};
+		69241213256761DE41AD4A49 /* Automation */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG SNAPWELL_AUTOMATION";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Automation;
+		};
+		A280C92B7DF3B5AE00D70F59 /* Automation */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG SNAPWELL_AUTOMATION";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_ENTITLEMENTS = Automation.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 12;
+				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = HJ4HYUU2Y6;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Snapwell/Resources/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Snapwell;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.8;
+				PRODUCT_BUNDLE_IDENTIFIER = co.snapwell.automation;
+				EXCLUDED_SOURCE_FILE_NAMES = AppIcon.icon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = "";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Automation;
+		};
+		5011C810D220B69A3D8AC642 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {
+        GENERATE_INFOPLIST_FILE = YES;
+        PRODUCT_BUNDLE_IDENTIFIER = co.snapwell.automation.uitests;
+        PRODUCT_NAME = SnapwellUITests;
+        TEST_TARGET_NAME = Snapwell;
+        SDKROOT = iphoneos;
+        IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+        SWIFT_VERSION = 6.0;
+        DEVELOPMENT_TEAM = HJ4HYUU2Y6;
+        CODE_SIGN_STYLE = Automatic;
+        TARGETED_DEVICE_FAMILY = "1,2";
+    }; name = Debug; };
+		78A4DD7E1474ECE41B7AB9E7 /* Automation */ = {isa = XCBuildConfiguration; buildSettings = {
+        GENERATE_INFOPLIST_FILE = YES;
+        PRODUCT_BUNDLE_IDENTIFIER = co.snapwell.automation.uitests;
+        PRODUCT_NAME = SnapwellUITests;
+        TEST_TARGET_NAME = Snapwell;
+        SDKROOT = iphoneos;
+        IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+        SWIFT_VERSION = 6.0;
+        DEVELOPMENT_TEAM = HJ4HYUU2Y6;
+        CODE_SIGN_STYLE = Automatic;
+        TARGETED_DEVICE_FAMILY = "1,2";
+    }; name = Automation; };
+		F146B5C570B0BAB08F1CCD9F /* Release */ = {isa = XCBuildConfiguration; buildSettings = {
+        GENERATE_INFOPLIST_FILE = YES;
+        PRODUCT_BUNDLE_IDENTIFIER = co.snapwell.automation.uitests;
+        PRODUCT_NAME = SnapwellUITests;
+        TEST_TARGET_NAME = Snapwell;
+        SDKROOT = iphoneos;
+        IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+        SWIFT_VERSION = 6.0;
+        DEVELOPMENT_TEAM = HJ4HYUU2Y6;
+        CODE_SIGN_STYLE = Automatic;
+        TARGETED_DEVICE_FAMILY = "1,2";
+    }; name = Release; };
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -1031,6 +1291,7 @@
 			buildConfigurations = (
 				C3355413B503F864535E9535 /* Release */,
 				DC298DD1B5F2549526A5AF47 /* Debug */,
+				CAED0EE93A55974E2780C9D5 /* Automation */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -1039,6 +1300,7 @@
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A0E9D3DC2F7328AC00E35403 /* Debug */,
+				4670E1945E5CBC3DF05E5155 /* Automation */,
 				A0E9D3DD2F7328AC00E35403 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
@@ -1048,6 +1310,7 @@
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				G100000010 /* Debug */,
+				69241213256761DE41AD4A49 /* Automation */,
 				G100000011 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
@@ -1057,11 +1320,13 @@
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				G100000020 /* Debug */,
+				A280C92B7DF3B5AE00D70F59 /* Automation */,
 				G100000021 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		57970EC31B4F9BF6D6E76F5E = {isa = XCConfigurationList; buildConfigurations = (5011C810D220B69A3D8AC642, 78A4DD7E1474ECE41B7AB9E7, F146B5C570B0BAB08F1CCD9F,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */

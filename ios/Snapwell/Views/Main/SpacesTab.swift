@@ -82,7 +82,7 @@ struct SpacesTab<AddMenu: View>: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(action: onCreateSpace) {
                         Image(systemName: "folder.badge.plus")
-                    }
+                    }.accessibilityIdentifier("create-space")
                 }
             }
             .toolbarColorScheme(.dark, for: .navigationBar)
