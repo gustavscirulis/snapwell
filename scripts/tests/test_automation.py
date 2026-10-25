@@ -21,6 +21,13 @@ class AutomationTests(unittest.TestCase):
         self.assertEqual(automation.affected_platforms(['ios/Snapwell/App.swift']), ['ios'])
         self.assertEqual(automation.affected_platforms(['CLAUDE.md', 'docs/testing.md', 'site/app/page.tsx']), [])
 
+    def test_cli_reuses_headless_by_default_and_allows_fresh(self):
+        for flags, expected in (([], True), (["--reuse-passing"], True), (["--fresh"], False)):
+            with self.subTest(flags=flags), patch.object(automation.sys, 'argv', ['automation.py', 'test', *flags]), \
+                 patch.object(automation, 'test') as check:
+                self.assertEqual(automation.main(), 0)
+                self.assertEqual(check.call_args.args[0].reuse_passing, expected)
+
     def test_failed_commands_are_not_success(self):
         with self.assertRaisesRegex(RuntimeError, 'failed'):
             automation.run(['python3', '-c', 'import sys; sys.exit(7)'], capture=True)
@@ -158,6 +165,35 @@ class HeadlessReuseTests(unittest.TestCase):
         self.assertEqual(reused['log'], result['log'])
         self.assertEqual(reused['reused_from'], str(report))
 
+    def test_default_command_reuses_agent_results_during_terminal_handoff(self):
+        result = self.passed()
+        self.record(result)
+        with patch.object(automation, 'logged') as logged:
+            reused = automation.headless_check([], self.context / 'next', 'core',
+                                               argparse.Namespace(staged=False))
+        logged.assert_not_called()
+        self.assertEqual(reused['log'], result['log'])
+
+    def test_full_command_reuses_headless_but_still_runs_native_tests(self):
+        for name in ('tooling-python', 'tooling-swift', 'core'):
+            self.record(self.passed(name), label=name)
+        original_run = automation.run
+        def native_setup(command, **kwargs):
+            if command[0] in ('xcodegen', 'bash'):
+                return ''
+            return original_run(command, **kwargs)
+        args = argparse.Namespace(platform='macos', suite='all', only=None,
+                                  staged=False, dry_run=False, simulator=None)
+        with patch.object(automation, 'run', side_effect=native_setup), \
+             patch.object(automation, 'native_lock', return_value=contextlib.nullcontext()), \
+             patch.object(automation, 'logged', return_value={'name': 'macos', 'status': 'passed'}) as logged:
+            automation.test(args)
+        logged.assert_called_once()
+        self.assertEqual(logged.call_args.args[0][:2], ['xcodebuild', 'test'])
+        reports = list(self.context.glob('testing/*/summary.json'))
+        results = [r for path in reports for r in json.loads(path.read_text())['results']]
+        self.assertEqual(sum('reused_from' in r for r in results), 3)
+
     def test_relevant_edits_additions_and_deletions_invalidate_result(self):
         result = self.passed()
         self.record(result)
@@ -241,7 +277,7 @@ class HeadlessReuseTests(unittest.TestCase):
                 else:
                     path.write_text('original\n')
 
-    def test_explicit_checks_run_fresh_without_reuse_flag(self):
+    def test_fresh_request_reruns_previously_passing_checks(self):
         self.record(self.passed())
         with patch.object(automation, 'logged', return_value={'name': 'core', 'status': 'passed'}) as logged:
             automation.headless_check([], self.context / 'next', 'core',

@@ -184,7 +184,7 @@ def passing_headless_result(name, fingerprint):
 
 def headless_check(command, directory, name, args):
     fingerprint = headless_fingerprint(name, args.staged)
-    if getattr(args, 'reuse_passing', False):
+    if getattr(args, 'reuse_passing', True):
         previous = passing_headless_result(name, fingerprint)
         if previous:
             print(f'Reusing {name}; passed for unchanged inputs: {previous["reused_from"]}', flush=True)
@@ -489,7 +489,12 @@ def main():
     tests.add_argument('--suite', choices=('logic', 'ui', 'all', 'tools', 'core'), default='all')
     tests.add_argument('--only')
     tests.add_argument('--staged', action='store_true')
-    tests.add_argument('--reuse-passing', action='store_true', help='Reuse passing headless checks when their inputs are unchanged')
+    reuse = tests.add_mutually_exclusive_group()
+    reuse.add_argument('--reuse-passing', action='store_true', dest='reuse_passing',
+                       help='Reuse passing headless checks with unchanged inputs (default)')
+    reuse.add_argument('--fresh', action='store_false', dest='reuse_passing',
+                       help='Rerun headless checks even when unchanged passing results exist')
+    tests.set_defaults(reuse_passing=True)
     tests.add_argument('--simulator')
     tests.add_argument('--dry-run', action='store_true')
     releases = commands.add_parser('release')

@@ -9,7 +9,8 @@
 - `./dev.sh test --platform ios --suite ui` runs native interaction checks.
 - `./dev.sh test --suite tools` runs the Python orchestration and Swift release-client tests.
 - `./dev.sh test --suite core` runs production model, filesystem and HTTP tests without an app host or simulator.
-- `./dev.sh test --suite tools --reuse-passing` reuses passing headless checks with unchanged inputs; the flag also works with `--suite core`.
+- Headless checks reuse passing results with unchanged inputs by default, including during agent-to-Terminal handoffs.
+- `./dev.sh test --suite tools --fresh` forces a fresh headless run; `--fresh` also works with core/logic/all. Native tests always run when selected.
 - `./dev.sh test --dry-run` reports selection without changing files or running tests.
 
 Change selection includes the diff from `origin/main`, local tracked changes and untracked
@@ -31,8 +32,14 @@ missing logs and reports without fingerprints cannot be reused. A newer failure 
 same inputs takes precedence over an older pass. Inputs are checked before and after each
 run; editing them during validation invalidates the result. Staged checks reject relevant
 unstaged or untracked inputs so tests cannot accidentally validate different code from the
-commit. Stage those inputs or stash them before committing. Explicit test commands run fresh
-unless `--reuse-passing` is supplied; the flag never skips native tests.
+commit. Stage those inputs or stash them before committing. All test commands reuse verified
+headless results by default; `--fresh` forces them to run again. `--reuse-passing` remains
+supported for existing hooks and scripts. These options never skip selected native tests.
+When handing a blocked native run to a normal Terminal, use the same full command: already
+passing headless checks are reused automatically. Do not separately rerun core after logic/all
+already passed it. Reuse passing native evidence at the PR gate when the app, native tests,
+and their build/test configuration have not changed; a headless-reuse-only runner change
+requires tooling verification, not another run of unchanged native suites.
 
 ## Before creating a PR
 
