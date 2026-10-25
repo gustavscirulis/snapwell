@@ -102,6 +102,80 @@ final class SnapwellUITests: XCTestCase {
         #endif
     }
 
+    #if os(macOS)
+    func testFullscreenMetadataRemainsUsableWhenBrowsingAndReopening() {
+        launch("library")
+        clickMacMedia(media("fixture-orange"))
+        let close = app.buttons["Back"]
+        XCTAssertTrue(close.waitForExistence(timeout: 10))
+        assertMacMetadataWaitsForScroll()
+        revealMacMetadata(expectedTitle: "Orange inspiration")
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value CONTAINS %@", "Dimensions")).firstMatch.isHittable)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value CONTAINS %@", "PNG")).firstMatch.isHittable)
+        attachMacWindow("Metadata first reveal")
+
+        // Returning to the panel must leave all content available.
+        app.scrollViews["detail-scroll"].scroll(byDeltaX: 0, deltaY: 900)
+        revealMacMetadata(expectedTitle: "Orange inspiration")
+
+        // Browse in either direction: fixture ordering is not part of this test.
+        app.typeKey(.rightArrow, modifierFlags: [])
+        if (app.staticTexts["detail-metadata-title"].value as? String)?.hasPrefix("Orange inspiration") == true {
+            app.typeKey(.leftArrow, modifierFlags: [])
+        }
+        revealMacMetadata(expectedTitle: "Blue architecture")
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value CONTAINS %@", "Dimensions")).firstMatch.isHittable)
+        attachMacWindow("Metadata after browsing")
+        close.click()
+        let dismissed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: close)
+        XCTAssertEqual(XCTWaiter.wait(for: [dismissed], timeout: 10), .completed)
+
+        clickMacMedia(media("fixture-orange"))
+        XCTAssertTrue(close.waitForExistence(timeout: 10))
+        assertMacMetadataWaitsForScroll()
+        revealMacMetadata(expectedTitle: "Orange inspiration")
+        let pattern = app.buttons["Pattern: Fixture"]
+        XCTAssertTrue(pattern.isHittable)
+        pattern.click()
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"), object: close
+        )], timeout: 10), .completed)
+        XCTAssertEqual((app.searchFields.firstMatch.value as? String), "Fixture")
+    }
+
+    private func assertMacMetadataWaitsForScroll() {
+        let scroll = app.scrollViews["detail-scroll"]
+        XCTAssertTrue(scroll.waitForExistence(timeout: 10))
+        XCTAssertEqual(scroll.value as? String, "Metadata waiting for scroll")
+        // Waiting at the image must never consume the below-the-fold reveal.
+        let prematureReveal = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value != %@", "Metadata waiting for scroll"), object: scroll
+        )
+        prematureReveal.isInverted = true
+        XCTAssertEqual(XCTWaiter.wait(for: [prematureReveal], timeout: 1), .completed)
+    }
+
+    private func revealMacMetadata(expectedTitle: String) {
+        let scroll = app.scrollViews["detail-scroll"]
+        XCTAssertTrue(scroll.waitForExistence(timeout: 10))
+        scroll.scroll(byDeltaX: 0, deltaY: -650)
+        let title = app.staticTexts["detail-metadata-title"]
+        let visible = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            title.exists && title.isHittable && (title.value as? String)?.hasPrefix(expectedTitle) == true
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [visible], timeout: 10), .completed)
+        XCTAssertTrue(app.buttons["Pattern: Fixture"].isHittable)
+        XCTAssertEqual(scroll.value as? String, "Metadata revealed")
+    }
+
+    private func attachMacWindow(_ name: String) {
+        let attachment = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+    #endif
+
     func testSearchFindsMatchingMedia() {
         launch("library")
         XCTAssertTrue(media("fixture-orange").waitForExistence(timeout: 30))

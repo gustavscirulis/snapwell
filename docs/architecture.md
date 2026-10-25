@@ -32,6 +32,16 @@ Bundle ID: `co.snapwell`.
 
 Uses XcodeGen — run `cd macos && xcodegen generate && scripts/post-xcodegen.sh` after adding/removing Swift files. The post-xcodegen script patches the `AppIcon.icon` file type in the generated `.pbxproj` (XcodeGen doesn't know the `folder.iconcomposer.icon` type).
 
+Fullscreen metadata reveals once per detail session, only after scrolling down brings
+40 pt of its title area into view. The trigger uses the scroll viewport and the metadata's
+content position, including the image and panel padding; opening alone never consumes it.
+The panel and title lead, followed by description/status,
+patterns as one group, and file details at 80 ms intervals; absent groups add no delay.
+Each beat uses a 220 ms ease-out opacity/4 pt offset reveal, completing within 460 ms.
+Browsing to another item consumes the reveal and shows subsequent metadata immediately.
+Reduce Motion uses one 150 ms fade without movement; enabling it mid-reveal completes the
+remaining groups. Navigation, dismissal and disappearance cancel pending reveal work.
+
 Bundle ID: `co.snapwell`.
 
 ## Architecture patterns
