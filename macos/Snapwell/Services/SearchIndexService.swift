@@ -38,8 +38,11 @@ final class SearchIndexService {
     private var itemEmbeddings: [String: [Double]] = [:]
     /// Whether embeddings are ready for search
     private var embeddingsReady = false
+    private var embeddingBuildGeneration = 0
+    private var pendingEmbeddingChanges: Set<String>?
     /// Word embedding model (static word vectors, no neural network)
     nonisolated(unsafe) private static let wordEmbedding = NLEmbedding.wordEmbedding(for: .english)
+    nonisolated private static let wordEmbeddingLock = NSLock()
     /// Embedding dimension
     private var embeddingDimension: Int { Self.wordEmbedding?.dimension ?? 0 }
     /// Minimum similarity for embedding-only results
@@ -82,10 +85,11 @@ final class SearchIndexService {
     }
 
     /// Build embeddings for all items in the background. Non-blocking.
-    func buildEmbeddingsInBackground(items: [MediaItem]) {
+    @discardableResult
+    func buildEmbeddingsInBackground(items: [MediaItem]) -> Task<Void, Never>? {
         guard Self.wordEmbedding != nil else {
             print("[SearchIndex] Word embeddings not available, skipping")
-            return
+            return nil
         }
 
         // Extract text data on main actor (SwiftData models are @MainActor)
@@ -96,8 +100,12 @@ final class SearchIndexService {
             textData.append((id: item.id, text: text))
         }
 
+        embeddingBuildGeneration += 1
+        let buildGeneration = embeddingBuildGeneration
+        pendingEmbeddingChanges = []
+
         // Compute embeddings off main actor
-        Task.detached {
+        return Task.detached {
             var embeddings: [String: [Double]] = [:]
             for entry in textData {
                 if let vec = Self.averageWordVectors(entry.text) {
@@ -106,7 +114,14 @@ final class SearchIndexService {
             }
 
             await MainActor.run {
-                self.itemEmbeddings = embeddings
+                guard self.embeddingBuildGeneration == buildGeneration else { return }
+                // Incremental analysis may finish while the startup snapshot is computing.
+                // Keep those newer vectors and omit items deleted in the meantime.
+                let changedIDs = self.pendingEmbeddingChanges ?? []
+                let changedEmbeddings = self.itemEmbeddings.filter { changedIDs.contains($0.key) }
+                self.itemEmbeddings = embeddings.filter { !changedIDs.contains($0.key) && self.docLengths[$0.key] != nil }
+                self.itemEmbeddings.merge(changedEmbeddings) { _, current in current }
+                self.pendingEmbeddingChanges = nil
                 self.embeddingsReady = true
                 self.generation += 1
                 print("[SearchIndex] Built \(embeddings.count) word-vector embeddings in background")
@@ -131,6 +146,7 @@ final class SearchIndexService {
 
     /// Remove a single item from the index.
     func removeFromIndex(itemId: String) {
+        pendingEmbeddingChanges?.insert(itemId)
         guard docLengths.removeValue(forKey: itemId) != nil else { return }
 
         for token in postings.keys {
@@ -280,6 +296,8 @@ final class SearchIndexService {
     /// Average word vectors for a text string. Uses static word embeddings (no neural network).
     /// Returns an L2-normalized vector, or nil if no words have embeddings.
     private nonisolated static func averageWordVectors(_ text: String) -> [Double]? {
+        wordEmbeddingLock.lock()
+        defer { wordEmbeddingLock.unlock() }
         guard let embedding = wordEmbedding else { return nil }
         let dim = embedding.dimension
 

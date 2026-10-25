@@ -315,19 +315,7 @@ struct ContentView: View {
             await syncWatcher.initialSync(context: modelContext)
             DataCleanupService.cleanOrphanedRecords(context: modelContext)
             DataCleanupService.cleanOrphanedSidecars()
-            syncWatcher.startWatching(context: modelContext)
-
-            // Auto-download evicted iCloud files if user has opted in
-            if UserDefaults.standard.bool(forKey: "keepFilesLocal") {
-                iCloudDownloadManager.shared.downloadAll()
-            }
-
-            // Auto-analyze any items that arrived without AI analysis (e.g. from iOS share extension)
-            await importService.analyzeUnanalyzedItems(from: allItems, context: modelContext)
-
-            // Build search index from metadata (instant — pure tokenization + dictionary building)
             searchService.buildIndex(items: allItems)
-            // Build word-vector embeddings in background for synonym matching (non-blocking)
             searchService.buildEmbeddingsInBackground(items: allItems)
 
             // Wire SyncWatcher callback — analyze new items arriving via iCloud in real-time
@@ -343,6 +331,14 @@ struct ContentView: View {
                 }
             }
 
+            syncWatcher.startWatching(context: modelContext)
+
+            // Auto-download evicted iCloud files if user has opted in
+            if UserDefaults.standard.bool(forKey: "keepFilesLocal") {
+                iCloudDownloadManager.shared.downloadAll()
+            }
+
+            await importService.analyzeUnanalyzedItems(from: allItems, context: modelContext)
         }
         .task {
             // Re-sync when app regains focus (picks up iCloud changes from other devices).

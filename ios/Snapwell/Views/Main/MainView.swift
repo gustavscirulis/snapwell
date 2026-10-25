@@ -13,7 +13,6 @@ struct MainView: View {
     @State private var error: String?
     @State private var deleteError: String?
     @State private var hasAttemptedRescan = false
-    @State private var prefetchTask: Task<Void, Never>?
     @State private var syncService = SyncService()
     @State private var searchService = SearchIndexService()
     @State private var analysisCoordinator = AnalysisCoordinator()
@@ -717,11 +716,6 @@ struct MainView: View {
 
         searchService.buildIndex(items: allItems)
         searchService.buildEmbeddingsInBackground(items: allItems)
-
-        prefetchTask?.cancel()
-        let screenWidth = UIScreen.main.bounds.width
-        let columnWidth = (screenWidth - 24 - 8) / 2
-        prefetchTask = ThumbnailCache.shared.prefetchThumbnails(for: allItems, targetPixelWidth: columnWidth * 2)
 
         analysisCoordinator.configure(
             keySyncService: keySyncService,

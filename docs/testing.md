@@ -9,6 +9,7 @@
 - `./dev.sh test --platform ios --suite ui` runs native interaction checks.
 - `./dev.sh test --suite tools` runs the Python orchestration and Swift release-client tests.
 - `./dev.sh test --suite core` runs production model, filesystem and HTTP tests without an app host or simulator.
+- `./dev.sh test --suite tools --reuse-passing` reuses passing headless checks with unchanged inputs; the flag also works with `--suite core`.
 - `./dev.sh test --dry-run` reports selection without changing files or running tests.
 
 Change selection includes the diff from `origin/main`, local tracked changes and untracked
@@ -17,6 +18,21 @@ files. `Shared/`, native fixtures, scripts and release-tool changes select both 
 changes skip native validation. Run `bash scripts/setup.sh` to install tracked hooks; an
 existing custom hooksPath is preserved with integration instructions. Both agents use the
 same commands; no Claude-only hook masks exit status.
+
+Pre-commit runs the headless tooling and core suites, using `--reuse-passing --staged`.
+Hosted native and UI tests run at the PR gate, rather than again on every commit. A full
+validation run also records reusable headless results, so committing the tested files does
+not rerun those checks. Native results still need to pass before opening the PR.
+
+Headless results include content fingerprints of their source, test, fixture, configuration
+and runner inputs plus the Swift/Python toolchain and host OS version. Documentation-only
+edits do not invalidate them. Added, deleted or modified inputs do; failures, timeouts,
+missing logs and reports without fingerprints cannot be reused. A newer failure for the
+same inputs takes precedence over an older pass. Inputs are checked before and after each
+run; editing them during validation invalidates the result. Staged checks reject relevant
+unstaged or untracked inputs so tests cannot accidentally validate different code from the
+commit. Stage those inputs or stash them before committing. Explicit test commands run fresh
+unless `--reuse-passing` is supplied; the flag never skips native tests.
 
 ## Before creating a PR
 

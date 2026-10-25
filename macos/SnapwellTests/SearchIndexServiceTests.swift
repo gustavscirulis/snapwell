@@ -39,6 +39,43 @@ struct SearchIndexServiceTests {
 
     // MARK: - Search with SwiftData
 
+    @Test("Background embeddings do not resurrect deleted items")
+    func backgroundEmbeddingsRespectDeletion() async throws {
+        let container = try TestContainer.create()
+        let item = makeItem(id: "deleted", summary: "Forest", context: "Forest trees", patterns: [], container: container)
+        let service = SearchIndexService()
+        service.buildIndex(items: [item])
+
+        let build = service.buildEmbeddingsInBackground(items: [item])
+        service.removeFromIndex(itemId: item.id)
+        await build?.value
+
+        #expect(service.search(query: "forest").isEmpty)
+    }
+
+    @Test("Background embeddings preserve incremental analysis updates",
+          arguments: ["Ocean waves sea beach", "zzzzzzzz qqqqqqqq"])
+    func backgroundEmbeddingsRespectAnalysisUpdates(updatedText: String) async throws {
+        let container = try TestContainer.create()
+        let item = makeItem(id: "updated", summary: "Forest", context: "Forest trees woodland", patterns: [], container: container)
+        let service = SearchIndexService()
+        service.buildIndex(items: [item])
+        let build = service.buildEmbeddingsInBackground(items: [item])
+
+        item.analysisResult?.imageSummary = updatedText
+        item.analysisResult?.imageContext = updatedText
+        service.addToIndex(item: item)
+        let reference = SearchIndexService()
+        reference.buildIndex(items: [item])
+        let referenceBuild = reference.buildEmbeddingsInBackground(items: [item])
+        await build?.value
+        await referenceBuild?.value
+
+        for query in ["forest", "woodland", "seaside", "waves"] {
+            #expect(service.search(query: query).map(\.itemId) == reference.search(query: query).map(\.itemId))
+        }
+    }
+
     private func makeItem(id: String, summary: String, context: String, patterns: [String], container: ModelContainer) -> MediaItem {
         let item = MediaItem(id: id, mediaType: .image, filename: "\(id).png", width: 100, height: 100)
         let analysis = AnalysisResult(
