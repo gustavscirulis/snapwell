@@ -30,8 +30,9 @@ same task when its behavior changes. User instructions always take precedence.
 ## Completion
 
 Run `./dev.sh test --platform changed --suite all` before handing off native work.
-The headless `./dev.sh test --suite core` suite also runs automatically with logic/all;
-run it yourself even when Apple’s native test services are unavailable.
+Headless checks reuse passing results for unchanged inputs by default; use `--fresh` only
+when a fresh rerun is needed. The core suite is included in logic/all, even when native
+services are blocked. Do not rerun it separately if that run already passed core.
 Swift Testing is required for logic/integration tests; XCTest is allowed in native UI-test
 targets only. Add regression tests for sync, import, sidecars, trash, spaces and model changes.
 For view-only work, exercise relevant UI tests and inspect captured images; do not create

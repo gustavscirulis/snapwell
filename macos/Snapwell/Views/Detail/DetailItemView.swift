@@ -16,18 +16,39 @@ enum DetailCoordinateSpace {
  * Grid hover previews are handled separately by FloatingVideoLayer.
  *
  * METADATA REVEAL
- *    After view appears, metadata fades in with staggered timing:
- *    title → pills → description → file info.
+ *    Once per fullscreen session, when metadata first enters the viewport:
+ *    title + panel → description/status → patterns → file info.
  * ───────────────────────────────────────────────────────── */
 
+enum MetadataRevealStage: Int {
+    case hidden, title, description, patterns, fileInfo
+
+    func includes(_ stage: Self) -> Bool { rawValue >= stage.rawValue }
+}
+
 private enum MetadataReveal {
-    static let titleDelay:       Duration = .milliseconds(100)
-    static let pillsDelay:       Duration = .milliseconds(300)
-    static let tagStagger:       Double   = 0.05
-    static let descriptionDelay: Duration = .milliseconds(450)
-    static let fileInfoDelay:    Duration = .milliseconds(600)
-    static let slideDistance:    CGFloat  = 8
-    static let spring = SnapSpring.metadata
+    static let beat: Duration = .milliseconds(80)
+    static let slideDistance: CGFloat = 4
+    static let animation = Animation.timingCurve(0.23, 1, 0.32, 1, duration: 0.22)
+    static let reducedAnimation = Animation.easeOut(duration: 0.15)
+
+    static func description(for item: MediaItem) -> String? {
+        guard let result = item.analysisResult else { return nil }
+        let context = result.imageContext.trimmingCharacters(in: .whitespacesAndNewlines)
+        return context.isEmpty || context == result.imageSummary ? nil : context
+    }
+
+    static func stages(for item: MediaItem) -> [MetadataRevealStage] {
+        var stages: [MetadataRevealStage] = [.title]
+        if item.isAnalyzing || item.analysisError != nil || description(for: item) != nil {
+            stages.append(.description)
+        }
+        if let patterns = item.analysisResult?.patterns, !patterns.isEmpty {
+            stages.append(.patterns)
+        }
+        stages.append(.fileInfo)
+        return stages
+    }
 }
 
 private enum DetailTransitionPhase {
@@ -44,6 +65,11 @@ private enum DetailTransitionPhase {
 private struct DetailOpeningLayout: Equatable {
     let size: CGSize
     let origin: CGPoint
+}
+
+private struct DetailScrollPosition: Equatable {
+    let offset: CGFloat
+    let metadataTitleIsVisible: Bool
 }
 
 /// The source bitmap is sliced once per transition or window size, never during the spring.
@@ -132,7 +158,8 @@ struct DetailItemView: View {
     @State private var detailColumnLeadingInset: CGFloat = 0
     @State private var trackpadScroll = TrackpadScrollState()
     @State private var scrollOffset: CGFloat = 0
-    @State private var metadataStage: Int = 0
+    @State private var metadataStage: MetadataRevealStage = .hidden
+    @State private var hasConsumedMetadataReveal = false
     @State private var revealTask: Task<Void, Never>?
     @State private var navigationFallbackTask: Task<Void, Never>?
     @State private var navigationGeneration = 0
@@ -341,6 +368,11 @@ struct DetailItemView: View {
             trackpadScroll.reset()
             zoomPanDelta = .zero
         }
+        .onChange(of: reduceMotion) { _, reduced in
+            if reduced && hasConsumedMetadataReveal {
+                finishMetadataReveal(animated: true)
+            }
+        }
         .onChange(of: phase) { _, newPhase in
             if newPhase == .settled && !isZoomed {
                 trackpadScroll.activate()
@@ -405,7 +437,6 @@ struct DetailItemView: View {
                 image = heroImage ?? image
                 phase = .settled
             }
-            startMetadataReveal()
             applyPendingFullResolution(for: openingID)
         }
     }
@@ -419,6 +450,9 @@ struct DetailItemView: View {
         // Metadata begins just below it and is reached by scrolling.
         let imageBottom = heroFrame.minY + imageFrame.height
         let metadataGap = max(56, windowSize.height - imageBottom + 24)
+        // Wait until a line of the title is on screen, not just the panel's border.
+        // A tiny intersection can finish the entire stagger while the text is below the fold.
+        let metadataTitleRevealY = imageBottom + metadataGap + (windowSize.width < 900 ? 24 : 30) + 40
 
         ScrollView(.vertical) {
             VStack(spacing: 0) {
@@ -463,7 +497,7 @@ struct DetailItemView: View {
                 .frame(width: min(max(windowSize.width - 72, 0), 980))
                 .padding(.top, metadataGap)
                 .padding(.bottom, 64)
-                .opacity(isZoomed ? 0 : metadataScrollOpacity)
+                .opacity(isZoomed ? 0 : 1)
                 .animation(SnapSpring.fast, value: isZoomed)
             }
             .frame(maxWidth: .infinity)
@@ -482,10 +516,19 @@ struct DetailItemView: View {
         .modifier(SoftScrollEdgeModifier())
         #endif
         .id(currentItem.id)
-        .onScrollGeometryChange(for: CGFloat.self) { geo in
-            geo.contentOffset.y
-        } action: { _, newOffset in
-            scrollOffset = newOffset
+        .accessibilityIdentifier("detail-scroll")
+        #if SNAPWELL_AUTOMATION
+        .accessibilityValue(metadataStage == .hidden ? "Metadata waiting for scroll"
+            : metadataStage == .fileInfo ? "Metadata revealed" : "Metadata revealing")
+        #endif
+        .onScrollGeometryChange(for: DetailScrollPosition.self) { geo in
+            DetailScrollPosition(
+                offset: geo.contentOffset.y,
+                metadataTitleIsVisible: geo.contentOffset.y > 0 && geo.visibleRect.maxY >= metadataTitleRevealY
+            )
+        } action: { _, position in
+            scrollOffset = position.offset
+            if position.metadataTitleIsVisible { startMetadataReveal() }
         }
     }
 
@@ -504,7 +547,7 @@ struct DetailItemView: View {
     // MARK: - Close
 
     private func resetViewState() {
-        metadataStage = 0
+        metadataStage = hasConsumedMetadataReveal ? .fileInfo : .hidden
         scrollOffset = 0
         pendingFullResImage = nil
         isZoomed = false
@@ -654,6 +697,9 @@ struct DetailItemView: View {
             withAnimation(SnapSpring.standard(reduced: reduceMotion)) { swipeOffset = 0 }
             return
         }
+        // Browsing consumes the session's reveal even if its first panel was never seen.
+        hasConsumedMetadataReveal = true
+        finishMetadataReveal()
         isNavigating = true
         navigationGeneration += 1
         let generation = navigationGeneration
@@ -703,7 +749,6 @@ struct DetailItemView: View {
 
         preloadAdjacentImages()
         isNavigating = false
-        startMetadataReveal()
     }
 
     // MARK: - Item Loading
@@ -817,37 +862,41 @@ struct DetailItemView: View {
     // MARK: - Metadata Reveal
 
     private func startMetadataReveal() {
-        revealTask?.cancel()
+        guard phase == .settled, !isNavigating, !isZoomed,
+              !hasConsumedMetadataReveal else { return }
+        hasConsumedMetadataReveal = true
 
         if reduceMotion {
-            withAnimation(.easeInOut(duration: 0.15)) { metadataStage = 4 }
+            finishMetadataReveal(animated: true)
             return
         }
 
+        let itemID = currentItem.id
+        let stages = MetadataReveal.stages(for: currentItem)
         revealTask = Task { @MainActor in
-            try? await Task.sleep(for: MetadataReveal.titleDelay)
-            guard !Task.isCancelled else { return }
-            withAnimation(MetadataReveal.spring) { metadataStage = 1 }
-
-            try? await Task.sleep(for: MetadataReveal.pillsDelay - MetadataReveal.titleDelay)
-            guard !Task.isCancelled else { return }
-            withAnimation(MetadataReveal.spring) { metadataStage = 2 }
-
-            try? await Task.sleep(for: MetadataReveal.descriptionDelay - MetadataReveal.pillsDelay)
-            guard !Task.isCancelled else { return }
-            withAnimation(MetadataReveal.spring) { metadataStage = 3 }
-
-            try? await Task.sleep(for: MetadataReveal.fileInfoDelay - MetadataReveal.descriptionDelay)
-            guard !Task.isCancelled else { return }
-            withAnimation(MetadataReveal.spring) { metadataStage = 4 }
+            for (index, stage) in stages.enumerated() {
+                if index > 0 {
+                    do { try await Task.sleep(for: MetadataReveal.beat) }
+                    catch { return }
+                }
+                guard !Task.isCancelled, phase == .settled,
+                      currentItem.id == itemID, !isNavigating else { return }
+                withAnimation(MetadataReveal.animation) { metadataStage = stage }
+            }
+            revealTask = nil
         }
     }
 
-    /// Scroll-responsive opacity for metadata: starts partially transparent,
-    /// becomes fully opaque after scrolling ~60pt.
-    private var metadataScrollOpacity: Double {
-        let fade = max(0, 1 - scrollOffset / 60)
-        return 1 - 0.6 * fade
+    private func finishMetadataReveal(animated: Bool = false) {
+        revealTask?.cancel()
+        revealTask = nil
+        if animated {
+            withAnimation(MetadataReveal.reducedAnimation) { metadataStage = .fileInfo }
+        } else {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) { metadataStage = .fileInfo }
+        }
     }
 
     // MARK: - Frame Computation
@@ -1015,7 +1064,7 @@ struct DetailItemView: View {
 struct DetailMetadataSection: View {
     let item: MediaItem
     let compact: Bool
-    let stage: Int
+    let stage: MetadataRevealStage
     var onSearchPattern: ((String) -> Void)?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -1036,20 +1085,26 @@ struct DetailMetadataSection: View {
             }
         }
         .padding(compact ? 24 : 30)
-        .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 18))
+        .background {
+            RoundedRectangle(cornerRadius: 18)
+                .fill(Color.primary.opacity(0.045))
+                .opacity(stage.includes(.title) ? 1 : 0)
+        }
         .overlay {
             RoundedRectangle(cornerRadius: 18)
                 .strokeBorder(Color.primary.opacity(0.09))
+                .opacity(stage.includes(.title) ? 1 : 0)
         }
     }
 
     private var narrative: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(title)
+                .accessibilityIdentifier("detail-metadata-title")
                 .font(.system(size: compact ? 26 : 30, weight: .semibold))
                 .tracking(-0.7)
                 .fixedSize(horizontal: false, vertical: true)
-                .stageReveal(stage: stage, threshold: 1, reduced: reduceMotion)
+                .stageReveal(stage: stage, threshold: .title, reduced: reduceMotion)
 
             if item.isAnalyzing {
                 statusRow("Analyzing…", icon: nil)
@@ -1065,7 +1120,7 @@ struct DetailMetadataSection: View {
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 18)
-                    .stageReveal(stage: stage, threshold: 3, reduced: reduceMotion)
+                    .stageReveal(stage: stage, threshold: .description, reduced: reduceMotion)
             }
 
             if let patterns = item.analysisResult?.patterns, !patterns.isEmpty {
@@ -1089,18 +1144,11 @@ struct DetailMetadataSection: View {
 
     private func patternFlow(_ patterns: [PatternTag]) -> some View {
         FlowLayout(spacing: 8) {
-            ForEach(Array(patterns.enumerated()), id: \.element.name) { index, pattern in
+            ForEach(patterns, id: \.name) { pattern in
                 patternButton(pattern)
-                    .opacity(stage >= 2 ? 1 : 0)
-                    .offset(y: reduceMotion || stage >= 2 ? 0 : MetadataReveal.slideDistance)
-                    .animation(
-                        reduceMotion
-                            ? .easeOut(duration: 0.15)
-                            : MetadataReveal.spring.delay(Double(index) * MetadataReveal.tagStagger),
-                        value: stage
-                    )
             }
         }
+        .stageReveal(stage: stage, threshold: .patterns, reduced: reduceMotion)
     }
 
     @ViewBuilder
@@ -1151,7 +1199,7 @@ struct DetailMetadataSection: View {
                 .padding(.vertical, 15)
             }
         }
-        .stageReveal(stage: stage, threshold: 4, reduced: reduceMotion)
+        .stageReveal(stage: stage, threshold: .fileInfo, reduced: reduceMotion)
     }
 
     private var title: String {
@@ -1163,9 +1211,7 @@ struct DetailMetadataSection: View {
     }
 
     private var description: String? {
-        guard let result = item.analysisResult else { return nil }
-        let context = result.imageContext.trimmingCharacters(in: .whitespacesAndNewlines)
-        return context.isEmpty || context == result.imageSummary ? nil : context
+        MetadataReveal.description(for: item)
     }
 
     private func statusRow(_ label: String, icon: String?) -> some View {
@@ -1181,7 +1227,7 @@ struct DetailMetadataSection: View {
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
         }
-        .stageReveal(stage: stage, threshold: 3, reduced: reduceMotion)
+        .stageReveal(stage: stage, threshold: .description, reduced: reduceMotion)
     }
 
     private func recordRow(_ label: String, _ value: String, monospacedValue: Bool = false) -> some View {
@@ -1232,11 +1278,10 @@ private struct SourceLinkButton: View {
 // MARK: - Stage Reveal Modifier
 
 private extension View {
-    func stageReveal(stage: Int, threshold: Int, reduced: Bool) -> some View {
+    func stageReveal(stage: MetadataRevealStage, threshold: MetadataRevealStage, reduced: Bool) -> some View {
         self
-            .opacity(stage >= threshold ? 1 : 0)
-            .offset(y: reduced || stage >= threshold ? 0 : 4)
-            .animation(reduced ? .easeOut(duration: 0.15) : MetadataReveal.spring, value: stage)
+            .opacity(stage.includes(threshold) ? 1 : 0)
+            .offset(y: reduced || stage.includes(threshold) ? 0 : MetadataReveal.slideDistance)
     }
 }
 

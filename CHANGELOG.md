@@ -7,6 +7,8 @@ User-visible changes are recorded as they are implemented. Release manifests und
 
 ### macOS
 
+- [fullscreen-metadata-reveal] Reveal fullscreen metadata in reading order once scrolling brings its title into view, with a readable stagger that plays once per session and respects Reduce Motion.
+
 - [remote-analysis-sync] Pick up missing or newer analysis from iCloud and refresh search results.
 - [search-before-analysis] Make existing content searchable while automatic analysis runs.
 - [cancel-analysis-retry] Stop pending analysis retries when the task is cancelled.
