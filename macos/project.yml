@@ -90,8 +90,8 @@ targets:
         LD_RUNPATH_SEARCH_PATHS:
           - "$(inherited)"
           - "@executable_path/../Frameworks"
-        MARKETING_VERSION: "1.0.7"
-        CURRENT_PROJECT_VERSION: 14
+        MARKETING_VERSION: "1.0.8"
+        CURRENT_PROJECT_VERSION: 15
         CODE_SIGN_ENTITLEMENTS: Snapwell/Resources/Snapwell.entitlements
         SWIFT_STRICT_CONCURRENCY: complete
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

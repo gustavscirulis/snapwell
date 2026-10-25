@@ -8,11 +8,37 @@ Do not invent historical release notes. Existing entries are a starting point fo
 
 ## One-time local configuration
 
-Export `ASC_KEY_PATH` (absolute path to the existing .p8 outside the repository),
-`ASC_KEY_ID`, and `ASC_ISSUER_ID` for a team key. Individual keys omit issuer ID.
+For automatic access across local Conductor workspaces, create
+`~/.appstoreconnect/snapwell.json` on your Mac (outside every repository):
+
+```json
+{
+  "key_path": "/absolute/path/to/AuthKey_YOUR_KEY_ID.p8",
+  "key_id": "YOUR_KEY_ID",
+  "issuer_id": "YOUR_ISSUER_ID"
+}
+```
+
+Use the existing private key; the configuration contains only identifiers and its path.
+For an individual key, omit `issuer_id`. Keep the directory private (`chmod 700
+~/.appstoreconnect`) and the JSON and `.p8` files readable only by your macOS user
+(`chmod 600` on each file). Never copy these files into workspaces or cloud environments.
+The helper loads this file directly, so new workspaces need no shell exports, copied
+`.env`, browser login or remembered chat context. Other processes running as your macOS
+user can also read these files; filesystem permissions do not isolate one agent from another.
+
+Alternatively, export `ASC_KEY_PATH` (absolute path to the existing .p8 outside the repository),
+`ASC_KEY_ID`, and `ASC_ISSUER_ID` for a team key. Environment values override local fields;
+setting both key path and key ID bypasses the local configuration entirely, so an individual
+environment key does not inherit a team issuer. An empty `ASC_ISSUER_ID` clears a local issuer.
 `ASC_APP_ID` defaults to Snapwell's `6762541353`; the helper verifies the bundle ID.
 Never commit keys or tokens. The key must permit version metadata and App Review submissions.
 Xcode must have the signing certificates/profiles needed to archive both apps.
+
+Use the narrowest Apple permissions suitable for releases. Team keys apply to all apps;
+an individual key inherits its user's app access, so an App Manager user limited to Snapwell
+can provide narrower app access. The local configuration makes commands available; it is
+not standing authorization to publish. Live publication still requires a user release request.
 
 Run `./dev.sh doctor --platform macos --apple` to verify read-only API access.
 

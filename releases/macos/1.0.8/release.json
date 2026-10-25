@@ -1,0 +1,29 @@
+{
+  "build": 15,
+  "changes": [
+    {
+      "id": "fullscreen-metadata-reveal",
+      "text": "Reveal fullscreen metadata in reading order once scrolling brings its title into view, with a readable stagger that plays once per session and respects Reduce Motion."
+    },
+    {
+      "id": "remote-analysis-sync",
+      "text": "Pick up missing or newer analysis from iCloud and refresh search results."
+    },
+    {
+      "id": "search-before-analysis",
+      "text": "Make existing content searchable while automatic analysis runs."
+    },
+    {
+      "id": "cancel-analysis-retry",
+      "text": "Stop pending analysis retries when the task is cancelled."
+    },
+    {
+      "id": "accessible-media-actions",
+      "text": "Open media and reach its actions more reliably with accessibility tools."
+    }
+  ],
+  "locale": "en-US",
+  "platform": "macos",
+  "status": "prepared",
+  "version": "1.0.8"
+}

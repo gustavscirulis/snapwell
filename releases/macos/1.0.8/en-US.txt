@@ -1,0 +1,3 @@
+• Improved iCloud sync keeps analysis and search results up to date.
+• Existing media stays searchable while automatic analysis runs, and cancelled analysis stops retrying.
+• Fullscreen details appear smoothly as you scroll, with better accessibility for media actions.

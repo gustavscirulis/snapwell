@@ -13,13 +13,38 @@ public struct Credentials {
     public let issuerID: String?
     public let keyURL: URL
 
-    public init(environment: [String: String] = ProcessInfo.processInfo.environment) throws {
-        guard let path = environment["ASC_KEY_PATH"], let key = environment["ASC_KEY_ID"], !key.isEmpty else {
-            throw ReleaseError("Set ASC_KEY_PATH and ASC_KEY_ID; set ASC_ISSUER_ID for a team key. Keys stay outside the repo.")
+    public init(environment: [String: String] = ProcessInfo.processInfo.environment,
+                configurationURL: URL = FileManager.default.homeDirectoryForCurrentUser
+                    .appendingPathComponent(".appstoreconnect/snapwell.json")) throws {
+        struct Configuration: Decodable {
+            let key_path: String?
+            let key_id: String?
+            let issuer_id: String?
+        }
+        // A complete environment configuration is independent of any local file,
+        // including when an individual key intentionally omits the issuer ID.
+        var configuration: Configuration?
+        if environment["ASC_KEY_PATH"] == nil || environment["ASC_KEY_ID"] == nil {
+            if FileManager.default.fileExists(atPath: configurationURL.path) {
+                do {
+                    configuration = try JSONDecoder().decode(Configuration.self, from: Data(contentsOf: configurationURL))
+                } catch {
+                    // Do not echo configuration contents in diagnostics.
+                    throw ReleaseError("Could not read App Store Connect configuration at \(configurationURL.path). Expected JSON with key_path, key_id and optional issuer_id.")
+                }
+            }
+        }
+        func nonempty(_ value: String?) -> String? {
+            guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
+            return value
+        }
+        guard let path = nonempty(environment["ASC_KEY_PATH"] ?? configuration?.key_path),
+              let key = nonempty(environment["ASC_KEY_ID"] ?? configuration?.key_id) else {
+            throw ReleaseError("Configure ~/.appstoreconnect/snapwell.json or set ASC_KEY_PATH and ASC_KEY_ID; team keys also need ASC_ISSUER_ID. Keys stay outside the repo.")
         }
         keyURL = URL(fileURLWithPath: NSString(string: path).expandingTildeInPath)
         keyID = key
-        issuerID = environment["ASC_ISSUER_ID"].flatMap { $0.isEmpty ? nil : $0 }
+        issuerID = nonempty(environment["ASC_ISSUER_ID"] ?? configuration?.issuer_id)
     }
 
     public func token(now: Date = Date()) throws -> String {

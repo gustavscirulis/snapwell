@@ -1,0 +1,25 @@
+{
+  "build": 14,
+  "changes": [
+    {
+      "id": "lazy-thumbnails",
+      "text": "Load thumbnails as grid cells appear instead of prefetching the whole library on refresh."
+    },
+    {
+      "id": "partial-share-recovery",
+      "text": "Resume partial shared-media imports and wait for existing iCloud files to download before retrying."
+    },
+    {
+      "id": "share-import-recovery",
+      "text": "Keep shared images and videos recoverable when saving or importing is interrupted."
+    },
+    {
+      "id": "safe-local-migration",
+      "text": "Preserve local media when iCloud migration fails, and retain remote organization when merging newer analysis."
+    }
+  ],
+  "locale": "en-US",
+  "platform": "ios",
+  "status": "prepared",
+  "version": "1.0.9"
+}

@@ -36,6 +36,51 @@ import CryptoKit
     #expect(key.publicKey.isValidSignature(signature, for: Data((parts[0] + "." + parts[1]).utf8)))
 }
 
+@Test func loadsLocalCredentialsAndAllowsEnvironmentOverrides() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let configuration = directory.appendingPathComponent("snapwell.json")
+    try Data(#"{"key_path":"/fixture/key.p8","key_id":"LOCAL","issuer_id":" issuer "}"#.utf8).write(to: configuration)
+
+    let local = try Credentials(environment: [:], configurationURL: configuration)
+    #expect(local.keyURL.path == "/fixture/key.p8")
+    #expect(local.keyID == "LOCAL")
+    #expect(local.issuerID == "issuer")
+    let override = try Credentials(environment: ["ASC_ISSUER_ID": "replacement"], configurationURL: configuration)
+    #expect(override.keyID == "LOCAL")
+    #expect(override.issuerID == "replacement")
+    let individual = try Credentials(environment: ["ASC_ISSUER_ID": ""], configurationURL: configuration)
+    #expect(individual.issuerID == nil)
+
+    // Explicit environment credentials work even if the local file is malformed,
+    // and do not inherit a team issuer when using an individual key.
+    try Data("invalid private configuration".utf8).write(to: configuration)
+    let explicit = try Credentials(environment: ["ASC_KEY_PATH": "/fixture/override.p8", "ASC_KEY_ID": "ENV"],
+                                   configurationURL: configuration)
+    #expect(explicit.keyURL.path == "/fixture/override.p8")
+    #expect(explicit.keyID == "ENV")
+    #expect(explicit.issuerID == nil)
+    do {
+        _ = try Credentials(environment: [:], configurationURL: configuration)
+        Issue.record("Expected invalid configuration to fail")
+    } catch {
+        #expect(!error.localizedDescription.contains("invalid private configuration"))
+    }
+}
+
+@Test func missingOrIncompleteLocalCredentialsFailWithoutReadingAKey() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let configuration = directory.appendingPathComponent("snapwell.json")
+    #expect(throws: ReleaseError.self) { try Credentials(environment: [:], configurationURL: configuration) }
+    try Data(#"{"key_path":"/fixture/key.p8","key_id":" "}"#.utf8).write(to: configuration)
+    #expect(throws: ReleaseError.self) { try Credentials(environment: [:], configurationURL: configuration) }
+    try Data(#"{"key_path":"/fixture/key.p8","key_id":"INDIVIDUAL"}"#.utf8).write(to: configuration)
+    #expect(try Credentials(environment: [:], configurationURL: configuration).issuerID == nil)
+}
+
 @Test func paginationAndAppleHostRestriction() async throws {
     var requests: [String] = []
     let client = AppleClient(token: { "test" }, transport: { request in
