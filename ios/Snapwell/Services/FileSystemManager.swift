@@ -30,6 +30,11 @@ class FileSystemManager: ObservableObject {
     // MARK: - Access Restoration
 
     func restoreAccess() {
+        if AutomationEnvironment.isEnabled {
+            rootURL = AutomationEnvironment.rootURL
+            isAccessGranted = true
+            return
+        }
         isCheckingAccess = true
 
         Task.detached { [weak self] in
@@ -72,6 +77,7 @@ class FileSystemManager: ObservableObject {
     /// Check if iCloud became available and silently migrate local data.
     /// Safe to call repeatedly — guarded by UserDefaults flag and state checks.
     func checkAndMigrateToiCloud(context: ModelContext) {
+        guard !AutomationEnvironment.isEnabled else { return }
         // Only relevant when currently using local storage
         guard !isUsingiCloud else { return }
 
@@ -88,10 +94,10 @@ class FileSystemManager: ObservableObject {
             let localRoot = await self.localStorageURL
 
             // Run migration
-            await LocalToiCloudMigrationService.migrate(
+            guard await LocalToiCloudMigrationService.migrate(
                 from: localRoot,
                 to: iCloudRoot
-            )
+            ) else { return }
 
             // Switch to iCloud
             await MainActor.run {

@@ -24,7 +24,7 @@
       </BuildActionEntries>
    </BuildAction>
    <TestAction
-      buildConfiguration = "Debug"
+      buildConfiguration = "Automation"
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES"
@@ -39,6 +39,9 @@
                BlueprintName = "SnapwellTests"
                ReferencedContainer = "container:Snapwell.xcodeproj">
             </BuildableReference>
+         </TestableReference>
+         <TestableReference skipped = "NO">
+            <BuildableReference BuildableIdentifier = "primary" BlueprintIdentifier = "6C98632A0AF48F37F32C5AC7" BuildableName = "SnapwellUITests.xctest" BlueprintName = "SnapwellUITests" ReferencedContainer = "container:Snapwell.xcodeproj" />
          </TestableReference>
       </Testables>
    </TestAction>

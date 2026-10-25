@@ -44,6 +44,10 @@ final class MediaStorageService: Sendable {
     }
 
     private convenience init() {
+        if AutomationEnvironment.isEnabled {
+            self.init(baseURL: AutomationEnvironment.rootURL)
+            return
+        }
         // Try to resolve the iCloud container; fall back to Application Support
         let fm = FileManager.default
         if let containerURL = fm.url(forUbiquityContainerIdentifier: "iCloud.co.SnapWell") {

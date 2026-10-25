@@ -1,0 +1,13 @@
+{
+  "spaces": [{
+    "id": "inspiration",
+    "name": "Inspiration",
+    "order": 0,
+    "createdAt": "2026-01-01T12:00:00Z",
+    "customPrompt": "Describe the color and composition.",
+    "useCustomPrompt": true,
+    "hideFromAllMedia": true
+  }],
+  "allSpaceGuidance": "Describe visual ideas.",
+  "useAllSpaceGuidance": true
+}

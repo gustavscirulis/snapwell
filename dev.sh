@@ -301,6 +301,11 @@ confirm_app_store_upload() {
     local platform="$1"
     local version="$2"
     local build="$3"
+    if [[ -n "${SNAPWELL_RELEASE_VERSION:-}" ]]; then
+        [[ "$version" == "$SNAPWELL_RELEASE_VERSION" && "$build" == "$SNAPWELL_RELEASE_BUILD" ]] \
+            || release_fail "Configured version/build does not match the prepared release"
+        return 0
+    fi
     local response
 
     printf "\n${YELLOW}${BOLD}Publish %s %s (build %s)?${RESET}\n" "$platform" "$version" "$build"
@@ -472,6 +477,26 @@ choose_ios_action() {
         1) publish_ios ;;
     esac
 }
+
+# Noninteractive entrypoints share the same archive/upload implementation.
+if [[ $# -gt 0 ]]; then
+    case "$1" in
+        doctor|test|release)
+            exec python3 "$SCRIPT_DIR/scripts/automation.py" "$@"
+            ;;
+        _archive-upload)
+            [[ -n "${SNAPWELL_RELEASE_VERSION:-}" && -n "${SNAPWELL_RELEASE_BUILD:-}" ]] \
+                || release_fail "Use ./dev.sh release publish with a prepared release"
+            case "${2:-}" in
+                macos) publish_mac ;;
+                ios) publish_ios ;;
+                *) release_fail "Expected macos or ios" ;;
+            esac
+            exit
+            ;;
+        *) printf 'Usage: ./dev.sh [doctor|test|release] [options]\n' >&2; exit 2 ;;
+    esac
+fi
 
 # ── Main ────────────────────────────────────────────────────────
 

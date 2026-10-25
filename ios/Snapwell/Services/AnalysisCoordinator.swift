@@ -151,6 +151,8 @@ final class AnalysisCoordinator {
     }
 
     /// Whether a persisted isAnalyzing flag belongs to live coordinator work.
+    var activeAndPendingIDs: Set<String> { workQueue.ownedIDs }
+
     func ownsAnalysis(for itemID: String) -> Bool {
         workQueue.ownedIDs.contains(itemID)
     }

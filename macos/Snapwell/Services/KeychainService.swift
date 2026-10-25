@@ -20,6 +20,7 @@ enum KeychainService {
     // MARK: - Public API
 
     static func set(key: String, forService service: String) throws {
+        if AutomationEnvironment.isEnabled { AutomationEnvironment.setKey(key, service: service); return }
         migrateIfNeeded()
 
         lock.lock()
@@ -50,6 +51,7 @@ enum KeychainService {
     }
 
     static func get(service: String) throws -> String? {
+        if AutomationEnvironment.isEnabled { return AutomationEnvironment.key(service) }
         migrateIfNeeded()
 
         lock.lock()
@@ -85,6 +87,7 @@ enum KeychainService {
     }
 
     static func delete(service: String) throws {
+        if AutomationEnvironment.isEnabled { AutomationEnvironment.setKey(nil, service: service); return }
         lock.lock()
         cache?.removeValue(forKey: service)
         lock.unlock()

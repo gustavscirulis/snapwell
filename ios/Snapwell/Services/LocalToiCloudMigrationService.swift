@@ -15,8 +15,9 @@ enum LocalToiCloudMigrationService {
 
     /// Migrate local files to the iCloud container.
     /// Safe to call multiple times — guarded by UserDefaults flag and ID dedup.
-    static func migrate(from localRoot: URL, to iCloudRoot: URL) async {
-        guard !UserDefaults.standard.bool(forKey: migrationKey) else { return }
+    @discardableResult
+    static func migrate(from localRoot: URL, to iCloudRoot: URL, defaults: UserDefaults = .standard) async -> Bool {
+        guard !defaults.bool(forKey: migrationKey) else { return true }
 
         let fm = FileManager.default
         let localMetadata = localRoot.appendingPathComponent("metadata")
@@ -27,65 +28,51 @@ enum LocalToiCloudMigrationService {
         let iCloudImages = iCloudRoot.appendingPathComponent("images")
         let iCloudThumbnails = iCloudRoot.appendingPathComponent("thumbnails")
 
-        // Ensure iCloud directories exist
-        for dir in [iCloudMetadata, iCloudImages, iCloudThumbnails] {
-            try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
-        }
-
-        // Scan local metadata
-        guard let localFiles = try? fm.contentsOfDirectory(at: localMetadata, includingPropertiesForKeys: nil) else {
-            // No local metadata — nothing to migrate, just mark done
-            UserDefaults.standard.set(true, forKey: migrationKey)
-            return
-        }
-        let localJsons = localFiles.filter { $0.pathExtension == "json" }
-        guard !localJsons.isEmpty else {
-            UserDefaults.standard.set(true, forKey: migrationKey)
-            return
-        }
-
-        // Build set of IDs already in iCloud
-        let iCloudIds: Set<String> = {
-            guard let files = try? fm.contentsOfDirectory(at: iCloudMetadata, includingPropertiesForKeys: nil) else {
-                return []
+        // An unreadable source/destination is a retryable failure, never an empty library.
+        let localJsons: [URL]
+        do {
+            for dir in [iCloudMetadata, iCloudImages, iCloudThumbnails] {
+                try fm.createDirectory(at: dir, withIntermediateDirectories: true)
             }
-            return Set(files.filter { $0.pathExtension == "json" }.map { $0.deletingPathExtension().lastPathComponent })
-        }()
+            localJsons = fm.fileExists(atPath: localMetadata.path)
+                ? try fm.contentsOfDirectory(at: localMetadata, includingPropertiesForKeys: nil).filter { $0.pathExtension == "json" }
+                : []
+        } catch { return false }
 
         var migrated = 0
 
         for jsonURL in localJsons {
             let id = jsonURL.deletingPathExtension().lastPathComponent
 
-            if iCloudIds.contains(id) {
-                // Duplicate — check if local has newer analysis
-                mergeAnalysisIfNewer(localJSON: jsonURL, iCloudMetadataDir: iCloudMetadata, id: id)
-            } else {
-                // New item — copy media, metadata, thumbnail to iCloud
-                copyItemToiCloud(
-                    id: id,
-                    localJSON: jsonURL,
-                    localImages: localImages,
-                    localThumbnails: localThumbnails,
-                    iCloudMetadata: iCloudMetadata,
-                    iCloudImages: iCloudImages,
-                    iCloudThumbnails: iCloudThumbnails
+            do {
+                try Task.checkCancellation()
+                if fm.fileExists(atPath: iCloudMetadata.appendingPathComponent(".\(id).json.icloud").path) {
+                    return false // Wait for the remote sidecar before resolving conflicts.
+                }
+                if fm.fileExists(atPath: iCloudMetadata.appendingPathComponent("\(id).json").path) {
+                    try mergeAnalysisIfNewer(localJSON: jsonURL, iCloudMetadataDir: iCloudMetadata, id: id)
+                }
+                try copyItemToiCloud(
+                    id: id, localJSON: jsonURL, localImages: localImages,
+                    localThumbnails: localThumbnails, iCloudMetadata: iCloudMetadata,
+                    iCloudImages: iCloudImages, iCloudThumbnails: iCloudThumbnails
                 )
                 migrated += 1
-            }
+            } catch { return false }
 
             // Yield periodically to avoid blocking
             if migrated % 10 == 0 { await Task.yield() }
         }
 
         // Merge spaces.json
-        mergeSpaces(from: localRoot, to: iCloudRoot)
+        do { try mergeSpaces(from: localRoot, to: iCloudRoot) } catch { return false }
 
-        // Clean up local files after successful migration
-        cleanupLocalStorage(localRoot)
+        // Only remove copied files after every write succeeds. Preserve unrelated files and trash.
+        cleanupLocalStorage(localRoot, jsonFiles: localJsons)
 
-        UserDefaults.standard.set(true, forKey: migrationKey)
+        defaults.set(true, forKey: migrationKey)
         print("[Migration] Migrated \(migrated) items from local to iCloud")
+        return true
     }
 
     // MARK: - Copy
@@ -98,44 +85,48 @@ enum LocalToiCloudMigrationService {
         iCloudMetadata: URL,
         iCloudImages: URL,
         iCloudThumbnails: URL
-    ) {
+    ) throws {
         let fm = FileManager.default
-
-        // Determine media extension from sidecar
+        let sidecar = try decoder.decode(SidecarMetadata.self, from: Data(contentsOf: localJSON))
+        guard sidecar.id == id, ["image", "video"].contains(sidecar.type) else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
         let ext = mediaExtension(for: localJSON)
 
-        // Copy metadata sidecar
-        let dstJSON = iCloudMetadata.appendingPathComponent("\(id).json")
-        if !fm.fileExists(atPath: dstJSON.path) {
-            try? fm.copyItem(at: localJSON, to: dstJSON)
-        }
-
-        // Copy media file
+        // Publish media before metadata, including retries after a partial copy.
         let mediaFilename = "\(id).\(ext)"
         let srcMedia = localImages.appendingPathComponent(mediaFilename)
         let dstMedia = iCloudImages.appendingPathComponent(mediaFilename)
-        if fm.fileExists(atPath: srcMedia.path) && !fm.fileExists(atPath: dstMedia.path) {
-            try? fm.copyItem(at: srcMedia, to: dstMedia)
+        if !fm.fileExists(atPath: dstMedia.path) {
+            try fm.copyItem(at: srcMedia, to: dstMedia)
+        } else {
+            // Existing IDs may be legitimate duplicates, but not unreadable placeholders/directories.
+            let values = try dstMedia.resourceValues(forKeys: [.isRegularFileKey, .isReadableKey])
+            guard values.isRegularFile == true, values.isReadable == true else {
+                throw CocoaError(.fileReadNoPermission)
+            }
+        }
+        let dstJSON = iCloudMetadata.appendingPathComponent("\(id).json")
+        if !fm.fileExists(atPath: dstJSON.path) {
+            try fm.copyItem(at: localJSON, to: dstJSON)
         }
 
         // Copy thumbnail
         let srcThumb = localThumbnails.appendingPathComponent("\(id).jpg")
         let dstThumb = iCloudThumbnails.appendingPathComponent("\(id).jpg")
         if fm.fileExists(atPath: srcThumb.path) && !fm.fileExists(atPath: dstThumb.path) {
-            try? fm.copyItem(at: srcThumb, to: dstThumb)
+            try fm.copyItem(at: srcThumb, to: dstThumb)
         }
     }
 
     // MARK: - Merge Analysis
 
-    private static func mergeAnalysisIfNewer(localJSON: URL, iCloudMetadataDir: URL, id: String) {
-        guard let localData = try? Data(contentsOf: localJSON),
-              let localSidecar = try? decoder.decode(SidecarMetadata.self, from: localData),
-              let localAnalyzedAt = localSidecar.analyzedAt else { return }
-
+    private static func mergeAnalysisIfNewer(localJSON: URL, iCloudMetadataDir: URL, id: String) throws {
+        let localData = try Data(contentsOf: localJSON)
+        let localSidecar = try decoder.decode(SidecarMetadata.self, from: localData)
         let iCloudJSON = iCloudMetadataDir.appendingPathComponent("\(id).json")
-        guard let iCloudData = try? Data(contentsOf: iCloudJSON),
-              let iCloudSidecar = try? decoder.decode(SidecarMetadata.self, from: iCloudData) else { return }
+        let iCloudSidecar = try decoder.decode(SidecarMetadata.self, from: Data(contentsOf: iCloudJSON))
+        guard let localAnalyzedAt = localSidecar.analyzedAt else { return }
 
         let shouldUpdate: Bool
         if let remoteAnalyzedAt = iCloudSidecar.analyzedAt {
@@ -145,18 +136,22 @@ enum LocalToiCloudMigrationService {
         }
 
         if shouldUpdate {
-            // Overwrite iCloud sidecar with local version (it has newer analysis)
-            try? localData.write(to: iCloudJSON, options: .atomic)
+            // Analysis timestamps do not establish ownership of remotely edited spaces/source fields.
+            var remote = try JSONSerialization.jsonObject(with: Data(contentsOf: iCloudJSON)) as! [String: Any]
+            let local = try JSONSerialization.jsonObject(with: localData) as! [String: Any]
+            for key in ["imageContext", "imageSummary", "patterns", "analyzedAt"] { remote[key] = local[key] }
+            try JSONSerialization.data(withJSONObject: remote, options: .sortedKeys).write(to: iCloudJSON, options: .atomic)
         }
     }
 
     // MARK: - Merge Spaces
 
-    private static func mergeSpaces(from localRoot: URL, to iCloudRoot: URL) {
+    private static func mergeSpaces(from localRoot: URL, to iCloudRoot: URL) throws {
         let localSpaces = localRoot.appendingPathComponent("spaces.json")
         let iCloudSpaces = iCloudRoot.appendingPathComponent("spaces.json")
 
-        guard let localData = try? Data(contentsOf: localSpaces) else { return }
+        guard FileManager.default.fileExists(atPath: localSpaces.path) else { return }
+        let localData = try Data(contentsOf: localSpaces)
 
         let localFile: SidecarSpacesFile?
         if let decoded = try? decoder.decode(SidecarSpacesFile.self, from: localData) {
@@ -164,16 +159,20 @@ enum LocalToiCloudMigrationService {
         } else if let legacySpaces = try? decoder.decode([SidecarSpace].self, from: localData) {
             localFile = SidecarSpacesFile(spaces: legacySpaces, allSpaceGuidance: nil, useAllSpaceGuidance: false)
         } else {
-            return
+            throw CocoaError(.fileReadCorruptFile)
         }
 
-        guard let localFile else { return }
+        guard let localFile else { throw CocoaError(.fileReadCorruptFile) }
 
         // If no iCloud spaces file, just copy local
-        guard let iCloudData = try? Data(contentsOf: iCloudSpaces) else {
-            try? localData.write(to: iCloudSpaces, options: .atomic)
+        guard !FileManager.default.fileExists(atPath: iCloudRoot.appendingPathComponent(".spaces.json.icloud").path) else {
+            throw CocoaError(.fileReadNoSuchFile)
+        }
+        guard FileManager.default.fileExists(atPath: iCloudSpaces.path) else {
+            try localData.write(to: iCloudSpaces, options: .atomic)
             return
         }
+        let iCloudData = try Data(contentsOf: iCloudSpaces)
 
         // Merge: union by ID, prefer iCloud version for conflicts
         let iCloudFile: SidecarSpacesFile?
@@ -185,7 +184,7 @@ enum LocalToiCloudMigrationService {
             iCloudFile = nil
         }
 
-        guard let iCloudFile else { return }
+        guard let iCloudFile else { throw CocoaError(.fileReadCorruptFile) }
 
         var mergedById: [String: SidecarSpace] = [:]
         // Add local spaces first
@@ -207,22 +206,23 @@ enum LocalToiCloudMigrationService {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        if let data = try? encoder.encode(merged) {
-            try? data.write(to: iCloudSpaces, options: .atomic)
-        }
+        try encoder.encode(merged).write(to: iCloudSpaces, options: .atomic)
     }
 
     // MARK: - Cleanup
 
-    private static func cleanupLocalStorage(_ localRoot: URL) {
+    private static func cleanupLocalStorage(_ localRoot: URL, jsonFiles: [URL]) {
         let fm = FileManager.default
-        let subdirs = ["images", "metadata", "thumbnails", ".trash", "spaces.json"]
-        for sub in subdirs {
-            let url = localRoot.appendingPathComponent(sub)
-            try? fm.removeItem(at: url)
+        for json in jsonFiles {
+            let id = json.deletingPathExtension().lastPathComponent
+            let ext = mediaExtension(for: json)
+            for url in [json, localRoot.appendingPathComponent("images/\(id).\(ext)"),
+                        localRoot.appendingPathComponent("thumbnails/\(id).jpg")] {
+                try? fm.removeItem(at: url)
+            }
         }
-        // Try to remove the Snapwell directory itself if empty
-        try? fm.removeItem(at: localRoot)
+        try? fm.removeItem(at: localRoot.appendingPathComponent("spaces.json"))
+        // Removing a directory recursively here could delete a concurrent import.
     }
 
     // MARK: - Helpers

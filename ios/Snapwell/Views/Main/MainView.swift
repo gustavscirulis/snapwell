@@ -143,6 +143,32 @@ struct MainView: View {
                     .padding(.bottom, 70)
             }
         }
+        #if SNAPWELL_AUTOMATION
+        .safeAreaInset(edge: .top) {
+            if AutomationEnvironment.argument("--snapwell-fixture") != nil {
+                HStack {
+                    Text("\(allItems.count)").accessibilityIdentifier("automation-count")
+                    Text("\(allItems.filter { $0.analysisResult != nil }.count)").accessibilityIdentifier("automation-analyzed")
+                    Button("Import fixture") {
+                        Task {
+                            let root = AutomationEnvironment.rootURL
+                            if let image = UIImage(contentsOfFile: root.appendingPathComponent("incoming/sample.png").path) {
+                                _ = await ImageImportService.importImages([image], to: root)
+                                await loadContent()
+                            }
+                        }
+                    }.accessibilityIdentifier("automation-import")
+                    Button("Import video fixture") {
+                        Task {
+                            let root = AutomationEnvironment.rootURL
+                            _ = await ImageImportService.importItems([.video(root.appendingPathComponent("incoming/clip.mp4"))], to: root)
+                            await loadContent()
+                        }
+                    }.accessibilityIdentifier("automation-import-video")
+                }.padding(6)
+            }
+        }
+        #endif
         .task {
             await loadContent()
         }
@@ -166,7 +192,7 @@ struct MainView: View {
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
                 if let rootURL = fileSystem.rootURL {
-                    ShareImportService.importPendingItems(to: rootURL)
+                    if !AutomationEnvironment.isEnabled { ShareImportService.importPendingItems(to: rootURL) }
                 }
                 Task { await loadContent() }
             }
@@ -670,14 +696,10 @@ struct MainView: View {
         let isInitialLoad = isLoading
         error = nil
 
-        let stuckDescriptor = FetchDescriptor<MediaItem>(predicate: #Predicate { $0.isAnalyzing == true })
-        if let stuck = try? modelContext.fetch(stuckDescriptor), !stuck.isEmpty {
-            let stale = stuck.filter { !analysisCoordinator.ownsAnalysis(for: $0.id) }
-            if !stale.isEmpty {
-                for item in stale { item.isAnalyzing = false }
-                modelContext.saveOrLog()
-                print("[Cleanup] Reset \(stale.count) stale isAnalyzing flags")
-            }
+        let ownedIDs = analysisCoordinator.activeAndPendingIDs
+        if let count = try? AnalysisRecovery.clearStaleFlags(in: modelContext, ownedIDs: ownedIDs), count > 0 {
+            modelContext.saveOrLog()
+            print("[Cleanup] Reset \(count) stale isAnalyzing flags")
         }
 
         guard let rootURL = fileSystem.rootURL else {
@@ -738,6 +760,7 @@ struct MainView: View {
     /// interrupt. Runs after every load, which covers launch, returning to the
     /// foreground, and finishing an import.
     private func evaluateNudges() async {
+        guard !AutomationEnvironment.isEnabled else { return }
         // SwiftUI drops a sheet presented in the same run loop as another one is
         // tearing down, and the API key nudge lands right as the picker closes.
         try? await Task.sleep(for: .milliseconds(500))

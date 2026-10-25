@@ -14,6 +14,11 @@ fileTypes:
     file:
       lastKnownFileType: folder.iconcomposer.icon
 
+configs:
+  Debug: debug
+  Automation: debug
+  Release: release
+
 settings:
   base:
     ALWAYS_SEARCH_USER_PATHS: NO
@@ -30,6 +35,11 @@ settings:
       ONLY_ACTIVE_ARCH: YES
       SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
       SWIFT_OPTIMIZATION_LEVEL: "-Onone"
+    Automation:
+      ENABLE_TESTABILITY: YES
+      SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG SNAPWELL_AUTOMATION
+      SWIFT_OPTIMIZATION_LEVEL: "-Onone"
+      ENABLE_HARDENED_RUNTIME: NO
     Release:
       DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
       ENABLE_NS_ASSERTIONS: NO
@@ -47,6 +57,8 @@ targets:
       - path: Snapwell
         excludes:
           - "**/.DS_Store"
+      - path: ../Tests/Fixtures/clip.mp4
+        buildPhase: resources
       - path: ../Shared
         excludes:
           - "**/.DS_Store"
@@ -85,16 +97,16 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_STANDALONE_ICON_BEHAVIOR: none
         ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
-    entitlements:
-      path: Snapwell/Resources/Snapwell.entitlements
-      properties:
-        com.apple.security.app-sandbox: true
-        com.apple.security.network.client: true
-        com.apple.security.files.user-selected.read-write: true
-        com.apple.developer.ubiquity-container-identifiers:
-          - iCloud.co.SnapWell
-        keychain-access-groups:
-          - $(TeamIdentifierPrefix)co.snapwell.shared
+      configs:
+        Debug:
+          EXCLUDED_SOURCE_FILE_NAMES: clip.mp4
+        Release:
+          EXCLUDED_SOURCE_FILE_NAMES: clip.mp4
+        Automation:
+          PRODUCT_BUNDLE_IDENTIFIER: co.snapwell.automation
+          EXCLUDED_SOURCE_FILE_NAMES: AppIcon.icon
+          ASSETCATALOG_COMPILER_APPICON_NAME: ""
+          CODE_SIGN_ENTITLEMENTS: Automation.entitlements
 
   SnapwellTests:
     type: bundle.unit-test
@@ -103,6 +115,11 @@ targets:
       - path: SnapwellTests
         excludes:
           - "**/.DS_Store"
+      - path: ../Tests/Compatibility
+      - path: ../Tests/Fixtures/sidecar.json
+        buildPhase: resources
+      - path: ../Tests/Fixtures/spaces.json
+        buildPhase: resources
     dependencies:
       - target: Snapwell
     settings:
@@ -121,3 +138,27 @@ targets:
           - "$(inherited)"
           - "@executable_path/../Frameworks"
           - "@loader_path/../Frameworks"
+
+  SnapwellUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - path: ../Tests/UI
+    dependencies:
+      - target: Snapwell
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: co.snapwell.automation.uitests
+        TEST_TARGET_NAME: Snapwell
+
+schemes:
+  Snapwell:
+    build:
+      targets:
+        Snapwell: all
+    test:
+      config: Automation
+      targets:
+        - SnapwellTests
+        - SnapwellUITests

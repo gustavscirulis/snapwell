@@ -302,11 +302,9 @@ struct ContentView: View {
         }
         .task {
             // Reset any isAnalyzing flags stuck from a previous crash/kill
-            let stuckDescriptor = FetchDescriptor<MediaItem>(predicate: #Predicate { $0.isAnalyzing == true })
-            if let stuck = try? modelContext.fetch(stuckDescriptor), !stuck.isEmpty {
-                for item in stuck { item.isAnalyzing = false }
+            if let count = try? AnalysisRecovery.clearStaleFlags(in: modelContext), count > 0 {
                 modelContext.saveOrLog()
-                print("[Cleanup] Reset \(stuck.count) stuck isAnalyzing flags")
+                print("[Cleanup] Reset \(count) stuck isAnalyzing flags")
             }
 
             MediaStorageService.shared.emptyOldTrash()
@@ -403,6 +401,22 @@ struct ContentView: View {
                 appState.zoomOut()
             }
         }
+        #if SNAPWELL_AUTOMATION
+        .safeAreaInset(edge: .bottom) {
+            if AutomationEnvironment.argument("--snapwell-fixture") != nil {
+                HStack {
+                    Text("\(allItems.count)").accessibilityIdentifier("automation-count")
+                    Text("\(allItems.filter { $0.analysisResult != nil }.count)").accessibilityIdentifier("automation-analyzed")
+                    Button("Import fixture") {
+                        handleFileImport(.success([AutomationEnvironment.rootURL.appendingPathComponent("incoming/sample.png")]))
+                    }.accessibilityIdentifier("automation-import")
+                    Button("Import video fixture") {
+                        handleFileImport(.success([AutomationEnvironment.rootURL.appendingPathComponent("incoming/clip.mp4")]))
+                    }.accessibilityIdentifier("automation-import-video")
+                }.padding(6)
+            }
+        }
+        #endif
         .environment(appState)
         .environment(videoPreview)
         .environment(importService)
@@ -705,6 +719,7 @@ struct ContentView: View {
     }
 
     private func showAPIKeyNudgeIfNeeded(success: Int) {
+        guard !AutomationEnvironment.isEnabled else { return }
         guard success > 0, !AIProvider.hasAnyAIConfiguration else { return }
         apiKeyNudgeTask = Task { @MainActor in
             try? await Task.sleep(for: .seconds(5.2))

@@ -1,0 +1,21 @@
+"$schema" = "https://conductor.build/schemas/settings.repo.schema.json"
+
+[scripts]
+setup = "bash scripts/setup.sh"
+run_mode = "nonconcurrent"
+
+[scripts.run.dev]
+available_in = ["local"]
+command = "./dev.sh"
+default = true
+icon = "play"
+
+[scripts.run.test]
+available_in = ["local"]
+command = "./dev.sh test --platform changed --suite all"
+icon = "test-tube"
+
+[scripts.run.doctor]
+available_in = ["local"]
+command = "./dev.sh doctor"
+icon = "stethoscope"

@@ -57,6 +57,7 @@ struct ContentView: View {
     }
 
     private func refreshKeySettings() {
+        guard !AutomationEnvironment.isEnabled else { return }
         keyRefreshTask?.cancel()
 
         guard let rootURL = fileSystem.rootURL else {

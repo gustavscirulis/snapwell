@@ -42,6 +42,9 @@ enum SidecarWriteService {
     }()
 
     private static let journalURL: URL = {
+        if AutomationEnvironment.isEnabled {
+            return AutomationEnvironment.rootURL.appendingPathComponent("pending-sidecar-edits.json")
+        }
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         return support.appendingPathComponent("Snapwell/pending-sidecar-edits.json")
     }()

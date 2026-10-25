@@ -219,6 +219,9 @@ struct GridItemView: View, Equatable {
                     }
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(accessibilityDescription)
+                .accessibilityIdentifier("media-\(item.id)")
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
             }
             .frame(width: width, height: height)
 
@@ -362,9 +365,6 @@ struct GridItemView: View, Equatable {
         }
         .frame(width: width, height: height)
         .contentShape(.interaction, RoundedRectangle(cornerRadius: 12))
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilityDescription)
-        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
         .accessibilityHidden(isDeleting)
         .onHover { hovering in
             guard !isDeleting else {

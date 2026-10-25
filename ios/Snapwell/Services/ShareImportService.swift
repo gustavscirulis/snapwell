@@ -10,13 +10,14 @@ enum ShareImportService {
     /// into the iCloud container. Safe to call multiple times — completed
     /// imports are deleted from the staging area.
     static func importPendingItems(to rootURL: URL) {
+        // Automation hosts must never consult the real App Group.
+        guard !AutomationEnvironment.isEnabled,
+              let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupID) else { return }
+        importPendingItems(from: containerURL.appendingPathComponent("pending", isDirectory: true), to: rootURL)
+    }
+
+    static func importPendingItems(from pendingDir: URL, to rootURL: URL) {
         let fm = FileManager.default
-
-        guard let containerURL = fm.containerURL(forSecurityApplicationGroupIdentifier: appGroupID) else {
-            return
-        }
-
-        let pendingDir = containerURL.appendingPathComponent("pending", isDirectory: true)
         let pendingImages = pendingDir.appendingPathComponent("images", isDirectory: true)
         let pendingMetadata = pendingDir.appendingPathComponent("metadata", isDirectory: true)
 
@@ -45,43 +46,42 @@ enum ShareImportService {
         for jsonURL in jsonFiles {
             let id = jsonURL.deletingPathExtension().lastPathComponent
 
-            // Determine file extension from sidecar type field, falling back to .png
-            let ext = mediaExtension(for: jsonURL) ?? "png"
+            // Leave incomplete or malformed shares staged for recovery.
+            guard let data = try? Data(contentsOf: jsonURL),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  json["id"] as? String == id,
+                  let type = json["type"] as? String, ["image", "video"].contains(type),
+                  let ext = mediaExtension(for: jsonURL) else { continue }
             let mediaFilename = "\(id).\(ext)"
 
             let srcMedia = pendingImages.appendingPathComponent(mediaFilename)
             let dstImage = imagesDir.appendingPathComponent(mediaFilename)
             let dstMetadata = metadataDir.appendingPathComponent(jsonURL.lastPathComponent)
 
-            // Move media file first (SyncWatcher checks for media when sidecar arrives)
-            guard fm.fileExists(atPath: srcMedia.path) else {
-                #if DEBUG
-                print("[ShareImport] Source media missing for \(id) (\(mediaFilename)), skipping")
-                #endif
-                continue
-            }
-
+            // Copy first and retain both staged files until metadata commits. If a write
+            // fails, the next foreground import can retry without losing its source media.
+            guard fm.fileExists(atPath: srcMedia.path) else { continue }
             do {
                 if fm.fileExists(atPath: dstImage.path) {
-                    try fm.removeItem(at: dstImage)
+                    guard fm.contentsEqual(atPath: dstImage.path, andPath: srcMedia.path) else {
+                        continue // A conflicting destination must not be overwritten.
+                    }
+                } else {
+                    try fm.copyItem(at: srcMedia, to: dstImage)
                 }
-                try fm.moveItem(at: srcMedia, to: dstImage)
+                if !fm.fileExists(atPath: dstMetadata.path) {
+                    try data.write(to: dstMetadata, options: .atomic)
+                } else {
+                    // Preserve a sidecar already enriched by sync or analysis.
+                    let existing = try Data(contentsOf: dstMetadata)
+                    guard let object = try JSONSerialization.jsonObject(with: existing) as? [String: Any],
+                          object["id"] as? String == id else { continue }
+                }
+                try fm.removeItem(at: jsonURL)
+                try? fm.removeItem(at: srcMedia)
             } catch {
                 #if DEBUG
-                print("[ShareImport] Failed to move media \(id): \(error)")
-                #endif
-                continue
-            }
-
-            // Then move metadata sidecar
-            do {
-                if fm.fileExists(atPath: dstMetadata.path) {
-                    try fm.removeItem(at: dstMetadata)
-                }
-                try fm.moveItem(at: jsonURL, to: dstMetadata)
-            } catch {
-                #if DEBUG
-                print("[ShareImport] Failed to move metadata \(id): \(error)")
+                print("[ShareImport] Failed to import \(id): \(error)")
                 #endif
                 continue
             }

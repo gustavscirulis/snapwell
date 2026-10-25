@@ -50,6 +50,9 @@ final class ModelDiscoveryService: @unchecked Sendable {
     }
 
     func fetchModels(for provider: AIProvider) async throws -> [DiscoveredModel] {
+        if AutomationEnvironment.usesFixtureProviders {
+            return [DiscoveredModel(id: provider.defaultModel, displayName: "Automation fixture")]
+        }
         if let cached = getCached(for: provider) {
             return cached
         }

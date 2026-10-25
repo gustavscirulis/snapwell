@@ -141,6 +141,7 @@ struct GridItemView: View {
         .animation(SnapSpring.resolvedStandard, value: item.isAnalyzing)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .accessibilityLabel(item.isVideo ? "Video" : "Image")
+        .accessibilityIdentifier("media-\(item.id)")
         .accessibilityHint("Double tap to view full screen")
         .opacity(isSelected ? 0 : 1)
         .overlay(
