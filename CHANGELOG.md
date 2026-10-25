@@ -7,11 +7,15 @@ User-visible changes are recorded as they are implemented. Release manifests und
 
 ### macOS
 
+- [remote-analysis-sync] Pick up missing or newer analysis from iCloud and refresh search results.
+- [search-before-analysis] Make existing content searchable while automatic analysis runs.
 - [cancel-analysis-retry] Stop pending analysis retries when the task is cancelled.
 - [accessible-media-actions] Open media and reach its actions more reliably with accessibility tools.
 
 ### iOS
 
+- [lazy-thumbnails] Load thumbnails as grid cells appear instead of prefetching the whole library on refresh.
+- [partial-share-recovery] Resume partial shared-media imports and wait for existing iCloud files to download before retrying.
 - [share-import-recovery] Keep shared images and videos recoverable when saving or importing is interrupted.
 - [safe-local-migration] Preserve local media when iCloud migration fails, and retain remote organization when merging newer analysis.
 

@@ -54,17 +54,6 @@ final class SyncWatcher {
         let needsThumbnail: Bool
     }
 
-    /// Update for existing items whose sidecar changed (e.g. space assignment, analysis, source URL).
-    private struct SidecarUpdateData: Sendable {
-        let id: String
-        let spaceIds: [String]
-        let sourceURL: String?
-        let imageContext: String?
-        let imageSummary: String?
-        let patterns: [SidecarPattern]?
-        let analyzedAt: Date?
-    }
-
     // MARK: - Public API
 
     /// Call BEFORE local mutations that write sidecar/spaces files.
@@ -264,7 +253,7 @@ final class SyncWatcher {
     /// Result of gathering file changes on a background thread.
     private struct GatheredChanges: Sendable {
         let newItems: [SidecarImportData]
-        let updates: [SidecarUpdateData]
+        let updates: [SidecarMetadata]
         let deletedIds: Set<String>
         let currentDates: [String: Date]
         let pendingIds: Set<String>
@@ -341,7 +330,7 @@ final class SyncWatcher {
                 newItems.append(data)
             }
 
-            var updates: [SidecarUpdateData] = []
+            var updates: [SidecarMetadata] = []
             for id in modifiedIds {
                 guard metadataFiles[id]?.state == .downloaded else {
                     pendingIds.insert(id)
@@ -349,15 +338,7 @@ final class SyncWatcher {
                     continue
                 }
                 if let sidecar = sidecarService.readSidecar(id: id) {
-                    updates.append(SidecarUpdateData(
-                        id: id,
-                        spaceIds: sidecar.normalizedSpaceIDs,
-                        sourceURL: sidecar.sourceURL,
-                        imageContext: sidecar.imageContext,
-                        imageSummary: sidecar.imageSummary,
-                        patterns: sidecar.patterns,
-                        analyzedAt: sidecar.analyzedAt
-                    ))
+                    updates.append(sidecar)
                 }
             }
 
@@ -408,7 +389,7 @@ final class SyncWatcher {
         }
 
         for update in changes.updates {
-            applySpaceUpdate(update)
+            applyUpdate(update)
         }
 
         for id in changes.deletedIds {
@@ -420,7 +401,7 @@ final class SyncWatcher {
     }
 
     /// Ongoing sync — triggered by DispatchSource after debounce.
-    private func syncMetadata() async {
+    func syncMetadata() async {
         guard context != nil else { return }
 
         let changes = await gatherChangesFromDisk()
@@ -438,7 +419,7 @@ final class SyncWatcher {
         }
 
         for update in changes.updates {
-            applySpaceUpdate(update)
+            applyUpdate(update)
         }
 
         for id in changes.deletedIds {
@@ -468,14 +449,7 @@ final class SyncWatcher {
         let dataId = data.id
         let descriptor = FetchDescriptor<MediaItem>(predicate: #Predicate { $0.id == dataId })
         if let existing = try? context.fetch(descriptor), let existingItem = existing.first {
-            // Item already imported — still reconcile space assignment and sourceURL
-            let resolvedSpaces = spaces(for: data.sidecar.normalizedSpaceIDs)
-            if existingItem.orderedSpaceIDs != resolvedSpaces.map(\.id) {
-                existingItem.setMembership(resolvedSpaces)
-            }
-            if existingItem.sourceURL == nil, let sourceURL = data.sidecar.sourceURL {
-                existingItem.sourceURL = sourceURL
-            }
+            reconcile(existingItem, from: data.sidecar)
             if data.mediaState == .downloaded, data.needsThumbnail {
                 generateThumbnail(for: data)
             }
@@ -559,14 +533,18 @@ final class SyncWatcher {
     }
 
     /// Update space assignment, analysis, and source URL on an existing item. No file I/O.
-    private func applySpaceUpdate(_ update: SidecarUpdateData) {
+    private func applyUpdate(_ update: SidecarMetadata) {
         guard let context else { return }
 
         let updateId = update.id
         let descriptor = FetchDescriptor<MediaItem>(predicate: #Predicate { $0.id == updateId })
         guard let item = (try? context.fetch(descriptor))?.first else { return }
 
-        let resolvedSpaces = spaces(for: update.spaceIds)
+        reconcile(item, from: update)
+    }
+
+    private func reconcile(_ item: MediaItem, from update: SidecarMetadata) {
+        let resolvedSpaces = spaces(for: update.normalizedSpaceIDs)
         if item.orderedSpaceIDs != resolvedSpaces.map(\.id) {
             item.setMembership(resolvedSpaces)
             print("[SyncWatcher] Updated spaces for \(update.id) -> \(resolvedSpaces.map(\.id))")
@@ -600,6 +578,7 @@ final class SyncWatcher {
                     provider: "synced",
                     model: "icloud-sync"
                 )
+                NotificationCenter.default.post(name: .analysisCompleted, object: nil, userInfo: ["itemId": item.id])
                 print("[SyncWatcher] Synced analysis result for \(update.id)")
             }
         }

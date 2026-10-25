@@ -6,6 +6,58 @@ import Testing
 
 @Suite("Ollama Client", .serialized)
 struct OllamaClientTests {
+    @Test("Indexed content stays searchable while analysis waits for a provider")
+    @MainActor func searchWhileAnalysisIsPending() async throws {
+        let tempRoot = try IntegrationTestSupport.makeTempRoot()
+        defer { IntegrationTestSupport.cleanup(tempRoot) }
+        let storage = MediaStorageService(baseURL: tempRoot)
+        let sidecars = MetadataSidecarService(storage: storage)
+        let container = try TestContainer.create()
+        let context = ModelContext(container)
+        let indexed = MediaItem(id: "indexed", mediaType: .image, filename: "indexed.png", width: 2, height: 2)
+        indexed.analysisResult = AnalysisResult(
+            imageContext: "Dashboard with charts", imageSummary: "Dashboard", patterns: [], provider: "test", model: "test"
+        )
+        let pending = MediaItem(id: UUID().uuidString, mediaType: .image, filename: "pending.png", width: 2, height: 2)
+        context.insert(indexed)
+        context.insert(pending)
+        try context.save()
+        _ = try storage.saveMedia(data: Self.testPNGData(), filename: pending.filename)
+
+        let requested = AsyncStream<Void>.makeStream()
+        let gate = DispatchSemaphore(value: 0)
+        defer { gate.signal() }
+        let client = makeClient { request in
+            requested.continuation.yield(())
+            guard gate.wait(timeout: .now() + 5) == .success else { throw URLError(.timedOut) }
+            return Self.response(for: request, body: #"{"message":{"content":"{\"imageContext\":\"A photo\",\"imageSummary\":\"Photo\",\"patterns\":[]}"}}"#)
+        }
+        let service = ImportService(
+            storage: storage, sidecarService: sidecars,
+            analysisService: AIAnalysisService(ollamaClient: client),
+            providerOverride: .ollama, modelOverride: "gemma3:4b"
+        )
+        let observer = AnalysisSearchObserver(item: pending)
+        defer { observer.stop() }
+        observer.search.buildIndex(items: [indexed, pending])
+        observer.search.buildEmbeddingsInBackground(items: [indexed, pending])
+
+        let analysis = Task {
+            await service.analyzeUnanalyzedItems(from: [indexed, pending], context: context)
+            requested.continuation.finish()
+        }
+        var requests = requested.stream.makeAsyncIterator()
+        #expect(await requests.next() != nil)
+        #expect(pending.isAnalyzing)
+        #expect(observer.search.search(query: "dashboard").map(\.itemId) == [indexed.id])
+        #expect(observer.search.search(query: "photo").isEmpty)
+
+        gate.signal()
+        await analysis.value
+        #expect(observer.notificationCount == 1)
+        #expect(observer.search.search(query: "photo").map(\.itemId) == [pending.id])
+    }
+
     @Test("Model discovery retains only installed vision models")
     func filtersVisionModels() async throws {
         let client = makeClient { request in

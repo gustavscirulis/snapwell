@@ -3,6 +3,7 @@ import contextlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -105,6 +106,147 @@ class AutomationTests(unittest.TestCase):
                  patch.object(automation, 'logged', return_value={'name': 'macos', 'status': 'failed'}):
                 with self.assertRaises(RuntimeError):
                     automation.test(args)
+
+
+class HeadlessReuseTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.context = self.root / '.context'
+        self.context.mkdir()
+        subprocess.run(['git', 'init', '-q', str(self.root)], check=True)
+        for name in ('macos/App.swift', 'ios/App.swift', 'Shared/Model.swift',
+                     'Tests/Fixtures/media.png', 'scripts/automation.py', 'tools/Package.swift',
+                     '.githooks/pre-commit', 'docs/testing.md'):
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('original\n')
+        (self.root / '.gitignore').write_text('.context/\n')
+        subprocess.run(['git', 'add', '.'], cwd=self.root, check=True)
+        original_run = automation.run
+        self.swift_version = 'Swift test toolchain'
+        def local_run(command, **kwargs):
+            if command == ['swift', '--version']:
+                return self.swift_version
+            return original_run(command, **kwargs)
+        for mock in (patch.object(automation, 'ROOT', self.root),
+                     patch.object(automation, 'CONTEXT', self.context),
+                     patch.object(automation, 'run', side_effect=local_run)):
+            mock.start()
+            self.addCleanup(mock.stop)
+        self.args = argparse.Namespace(staged=False, reuse_passing=True)
+
+    def record(self, result, label='previous'):
+        path = self.context / 'testing' / label / 'summary.json'
+        automation.write_json(path, {'suite': 'all', 'results': [result]})
+        return path
+
+    def passed(self, name='core'):
+        return automation.headless_check(['python3', '-c', 'print("verified")'],
+                                         self.context / 'testing/original', name,
+                                         argparse.Namespace(staged=False, reuse_passing=False))
+
+    def test_unchanged_full_run_result_is_reused_for_staged_commit(self):
+        result = self.passed()
+        report = self.record(result)
+        self.args.staged = True
+        with patch.object(automation, 'logged') as logged:
+            reused = automation.headless_check([], self.context / 'next', 'core', self.args)
+        logged.assert_not_called()
+        self.assertEqual(reused['status'], 'passed')
+        self.assertEqual(reused['log'], result['log'])
+        self.assertEqual(reused['reused_from'], str(report))
+
+    def test_relevant_edits_additions_and_deletions_invalidate_result(self):
+        result = self.passed()
+        self.record(result)
+        for change in ('content', 'addition', 'deletion', 'mode', 'fixture', 'runner'):
+            with self.subTest(change=change):
+                path = self.root / 'macos/App.swift'
+                original_stat = path.stat()
+                if change == 'content':
+                    path.write_text('modified\n')
+                    os.utime(path, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
+                elif change == 'addition':
+                    path = self.root / 'ios/New.swift'
+                    path.write_text('new')
+                elif change == 'deletion':
+                    path.unlink()
+                elif change == 'mode':
+                    path.chmod(0o755)
+                else:
+                    path = self.root / ('Tests/Fixtures/media.png' if change == 'fixture' else 'scripts/automation.py')
+                    path.write_text('modified\n')
+                fingerprint = automation.headless_fingerprint('core')
+                self.assertIsNone(automation.passing_headless_result('core', fingerprint))
+                if change == 'addition':
+                    path.unlink()
+                else:
+                    path.write_text('original\n')
+                    path.chmod(0o644)
+
+    def test_docs_do_not_invalidate_results_and_native_edits_leave_tooling_valid(self):
+        core = automation.headless_fingerprint('core')
+        tools = automation.headless_fingerprint('tooling-python')
+        (self.root / 'docs/testing.md').write_text('new docs')
+        self.assertEqual(automation.headless_fingerprint('core'), core)
+        (self.root / 'Shared/Model.swift').write_text('new model')
+        self.assertNotEqual(automation.headless_fingerprint('core'), core)
+        self.assertEqual(automation.headless_fingerprint('tooling-python'), tools)
+
+    def test_toolchain_changes_invalidate_results(self):
+        before = automation.headless_fingerprint('core')
+        self.swift_version = 'Different Swift version'
+        self.assertNotEqual(automation.headless_fingerprint('core'), before)
+
+    def test_newer_failure_cannot_reuse_older_pass(self):
+        result = self.passed()
+        previous = self.record(result, 'older')
+        os.utime(previous, ns=(1, 1))
+        for status in ('failed', 'timed_out', 'unavailable', 'inputs_changed'):
+            with self.subTest(status=status):
+                self.record(dict(result, status=status), 'newer')
+                self.assertIsNone(automation.passing_headless_result('core', result['input_fingerprint']))
+
+    def test_missing_evidence_and_legacy_reports_cannot_be_reused(self):
+        result = self.passed()
+        for invalid in (dict(result, log='missing.log'),
+                        {key: value for key, value in result.items() if key != 'input_fingerprint'}):
+            self.record(invalid)
+            self.assertIsNone(automation.passing_headless_result('core', result['input_fingerprint']))
+        (self.context / 'testing/previous/summary.json').write_text('incomplete JSON')
+        self.assertIsNone(automation.passing_headless_result('core', result['input_fingerprint']))
+
+    def test_editing_inputs_during_a_check_invalidates_success(self):
+        command = ['python3', '-c', f'from pathlib import Path; Path({str(self.root / "macos/App.swift")!r}).write_text("changed")']
+        result = automation.headless_check(command, self.context / 'testing/run', 'core', self.args)
+        self.assertEqual(result['status'], 'inputs_changed')
+        self.record(result)
+        self.assertIsNone(automation.passing_headless_result('core', automation.headless_fingerprint('core')))
+
+    def test_partially_staged_or_untracked_inputs_reject_cached_pass(self):
+        self.record(self.passed())
+        self.args.staged = True
+        for name in ('macos/App.swift', 'macos/New.swift'):
+            with self.subTest(name=name):
+                path = self.root / name
+                path.write_text('unstaged')
+                with patch.object(automation, 'logged') as logged:
+                    with self.assertRaisesRegex(RuntimeError, 'Stage or stash'):
+                        automation.headless_check([], self.context / 'next', 'core', self.args)
+                    logged.assert_not_called()
+                if name.endswith('New.swift'):
+                    path.unlink()
+                else:
+                    path.write_text('original\n')
+
+    def test_explicit_checks_run_fresh_without_reuse_flag(self):
+        self.record(self.passed())
+        with patch.object(automation, 'logged', return_value={'name': 'core', 'status': 'passed'}) as logged:
+            automation.headless_check([], self.context / 'next', 'core',
+                                      argparse.Namespace(staged=False, reuse_passing=False))
+        logged.assert_called_once()
 
 
 class ReleasePipelineTests(unittest.TestCase):

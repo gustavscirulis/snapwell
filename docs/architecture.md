@@ -63,6 +63,9 @@ Bundle ID: `co.snapwell`.
 `ShareImportService` retains the staged pair until the destination sidecar commits, preserves
 existing enriched sidecars and leaves conflicting media staged for recovery. Automation hosts
 only import explicitly supplied temporary staging folders, never the real App Group.
+Destination media is published through a temporary file before metadata is published atomically.
+Retries can finish a media-only import without its staged media and wait for evicted destination
+files to download before inspecting them. Staged metadata is removed last after publication.
 
 Local-to-cloud migration keeps local sources and its completion flag unset after read/copy/merge
 failures or remote placeholders. The app switches its active root only after migration succeeds.
@@ -73,3 +76,13 @@ and merged spaces only; unrelated files, pending imports and trash remain local.
 `AnalysisRecovery` clears stale persisted analysis flags at load while preserving IDs owned by
 the iOS coordinator. Provider services accept isolated HTTP sessions and retry delays; production
 uses the normal URL session/backoff, and task cancellation propagates on both platforms.
+
+## Search and thumbnail loading
+
+Mac initial, foreground and filesystem sync use the same existing-item reconciliation rules:
+accept missing or newer remote analysis, preserve newer or equal local analysis, and notify
+search when analysis changes. Keyword indexing and background embeddings start before automatic
+analysis; incremental updates and deletions take precedence over an in-flight embedding snapshot.
+
+iOS lazy grid cells request thumbnails as they appear. Content refresh does not prefetch the
+whole library; thumbnail caching, downsampling and the decode concurrency limit remain in place.

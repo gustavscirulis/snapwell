@@ -136,6 +136,67 @@ def logged(args, directory, name):
         return {'name': name, 'status': 'timed_out', 'log': str(log)}
 
 
+def headless_input(name, path):
+    if path.startswith(('scripts/', 'tools/', '.githooks/')) or path in ('dev.sh', '.gitignore'):
+        return True
+    return name == 'core' and path.startswith(('macos/', 'ios/', 'Shared/', 'Tests/'))
+
+
+def headless_fingerprint(name, staged=False):
+    files = run(['git', 'ls-files', '--cached', '--others', '--exclude-standard', '-z'], capture=True, cwd=ROOT).split('\0')
+    if staged:
+        unstaged = run(['git', 'diff', '--name-only', '-z'], capture=True, cwd=ROOT).split('\0')
+        untracked = run(['git', 'ls-files', '--others', '--exclude-standard', '-z'], capture=True, cwd=ROOT).split('\0')
+        mismatches = sorted({path for path in unstaged + untracked if path and headless_input(name, path)})
+        if mismatches:
+            raise RuntimeError('Stage or stash test inputs that differ from the index before committing:\n' + '\n'.join(mismatches))
+    digest = hashlib.sha256()
+    digest.update(json.dumps(['headless-v1', name, sys.version, os.uname().release,
+                              run(['swift', '--version'], capture=True, cwd=ROOT)], sort_keys=True).encode())
+    for path in sorted(set(filter(None, files))):
+        if not headless_input(name, path):
+            continue
+        source = ROOT / path
+        if not source.exists() and not source.is_symlink():
+            continue
+        digest.update(path.encode() + b'\0')
+        digest.update(str(source.lstat().st_mode).encode() + b'\0')
+        if source.is_symlink():
+            digest.update(os.readlink(source).encode() + b'\0')
+        digest.update(hashlib.sha256(source.read_bytes()).digest())
+    return digest.hexdigest()
+
+
+def passing_headless_result(name, fingerprint):
+    for path in sorted((CONTEXT / 'testing').glob('*/summary.json'), key=lambda p: p.stat().st_mtime_ns, reverse=True):
+        try:
+            report = json.loads(path.read_text())
+            for result in report['results']:
+                if result['name'] == name and result.get('input_fingerprint') == fingerprint:
+                    # A newer failure must not be hidden by an older pass on the same inputs.
+                    if result['status'] != 'passed' or not Path(result.get('log', '')).is_file():
+                        return None
+                    return dict(result, reused_from=str(path))
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+    return None
+
+
+def headless_check(command, directory, name, args):
+    fingerprint = headless_fingerprint(name, args.staged)
+    if getattr(args, 'reuse_passing', False):
+        previous = passing_headless_result(name, fingerprint)
+        if previous:
+            print(f'Reusing {name}; passed for unchanged inputs: {previous["reused_from"]}', flush=True)
+            return previous
+    result = logged(command, directory, name)
+    result['input_fingerprint'] = fingerprint
+    if headless_fingerprint(name, args.staged) != fingerprint:
+        result['status'] = 'inputs_changed'
+        result['error'] = 'Test inputs changed during validation; rerun against the final files.'
+    return result
+
+
 def test(args):
     platforms = affected_platforms(changed_files(args.staged)) if args.platform == 'changed' else (
         ['macos', 'ios'] if args.platform == 'all' else [args.platform])
@@ -151,10 +212,10 @@ def test(args):
     directory.mkdir(parents=True)
     results = []
     if args.suite in ('logic', 'all', 'tools'):
-        results.append(logged(['python3', '-m', 'unittest', 'discover', '-s', 'scripts/tests', '-v'], directory, 'tooling-python'))
-        results.append(logged(['swift', 'test', '--disable-sandbox', '--package-path', 'tools/ReleaseTools', '--scratch-path', str(CONTEXT / 'release-tools-build')], directory, 'tooling-swift'))
+        results.append(headless_check(['python3', '-m', 'unittest', 'discover', '-s', 'scripts/tests', '-v'], directory, 'tooling-python', args))
+        results.append(headless_check(['swift', 'test', '--disable-sandbox', '--package-path', 'tools/ReleaseTools', '--scratch-path', str(CONTEXT / 'release-tools-build')], directory, 'tooling-swift', args))
     if args.suite in ('logic', 'all', 'core'):
-        results.append(logged(['python3', 'scripts/test_core.py'], directory, 'core'))
+        results.append(headless_check(['python3', 'scripts/test_core.py'], directory, 'core', args))
     with native_lock() if platforms else contextlib.nullcontext():
         for platform in platforms:
             try:
@@ -428,6 +489,7 @@ def main():
     tests.add_argument('--suite', choices=('logic', 'ui', 'all', 'tools', 'core'), default='all')
     tests.add_argument('--only')
     tests.add_argument('--staged', action='store_true')
+    tests.add_argument('--reuse-passing', action='store_true', help='Reuse passing headless checks when their inputs are unchanged')
     tests.add_argument('--simulator')
     tests.add_argument('--dry-run', action='store_true')
     releases = commands.add_parser('release')

@@ -1,18 +1,19 @@
 import Foundation
 
-/// Moves media saved by the Share Extension from the App Group staging area
+/// Publishes media saved by the Share Extension from the App Group staging area
 /// into the iCloud container so they sync to the Mac app for analysis.
 enum ShareImportService {
 
     private static let appGroupID = "group.co.snapwell"
 
-    /// Check the App Group pending directory and move any media + metadata
+    /// Check the App Group pending directory and publish any media + metadata
     /// into the iCloud container. Safe to call multiple times — completed
     /// imports are deleted from the staging area.
     static func importPendingItems(to rootURL: URL) {
         // Automation hosts must never consult the real App Group.
         guard !AutomationEnvironment.isEnabled,
               let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupID) else { return }
+
         importPendingItems(from: containerURL.appendingPathComponent("pending", isDirectory: true), to: rootURL)
     }
 
@@ -26,9 +27,13 @@ enum ShareImportService {
         let imagesDir = rootURL.appendingPathComponent("images", isDirectory: true)
         let metadataDir = rootURL.appendingPathComponent("metadata", isDirectory: true)
 
-        // Ensure destination directories exist
-        try? fm.createDirectory(at: imagesDir, withIntermediateDirectories: true)
-        try? fm.createDirectory(at: metadataDir, withIntermediateDirectories: true)
+        do {
+            try fm.createDirectory(at: imagesDir, withIntermediateDirectories: true)
+            try fm.createDirectory(at: metadataDir, withIntermediateDirectories: true)
+        } catch {
+            print("[ShareImport] Cannot prepare destination: \(error)")
+            return
+        }
 
         // List pending metadata files
         guard let metadataFiles = try? fm.contentsOfDirectory(
@@ -58,31 +63,51 @@ enum ShareImportService {
             let dstImage = imagesDir.appendingPathComponent(mediaFilename)
             let dstMetadata = metadataDir.appendingPathComponent(jsonURL.lastPathComponent)
 
-            // Copy first and retain both staged files until metadata commits. If a write
-            // fails, the next foreground import can retry without losing its source media.
-            guard fm.fileExists(atPath: srcMedia.path) else { continue }
             do {
-                if fm.fileExists(atPath: dstImage.path) {
-                    guard fm.contentsEqual(atPath: dstImage.path, andPath: srcMedia.path) else {
-                        continue // A conflicting destination must not be overwritten.
-                    }
-                } else {
-                    try fm.copyItem(at: srcMedia, to: dstImage)
+                // A published file may be evicted. Wait for it rather than replacing it.
+                let mediaState = ICloudFile.downloadState(of: dstImage, isUsingiCloud: true)
+                let metadataState = ICloudFile.downloadState(of: dstMetadata, isUsingiCloud: true)
+                if mediaState == .downloading || metadataState == .downloading {
+                    if mediaState == .downloading { DownloadRequester.shared.requestDownload(for: dstImage) }
+                    if metadataState == .downloading { DownloadRequester.shared.requestDownload(for: dstMetadata) }
+                    continue
                 }
-                if !fm.fileExists(atPath: dstMetadata.path) {
-                    try data.write(to: dstMetadata, options: .atomic)
+
+                if mediaState == .downloaded, fm.fileExists(atPath: srcMedia.path),
+                   !fm.contentsEqual(atPath: dstImage.path, andPath: srcMedia.path) {
+                    continue
+                }
+
+                if mediaState == .notPresent {
+                    let temporaryMedia = imagesDir.appendingPathComponent(".\(mediaFilename).importing")
+                    defer { try? fm.removeItem(at: temporaryMedia) }
+                    if fm.fileExists(atPath: temporaryMedia.path) {
+                        try fm.removeItem(at: temporaryMedia)
+                    }
+                    try fm.copyItem(at: srcMedia, to: temporaryMedia)
+                    try fm.moveItem(at: temporaryMedia, to: dstImage)
+                }
+
+                if metadataState == .notPresent {
+                    let data = try Data(contentsOf: jsonURL)
+                    let temporaryMetadata = metadataDir.appendingPathComponent(".\(id).json.importing")
+                    defer { try? fm.removeItem(at: temporaryMetadata) }
+                    try data.write(to: temporaryMetadata, options: .atomic)
+                    try fm.moveItem(at: temporaryMetadata, to: dstMetadata)
                 } else {
-                    // Preserve a sidecar already enriched by sync or analysis.
-                    let existing = try Data(contentsOf: dstMetadata)
-                    guard let object = try JSONSerialization.jsonObject(with: existing) as? [String: Any],
-                          object["id"] as? String == id else { continue }
+                    // A previous attempt may have published metadata that was edited since.
+                    let data = try Data(contentsOf: dstMetadata)
+                    let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+                    guard json?["id"] as? String == id else { continue }
+                }
+
+                // Retire the commit marker last so interrupted cleanup can also be retried.
+                if fm.fileExists(atPath: srcMedia.path) {
+                    try fm.removeItem(at: srcMedia)
                 }
                 try fm.removeItem(at: jsonURL)
-                try? fm.removeItem(at: srcMedia)
             } catch {
-                #if DEBUG
-                print("[ShareImport] Failed to import \(id): \(error)")
-                #endif
+                print("[ShareImport] Pending import \(id) will be retried: \(error)")
                 continue
             }
 

@@ -44,6 +44,8 @@ specific blocker and ask the user to run `./dev.sh test --platform changed --sui
 from a normal Terminal. Wait for the results, inspect the logs, and resolve failures before
 creating the PR. A successful build, skipped tests or an unavailable test service does not
 count as a passing test run. Reuse passing results when the code they cover has not changed.
+Pre-commit runs headless tooling/core checks and reuses unchanged passing results; it does
+not repeat hosted native or UI tests. Keep the full native PR gate separate from committing.
 
 Every user-visible change adds an entry to `CHANGELOG.md` in the same PR; otherwise state
 that it has no user-visible change. Report what passed, what failed, and what could not run.

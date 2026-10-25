@@ -162,11 +162,78 @@ struct SyncWatcherIntegrationTests {
         let watcher = makeWatcher()
         await watcher.initialSync(context: context)
 
-        // The applyImport path for existing items reconciles space/sourceURL.
-        // Analysis is synced via the new-item path (which creates AnalysisResult).
-        // For the existing-item reconciliation path, analysis isn't updated.
-        // This test verifies the reconciliation doesn't crash or duplicate.
-        #expect(item.sourceURL == nil) // No sourceURL in sidecar
+        #expect(item.analysisResult?.imageContext == "Analyzed on iOS")
+        #expect(item.analysisResult?.imageSummary == "From iOS")
+        #expect(item.analysisResult?.patterns.map(\.name) == ["ios-pattern"])
+        #expect(try context.fetchCount(FetchDescriptor<MediaItem>()) == 1)
+    }
+
+    @Test("All sync paths reconcile analysis and notify search only when it changes",
+          arguments: ["initial", "foreground", "incremental"], ["missing", "older", "equal", "newer"])
+    @MainActor func reconcileAnalysisAndSearch(pass: String, localVersion: String) async throws {
+        let id = UUID().uuidString
+        let remoteDate = Date(timeIntervalSince1970: 1_700_000_000)
+        let item = MediaItem(id: id, mediaType: .image, filename: "\(id).png", width: 800, height: 600)
+        if localVersion != "missing" {
+            let offset: TimeInterval = localVersion == "older" ? -60 : localVersion == "newer" ? 60 : 0
+            item.analysisResult = AnalysisResult(
+                imageContext: "Original local description", imageSummary: "Original", patterns: [],
+                analyzedAt: remoteDate.addingTimeInterval(offset), provider: "local", model: "local"
+            )
+        }
+        context.insert(item)
+        context.saveOrLog()
+        try IntegrationTestSupport.createDummyMedia(id: id, in: tempRoot)
+
+        let watcher = makeWatcher()
+        if pass != "initial" {
+            let baseline = IntegrationTestSupport.makeSidecar(
+                id: id, imageContext: item.analysisResult?.imageContext,
+                analyzedAt: item.analysisResult?.analyzedAt
+            )
+            try IntegrationTestSupport.writeSidecarJSON(baseline, to: tempRoot)
+            try FileManager.default.setAttributes(
+                [.modificationDate: remoteDate],
+                ofItemAtPath: tempRoot.appendingPathComponent("metadata/\(id).json").path
+            )
+            await watcher.initialSync(context: context)
+        }
+
+        let observer = AnalysisSearchObserver(item: item)
+        defer { observer.stop() }
+        let sidecar = IntegrationTestSupport.makeSidecar(
+            id: id, imageContext: "Remote kaleidoscope description", imageSummary: "Kaleidoscope",
+            patterns: [SidecarPattern(name: "Prismatic", confidence: 0.95)], analyzedAt: remoteDate
+        )
+        try IntegrationTestSupport.writeSidecarJSON(sidecar, to: tempRoot)
+        try FileManager.default.setAttributes(
+            [.modificationDate: remoteDate.addingTimeInterval(120)],
+            ofItemAtPath: tempRoot.appendingPathComponent("metadata/\(id).json").path
+        )
+
+        if pass == "initial" {
+            await watcher.initialSync(context: context)
+        } else if pass == "foreground" {
+            await watcher.resyncFromDisk()
+        } else {
+            await watcher.syncMetadata()
+        }
+
+        let acceptsRemote = localVersion == "missing" || localVersion == "older"
+        #expect(item.analysisResult?.imageContext == (acceptsRemote ? "Remote kaleidoscope description" : "Original local description"))
+        #expect(observer.notificationCount == (acceptsRemote ? 1 : 0))
+        #expect(observer.search.search(query: "kaleidoscope").map(\.itemId) == (acceptsRemote ? [id] : []))
+        if acceptsRemote {
+            #expect(item.analysisResult?.analyzedAt == remoteDate)
+            #expect(item.analysisResult?.patterns.map(\.name) == ["Prismatic"])
+            #expect(observer.search.search(query: "original").isEmpty)
+        }
+
+        let resultID = item.analysisResult?.persistentModelID
+        await watcher.resyncFromDisk()
+        #expect(observer.notificationCount == (acceptsRemote ? 1 : 0))
+        #expect(try context.fetchCount(FetchDescriptor<MediaItem>()) == 1)
+        #expect(item.analysisResult?.persistentModelID == resultID)
     }
 
     @Test("resync keeps local analysis when it's newer")
@@ -430,5 +497,30 @@ struct SyncWatcherIntegrationTests {
         let spaces = try context.fetch(FetchDescriptor<Space>())
         #expect(spaces.count == 1)
         #expect(spaces.first?.name == "G")
+    }
+}
+
+@MainActor
+final class AnalysisSearchObserver {
+    let search = SearchIndexService()
+    private(set) var notificationCount = 0
+    private let item: MediaItem
+    private var token: NSObjectProtocol?
+
+    init(item: MediaItem) {
+        self.item = item
+        search.buildIndex(items: [item])
+        token = NotificationCenter.default.addObserver(forName: .analysisCompleted, object: nil, queue: nil) { [weak self] notification in
+            let id = notification.userInfo?["itemId"] as? String
+            MainActor.assumeIsolated {
+                guard let self, id == self.item.id else { return }
+                self.notificationCount += 1
+                self.search.addToIndex(item: self.item)
+            }
+        }
+    }
+
+    func stop() {
+        if let token { NotificationCenter.default.removeObserver(token) }
     }
 }
