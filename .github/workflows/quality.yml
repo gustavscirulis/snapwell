@@ -52,15 +52,16 @@ jobs:
           python3 - <<'PY'
           import os, re
           from pathlib import Path
-          from scripts.automation import affected_platforms, changed_files
+          from scripts.automation import affected_platforms, run
           from scripts.native_validation import fingerprint
-          files = changed_files()
-          platforms = affected_platforms(files)
           base = os.environ.get('BASE_SHA', '')
+          valid_base = bool(re.fullmatch(r'[a-f0-9]{40}', base) and base != '0' * 40)
+          files = run(['git', 'diff', '--name-only', '-z', base, 'HEAD'], capture=True).split('\0') if valid_base else ['.github/workflows/quality.yml']
+          platforms = affected_platforms(files)
           runner_changed = any(path.startswith(('scripts/', 'tools/', '.githooks/', '.github/workflows/')) or path == 'dev.sh' for path in files)
           if runner_changed:
               platforms = ['macos', 'ios']
-          elif re.fullmatch(r'[a-f0-9]{40}', base) and base != '0' * 40:
+          elif valid_base:
               platforms = [platform for platform in platforms
                            if fingerprint(Path.cwd(), platform, base) != fingerprint(Path.cwd(), platform)]
           # Version/build-only changes reuse the already tested base's native inputs.
