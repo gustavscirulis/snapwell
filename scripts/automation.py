@@ -17,9 +17,9 @@ import time
 import uuid
 
 try:
-    from scripts import release_state
+    from scripts import native_validation, release_state
 except ImportError:
-    import release_state
+    import native_validation, release_state
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTEXT = ROOT / '.context'
@@ -166,7 +166,7 @@ def headless_fingerprint(name, staged=False):
         digest.update(str(source.lstat().st_mode).encode() + b'\0')
         if source.is_symlink():
             digest.update(os.readlink(source).encode() + b'\0')
-        digest.update(hashlib.sha256(source.read_bytes()).digest())
+        digest.update(hashlib.sha256(native_validation.normalized_input(path, source.read_bytes())).digest())
     return digest.hexdigest()
 
 
@@ -251,7 +251,13 @@ def test(args):
                     command += ['CODE_SIGN_IDENTITY=-']
                 else:
                     command += ['CODE_SIGNING_ALLOWED=NO']
-                results.append(logged(command, directory, platform))
+                inputs = native_validation.fingerprint(ROOT, platform)
+                native_validation.pending(ROOT, platform, inputs)
+                result = logged(command, directory, platform)
+                if result['status'] == 'passed':
+                    evidence = native_validation.record_pass(ROOT, platform, directory / (platform + '.xcresult'), inputs)
+                    result.update(input_fingerprint=inputs, native_counts=evidence['counts'])
+                results.append(result)
             except (RuntimeError, subprocess.TimeoutExpired) as error:
                 results.append({'name': platform, 'status': 'unavailable', 'error': str(error)})
                 print(str(error), file=sys.stderr)
@@ -324,6 +330,89 @@ def local_build(platform):
         return int(re.search(r'CURRENT_PROJECT_VERSION: (\d+)', text)[1])
     text = (ROOT / 'ios/Snapwell.xcodeproj/project.pbxproj').read_text()
     return max(map(int, re.findall(r'CURRENT_PROJECT_VERSION = (\d+);', text)))
+
+
+def local_version(platform):
+    path = ROOT / ('macos/project.yml' if platform == 'macos' else 'ios/Snapwell.xcodeproj/project.pbxproj')
+    pattern = r'MARKETING_VERSION: "([0-9.]+)"' if platform == 'macos' else r'MARKETING_VERSION = ([0-9.]+);'
+    versions = set(re.findall(pattern, path.read_text()))
+    if len(versions) != 1:
+        raise RuntimeError('Expected one matching app/extension marketing version per platform')
+    version = versions.pop()
+    release_dir(platform, version)
+    return version
+
+
+def release_requests(args):
+    if args.platform != 'all':
+        if not args.version:
+            raise RuntimeError('--version is required for a single-platform release command')
+        release_dir(args.platform, args.version)
+        return [args]
+    if args.action != 'upload' or args.version:
+        raise RuntimeError('--platform all supports upload without --version; each prepared platform keeps its own version')
+    requests = []
+    for platform in ('macos', 'ios'):
+        request = argparse.Namespace(**vars(args))
+        request.platform, request.version = platform, local_version(platform)
+        requests.append(request)
+    return requests
+
+
+def release_with_backup(args):
+    try:
+        release(args)
+    finally:
+        evidence = CONTEXT / 'releases' / args.platform / args.version
+        if not args.dry_run and (evidence / 'receipt.json').is_file():
+            release_state.backup(evidence, ROOT)
+
+
+def ensure_release_validation(platforms):
+    missing = []
+    for platform in platforms:
+        evidence = native_validation.passing_evidence(ROOT, platform)
+        if evidence:
+            print(f'Reusing verified {platform} PR validation: {evidence["counts"]["passedTests"]} native tests passed; app/test/configuration inputs unchanged.')
+        else:
+            missing.append(platform)
+    if missing:
+        test(argparse.Namespace(platform='all' if len(missing) == 2 else missing[0],
+                                suite='all', only=None, staged=False, dry_run=False, simulator=None))
+
+
+def upload_all(requests):
+    """One local Terminal handoff; all required native tests pass before either upload."""
+    # Validate both prepared manifests/notes and API access before native work or uploads.
+    for request in requests:
+        preview = argparse.Namespace(**vars(request))
+        preview.dry_run = True
+        release(preview)
+    if requests[0].dry_run:
+        return
+    if run(['git', 'status', '--porcelain'], capture=True).strip():
+        raise RuntimeError('Commit the prepared releases and notes before the Terminal handoff')
+    commit = run(['git', 'rev-parse', 'HEAD'], capture=True).strip()
+    platforms = []
+    for request in requests:
+        manifest = json.loads((release_dir(request.platform, request.version) / 'release.json').read_text())
+        directory = CONTEXT / 'releases' / request.platform / request.version
+        release_state.restore(directory, ROOT)
+        receipt = json.loads((directory / 'receipt.json').read_text()) if (directory / 'receipt.json').is_file() else {}
+        if manifest['status'] not in ('submitted', 'released') and receipt.get('uploaded') is not True:
+            platforms.append(request.platform)
+    if platforms:
+        ensure_release_validation(platforms)
+    if (run(['git', 'status', '--porcelain'], capture=True).strip()
+            or run(['git', 'rev-parse', 'HEAD'], capture=True).strip() != commit):
+        raise RuntimeError('Source changed during validation; no upload started')
+    for request in requests:
+        if (run(['git', 'status', '--porcelain'], capture=True).strip()
+                or run(['git', 'rev-parse', 'HEAD'], capture=True).strip() != commit):
+            raise RuntimeError('Source changed between platform uploads; saved receipts are retained')
+        request.validated_commit = commit
+        release_with_backup(request)
+    print('Both uploads are ready. The agent can inspect the saved receipts, submit for review, verify Apple state and finish cleanup. No further Terminal command is normally needed.')
 
 
 def set_version(platform, version, build):
@@ -555,12 +644,15 @@ def release(args):
         return
     receipt = {**receipt, 'commit': commit, 'notes_sha256': fingerprint, **plan}
     write_json(receipt_path, receipt)
-    test(argparse.Namespace(platform=args.platform, suite='all', only=None, staged=False, dry_run=False, simulator=None))
+    # A confirmed upload from this exact revision already passed native validation.
+    # The coordinated Terminal command also validates both platforms before either upload.
+    if receipt.get('uploaded') is not True and getattr(args, 'validated_commit', None) != commit:
+        ensure_release_validation([args.platform])
     if run(['git', 'status', '--porcelain'], capture=True).strip() or run(['git', 'rev-parse', 'HEAD'], capture=True).strip() != commit:
         raise RuntimeError('Source changed during validation; commit and validate again before publishing.')
     if hashlib.sha256(notes_text(path).encode()).hexdigest() != fingerprint:
         raise RuntimeError('Release notes changed during validation.')
-    if build is None:
+    if build is None and receipt.get('uploaded') is not True:
         if local_build(args.platform) != manifest['build']:
             raise RuntimeError('Local build differs from prepared release.')
         remote_next = asc('inspect', args.platform, local_build=0)['next_build']
@@ -579,6 +671,16 @@ def release(args):
         write_json(receipt_path, receipt)
     elif not receipt.get('uploaded'):
         raise RuntimeError('This build number already exists without an upload receipt; refusing to attach an unverified build.')
+    if args.action == 'upload':
+        if build:
+            if (build['attributes'].get('snapwellMarketingVersion') != args.version
+                    or build['attributes'].get('processingState') in ('FAILED', 'INVALID')
+                    or receipt.get('build_id') not in (None, build['id'])):
+                raise RuntimeError('Apple build does not match the successful upload receipt')
+            receipt['build_id'] = build['id']
+            write_json(receipt_path, receipt)
+        print(f'Uploaded {args.platform} {args.version} build {manifest["build"]}; receipt saved. The agent will finish processing, notes and App Review.')
+        return
     finish_submission(args, manifest, receipt, receipt_path, path, manifest_path)
 
 
@@ -603,9 +705,9 @@ def main():
     tests.add_argument('--simulator')
     tests.add_argument('--dry-run', action='store_true')
     releases = commands.add_parser('release')
-    releases.add_argument('action', choices=('prepare', 'publish', 'submit', 'verify', 'cleanup', 'status'))
-    releases.add_argument('--platform', choices=('macos', 'ios'), required=True)
-    releases.add_argument('--version', required=True)
+    releases.add_argument('action', choices=('prepare', 'publish', 'upload', 'submit', 'verify', 'cleanup', 'status'))
+    releases.add_argument('--platform', choices=('macos', 'ios', 'all'), required=True)
+    releases.add_argument('--version')
     releases.add_argument('--locale')
     releases.add_argument('--wait-minutes', type=int, default=30)
     releases.add_argument('--dry-run', action='store_true')
@@ -617,16 +719,14 @@ def main():
             release_state.protect(CONTEXT)
 
         if args.command == 'release':
-            release_dir(args.platform, args.version)
+            requests = release_requests(args)
             lock_path = Path(os.environ.get('TMPDIR', '/tmp')) / 'snapwell-release-co.snapwell.lock'
             with lock_path.open('w') as lock:
                 fcntl.flock(lock, fcntl.LOCK_EX)
-                try:
-                    release(args)
-                finally:
-                    evidence = CONTEXT / 'releases' / args.platform / args.version
-                    if not args.dry_run and (evidence / 'receipt.json').is_file():
-                        release_state.backup(evidence, ROOT)
+                if args.platform == 'all':
+                    upload_all(requests)
+                else:
+                    release_with_backup(args)
         else:
             {'doctor': doctor, 'test': test}[args.command](args)
     except (RuntimeError, subprocess.TimeoutExpired, OSError, ValueError) as error:

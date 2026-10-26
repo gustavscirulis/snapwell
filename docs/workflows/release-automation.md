@@ -1,118 +1,91 @@
-# Fully delegated App Store releases
+# Delegated releases with one local Terminal handoff
 
-## Goal and current boundaries
+## Default workflow
 
-The user says “bump the version and release both apps.” The agent picks patch versions,
-checks each platform's next build number, drafts notes, commits the prepared changes,
-runs required tests, archives/signs, verifies and uploads the binaries, fills version
-metadata, attaches the exact builds, submits for review with AFTER_APPROVAL, and reports
-Apple's state. Publication still depends on Apple's review.
+Keep Apple API credentials in the existing private machine-local configuration and signing
+identities in the Mac's Keychain. Do not introduce GitHub signing secrets, export the login
+keychain, install an unrestricted agent command service, or weaken Conductor's sandbox.
+The user prefers one explicit local Terminal command when native Apple services are blocked.
 
-The existing release commands implement that sequence for one platform and preserve
-resumable receipts. Local credentials persist across Conductor workspaces outside Git.
-Submission-only resume, independent Apple read-back, durable private evidence and scoped
-cleanup are implemented. The Quality workflow provides a secret-free hosted native
-validation path; its runner must actually pass before its evidence can be reused. A
-credentialed archive/signing/upload runner is not installed or verified. This document
-defines that remaining setup, rather than claiming unattended releases are operational.
+A request to bump and release delegates version/build selection, notes, preparation, review
+submission, verification, public records and scoped cleanup to the agent. The agent:
 
-Two independent environment problems must be addressed:
+1. Reads Apple state and private receipts first, resuming existing work rather than uploading
+   another build. Prepares each platform's next patch/build and drafts its checked-in notes.
+2. Reuses the passing PR validation for unchanged app/test/build inputs. A version-only bump
+   does not require another native run. Imports hosted evidence when needed, verifies its
+   fingerprint and commits the prepared versions/notes before any Terminal handoff.
+3. Runs the release itself where Apple services permit. If the sandbox blocks native signing,
+   supplies this single command from the prepared workspace root:
 
-- API reads/uploads can work while metadata/review writes are forbidden. A read-only
-  doctor check cannot certify submission permissions.
-- An agent's local sandbox can block testmanagerd, CoreSimulator, Icon Studio or Xcode
-  signing services. Signing into Xcode does not change that sandbox or sign into a browser.
+   ```bash
+   ./dev.sh release upload --platform all
+   ```
 
-## One-time Apple setup
+4. Inspects the saved upload receipts/logs when the command finishes. Uses `release submit`
+   independently for each prepared platform to wait for processing, fill notes, attach the
+   exact build and submit for review with automatic publication after approval. No second
+   Terminal command is normally needed for metadata or review.
+5. Independently reads Apple state back, backs up private evidence, cleans only temporary
+   exports, commits the submission records, pushes and updates the PR with sanitized results.
 
-Use an App Manager credential for release metadata and App Review, rather than Admin.
-For the narrowest app access, use an individual API key belonging to a dedicated App
-Manager user restricted to Snapwell. Individual keys inherit that user's access and cannot
-use provisioning endpoints. Explicit signing certificates/profiles are then managed separately.
+The Terminal command discovers the two versions from their authoritative project settings
+and requires matching prepared manifests, notes and a clean revision. It checks both plans
+before uploading, reuses verified native evidence, and validates any genuinely untested
+platform before either upload. It stops if source changes, preserves progress on failure,
+and does not repeat a receipted upload just because Apple has not exposed the build yet.
+It never invents release notes or silently picks an unprepared version.
 
-A simpler alternative is a team key with App Manager access, created under App Store Connect
-→ Users and Access → Integrations → App Store Connect API → Team Keys → Generate API Key.
-Team keys apply to every app in the Apple account; their role cannot be edited later.
-The account owner must make this access decision and create the credential. Do not revoke a
-working upload key until its dependencies have been checked and the replacement is verified.
+`./dev.sh release upload --platform all --dry-run` previews both plans without tests,
+archives, uploads, receipt restoration or writes. This release is already submitted;
+do not run another upload merely to verify the new handoff command.
 
-Download the .p8 once and save it outside the checkout, for example in
-`~/.appstoreconnect/`. Configure the existing `snapwell.json` as described in
-[Releases](../releases.md). The user can supply the key ID/path and issuer ID; private key
-contents never belong in chat, Git, logs, screenshots or a release artifact. Validate reads,
-then verify writes as part of the user's real authorized release. Do not claim a key's role
-or write access based on successful reads alone.
+## Validation reuse
 
-For an already uploaded release, preserve the successful upload receipt and use
-submission-only resume after access is repaired. The build does not need re-uploading.
+Native runs require actual xcresult summaries with positive test counts and zero failures
+or skips. Passing evidence is stored with private permissions outside workspaces under
+`~/.appstoreconnect/validation/`, keyed by the platform's app, tests, fixtures, entitlements,
+shared source and build configuration contents. Version/build fields are normalized; Mac
+configuration uses authoritative `project.yml`, since the project is regenerated for tests
+and archives. Other source/configuration changes invalidate the evidence.
 
-## Recommended execution environment
+A newer failed or incomplete native run blocks release reuse of an older pass for the same
+inputs. An intentional fresh `dev.sh test` run can replace it after all tests pass. Missing
+evidence requires validation; a successful archive is never substituted for passing tests.
 
-Use a GitHub-hosted macOS runner, with the agent dispatching and monitoring a manual release
-workflow. This is a separate CI execution environment with its own explicit credentials;
-it does not require weakening Conductor's sandbox or giving arbitrary agents an unrestricted
-local command service. A dedicated Mac CI host is an alternative if native UI tests prove
-unreliable on hosted runners, but requires its own maintenance and access controls.
+For hosted PR validation, the agent runs:
 
-The concrete hosted workflow should:
+```bash
+python3 scripts/native_validation.py import-ci --run RUN_ID
+```
 
-1. Run only by explicit workflow dispatch from the trusted main branch. Release-preparation
-   changes must be reviewed and landed before dispatch; never inject signing credentials
-   into pull-request or fork builds. Verify the requested prepared versions and exact SHA.
-2. Use a macOS runner with a supported Xcode installation compatible with the projects. Install
-   XcodeGen, verify toolchains/runtimes, then run the existing isolated Automation suites for
-   both platforms. Require actual xcresult evidence; unavailable UI services are failures.
-3. After tests pass, load signing materials from GitHub environment secrets into a temporary
-   keychain. Required identities are Apple Development (current archive configuration),
-   Apple Distribution and Mac Installer Distribution, each with its private key. Install
-   the app/share-extension provisioning profiles or explicitly configure a provisioning API
-   credential. Never rely on an interactive Xcode account login on an ephemeral runner.
-4. Supply API credentials through environment values, not a committed config. Archive/upload
-   commands must pass explicit Xcode authentication arguments if using provisioning updates;
-   the current interactive dev.sh implementation needs that integration before hosted use.
-   Keep `manageAppVersionAndBuildNumber=false`; verify the iOS extension and universal Mac
-   archive, privacy manifests, entitlements and signatures before upload.
-5. Run publish/submit using the checked-in notes and exact build IDs. Serialize releases
-   across both platforms and preserve failure status; do not retry invalid native tests
-   into a green result or upload a duplicate build after an ambiguous response.
-6. Always retain test logs/xcresults, sanitized upload logs, receipts, review checkpoints and
-   final manifests as restricted artifacts with a defined retention period. Exclude keys,
-   certificates, profiles, temporary keychains and export options containing sensitive data.
-   Restore the exact prior receipt on a resume; do not guess based on a build number alone.
-7. Remove temporary credentials and keychains in an always-run cleanup step. Use minimal
-   GitHub token permissions and actions pinned to immutable commits. The agent downloads
-   the records, verifies them against Apple and commits the resulting submission records;
-   CI does not need a repository-write token merely to publish an Apple app.
+This reads GitHub's successful Quality run and retained artifact directly, checks its tested
+Git commit and native fingerprints against Git source, validates counts, and saves only the
+allowlisted evidence privately. It does not trust a pasted success claim or import arbitrary
+logs. Import it when completing PR validation so the evidence survives workspace removal and
+artifact expiration. Local native runs save equivalent verified evidence automatically.
+`SNAPWELL_VALIDATION_STATE_DIR` can select a private directory outside the repository for tests.
 
-Suggested encrypted secret inventory: API private key, key ID and optional issuer ID;
-signing certificate/private-key bundle plus its password; provisioning profile bundle.
-Create a fresh random temporary-keychain password per run. Keep this separate from source
-and never auto-export a developer's whole login keychain.
+The Quality workflow remains secret-free validation only. A credentialed hosted release
+runner is not configured or required for the preferred local handoff.
 
-Before enabling unattended dispatch, perform one controlled end-to-end run and verify both
-platforms' hosted native tests, signatures, Apple upload, metadata writes and review states.
-A workflow file alone is not proof that this setup works. Reconcile any already uploaded
-builds first. Inspect Actions availability and billing before enabling regular use.
+## Archives, interruptions and cleanup
 
-## Routine agent behavior after setup
+New archives use unique attempt directories under
+`.context/releases/<platform>/<version>/archives/`. Another release or retry must not delete
+an earlier archive. Both app/extension versions and signatures are checked; Mac archives
+must contain both arm64 and x86_64. Export options and upload intermediates stay in the exact
+release-owned temporary paths.
 
-The release request is the approval to execute this workflow. The agent handles preparation,
-notes, dispatch, monitoring, recovery, submission and record keeping. Ask the user only for
-an unavoidable account action, legal agreement, missing factual compliance answer, or a
-materially changed release scope. Report the exact blocker and preserve all progress.
+A confirmed upload receipt survives metadata errors and new workspaces. After an ambiguous
+upload failure, inspect Apple and the private log before retrying; never fabricate success
+or erase evidence to force another upload. API permission errors require an appropriate
+App Manager key; legal agreements and unknown factual compliance answers remain human tasks.
+See [Releases](../releases.md) for key configuration and submission-only resume, and
+[public repository hygiene](public-repository.md) for audit, backup, cleanup and privacy rules.
 
 ## Primary references
 
 - [Apple: submit an app and required roles](https://developer.apple.com/help/app-store-connect/manage-submissions-to-app-review/submit-an-app/)
-- [Apple: API key types and provisioning limits](https://developer.apple.com/documentation/AppStoreConnectAPI/creating-api-keys-for-app-store-connect-api)
-- [Apple: create and manage API keys](https://developer.apple.com/help/app-store-connect/get-started/app-store-connect-api/)
-- [GitHub: installing Apple signing materials on macOS runners](https://docs.github.com/en/actions/how-tos/deploy/deploy-to-third-party-platforms/sign-xcode-applications)
-- [GitHub: available macOS runner images](https://github.com/actions/runner-images)
-
-## Completion contract
-
-The agent must audit the actual Apple state, preserve private resumable evidence outside
-the workspace, run scoped cleanup, commit public release records, and update the PR.
-Never upload raw build logs/xcresults from a developer Mac into a public repository or CI
-artifact. See [public repository hygiene](public-repository.md) for the enforced checks and
-sanitized CI evidence. Hooks never authorize publishing: the user's release request does.
+- [Apple: API key types](https://developer.apple.com/documentation/AppStoreConnectAPI/creating-api-keys-for-app-store-connect-api)
+- [Apple: manage API keys](https://developer.apple.com/help/app-store-connect/get-started/app-store-connect-api/)

@@ -96,6 +96,7 @@ struct MainView: View {
         #endif
     }
 
+    @ViewBuilder
     private var presentationContent: some View {
         @Bindable var appState = appState
 
@@ -220,6 +221,7 @@ struct MainView: View {
         }
     }
 
+    @ViewBuilder
     private var mainContent: some View {
         @Bindable var appState = appState
 

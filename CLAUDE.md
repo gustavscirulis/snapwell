@@ -55,6 +55,8 @@ Screenshots, logs and local handoffs belong under `.context/`; preserve useful e
 Before committing or pushing, run the public-content checks and use a GitHub no-reply
 commit identity. Never publish credentials, personal paths/contact details or raw artifacts.
 Complete releases with the independent Apple audit, durable private evidence backup and
-scoped cleanup, then commit the release records and update the PR. Follow
+scoped cleanup, then commit the release records and update the PR. Reuse verified PR native
+evidence for version-only bumps. If signing is sandbox-blocked, use the single local Terminal
+upload handoff; keep secrets on the Mac. Follow
 [public repository hygiene](docs/workflows/public-repository.md); do not claim unattended
 signing is configured until a credentialed release runner has passed a real verification.

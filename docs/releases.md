@@ -23,9 +23,10 @@ all authorized steps and report Apple's exact state. Uploaded/VALID is not submi
 submitted is not approved or released. Resume a partially completed release before creating
 another version or uploading another build. Read the saved receipt and Apple state first.
 
-For unattended native tests and signing, see the concrete
-[release automation setup](workflows/release-automation.md). Local API credentials alone do
-not give an agent sandbox access to Apple's native services.
+For the preferred single-command local Terminal handoff, see
+[release automation](workflows/release-automation.md). Keep signing secrets on the Mac;
+local API credentials alone do not give an agent sandbox access to Apple's native services.
+Reuse verified PR native evidence when only version/build numbers change.
 
 ## One-time local configuration
 
@@ -77,8 +78,8 @@ requires a suitable replacement key; team-key roles cannot be edited after creat
    use `--locale` for another existing English localization.
 4. Review and commit the prepared release. `./dev.sh release publish --platform macos --version 1.0.8 --dry-run`
    reads Apple state and prints the exact notes, version, build and publication policy.
-5. Invoke the same publish command without `--dry-run` when releasing. It runs the full
-   platform test suite, archives and verifies metadata, uploads, waits for processing,
+5. Invoke the same publish command without `--dry-run` when releasing. It reuses verified PR validation for unchanged native inputs (including version-only bumps),
+   otherwise runs the required platform suite, then archives and verifies metadata, uploads, waits for processing,
    updates What's New, attaches the exact build, and **submits for App Review** with
    **automatic publication after approval**. This is the live release action.
 6. The command independently verifies the exact remote build, notes, review and publication policy, backs up private evidence, and cleans temporary exports. Commit the updated submission record. `./dev.sh release status --platform macos --version 1.0.8`

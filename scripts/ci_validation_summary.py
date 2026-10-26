@@ -38,7 +38,7 @@ def sanitized(report, native, commit):
         raise RuntimeError('Invalid source commit')
     if not report.get('results') or report.get('suite') != 'all':
         raise RuntimeError('Expected complete validation evidence')
-    result = {'source_commit': commit, 'headless': {}, 'native': {}}
+    result = {'source_commit': commit, 'headless': {}, 'native': {}, 'native_fingerprints': {}}
     for item in report['results']:
         name = item['name']
         if name not in HEADLESS | {'macos', 'ios'} or item['status'] != 'passed':
@@ -52,6 +52,10 @@ def sanitized(report, native, commit):
                     or counts['passedTests'] != counts['totalTestCount']):
                 raise RuntimeError('Native result bundle did not pass all tests without skips')
             result['native'][name] = counts
+            inputs = item.get('input_fingerprint', '')
+            if not re.fullmatch(r'[a-f0-9]{64}', inputs):
+                raise RuntimeError('Native evidence is missing its input fingerprint')
+            result['native_fingerprints'][name] = inputs
     if set(result['headless']) != HEADLESS or set(result['native']) != set(report.get('platforms', [])):
         raise RuntimeError('Validation evidence is incomplete')
     return result

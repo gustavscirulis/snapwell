@@ -1,4 +1,5 @@
 import importlib.util
+import tempfile
 from pathlib import Path
 import unittest
 
@@ -10,7 +11,8 @@ spec.loader.exec_module(summary)
 class PublicEvidenceTests(unittest.TestCase):
     def setUp(self):
         self.report = {'suite': 'all', 'platforms': ['ios'], 'results': [
-            {'name': name, 'status': 'passed', 'log': 'private local path', 'account': 'private account'}
+            {'name': name, 'status': 'passed', 'input_fingerprint': 'b' * 64,
+             'log': 'private local path', 'account': 'private account'}
             for name in ('tooling-python', 'tooling-swift', 'core', 'ios')]}
         self.native = {'ios': {'totalTestCount': 12, 'passedTests': 12, 'failedTests': 0, 'skippedTests': 0,
                                'deviceIdentifier': 'private device', 'testFailures': [], 'hostName': 'private host'}}
@@ -18,7 +20,7 @@ class PublicEvidenceTests(unittest.TestCase):
     def test_export_drops_all_unrecognized_personal_and_runtime_fields(self):
         data = summary.sanitized(self.report, self.native, 'a' * 40)
         self.assertNotIn('private', str(data))
-        self.assertEqual(set(data), {'source_commit', 'headless', 'native'})
+        self.assertEqual(set(data), {'source_commit', 'headless', 'native', 'native_fingerprints'})
         self.assertEqual(set(data['native']['ios']), set(summary.COUNTS))
 
     def test_failure_diagnostics_expose_only_known_suite_states(self):
@@ -28,6 +30,16 @@ class PublicEvidenceTests(unittest.TestCase):
         data = summary.diagnostics(self.report)
         self.assertEqual(data['suites']['tooling-python'], 'failed')
         self.assertNotIn('private', str(data))
+
+    def test_compiler_diagnostics_drop_absolute_paths_source_and_error_text(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'ios.log'
+            path.write_text('/workspace/project/ios/Snapwell/MainView.swift:42:7: error: private failure text\nprivate source line\n')
+            self.report['results'][-1].update(status='failed', log=str(path))
+            data = summary.diagnostics(self.report)
+        self.assertEqual(data['compiler_error_locations'], [{'file': 'ios/Snapwell/MainView.swift', 'line': 42, 'column': 7}])
+        self.assertNotIn('private', str(data))
+        self.assertNotIn('/workspace', str(data))
 
     def test_skips_failures_missing_suites_and_zero_tests_are_failures(self):
         for counts in ({'skippedTests': 1}, {'failedTests': 1}, {'totalTestCount': 0}, {'passedTests': 11}):

@@ -23,7 +23,8 @@ same commands; no Claude-only hook masks exit status.
 Pre-commit runs the headless tooling and core suites, using `--reuse-passing --staged`.
 Hosted native and UI tests run at the PR gate, rather than again on every commit. A full
 validation run also records reusable headless results, so committing the tested files does
-not rerun those checks. Native results still need to pass before opening the PR.
+not rerun those checks. Native results still need to pass before opening the PR. Successful native runs also verify
+actual xcresult counts and save private input-bound evidence for release reuse.
 
 Headless results include content fingerprints of their source, test, fixture, configuration
 and runner inputs plus the Swift/Python toolchain and host OS version. Documentation-only
@@ -34,7 +35,9 @@ run; editing them during validation invalidates the result. Staged checks reject
 unstaged or untracked inputs so tests cannot accidentally validate different code from the
 commit. Stage those inputs or stash them before committing. All test commands reuse verified
 headless results by default; `--fresh` forces them to run again. `--reuse-passing` remains
-supported for existing hooks and scripts. These options never skip selected native tests.
+supported for existing hooks and scripts. These options never skip native tests explicitly selected by `dev.sh test`. Release commands
+reuse verified PR evidence for unchanged native inputs; version/build number changes alone
+do not invalidate it. See [release automation](workflows/release-automation.md#validation-reuse).
 When handing a blocked native run to a normal Terminal, use the same full command: already
 passing headless checks are reused automatically. Do not separately rerun core after logic/all
 already passed it. Reuse passing native evidence at the PR gate when the app, native tests,

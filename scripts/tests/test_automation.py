@@ -201,6 +201,8 @@ class HeadlessReuseTests(unittest.TestCase):
                                   staged=False, dry_run=False, simulator=None)
         with patch.object(automation, 'run', side_effect=native_setup), \
              patch.object(automation, 'native_lock', return_value=contextlib.nullcontext()), \
+             patch.object(automation.native_validation, 'record_pass', return_value={'counts': {}}), \
+             patch.object(automation.native_validation, 'pending'), \
              patch.object(automation, 'logged', return_value={'name': 'macos', 'status': 'passed'}) as logged:
             automation.test(args)
         logged.assert_called_once()
@@ -245,6 +247,15 @@ class HeadlessReuseTests(unittest.TestCase):
         (self.root / 'Shared/Model.swift').write_text('new model')
         self.assertNotEqual(automation.headless_fingerprint('core'), core)
         self.assertEqual(automation.headless_fingerprint('tooling-python'), tools)
+
+    def test_version_only_changes_do_not_invalidate_headless_core(self):
+        path = self.root / 'macos/project.yml'
+        path.write_text('MARKETING_VERSION: "1.2.3"\nCURRENT_PROJECT_VERSION: 9\n')
+        before = automation.headless_fingerprint('core')
+        path.write_text('MARKETING_VERSION: "2.0.0"\nCURRENT_PROJECT_VERSION: 15\n')
+        self.assertEqual(automation.headless_fingerprint('core'), before)
+        path.write_text(path.read_text() + 'OTHER_SWIFT_FLAGS: -DCHANGED\n')
+        self.assertNotEqual(automation.headless_fingerprint('core'), before)
 
     def test_toolchain_changes_invalidate_results(self):
         before = automation.headless_fingerprint('core')
@@ -302,6 +313,7 @@ class HeadlessReuseTests(unittest.TestCase):
 
 class ReleasePipelineTests(unittest.TestCase):
     def setUp(self):
+        self.enterContext(patch.object(automation.native_validation, 'passing_evidence', return_value=None))
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         root = Path(self.temp.name)
@@ -351,6 +363,28 @@ class ReleasePipelineTests(unittest.TestCase):
             self.assertEqual([call.args[0] for call in apple.call_args_list], ['status', 'status'])
             upload.assert_not_called()
             self.assertTrue(json.loads(self.receipt.read_text())['uploaded'])
+
+    def test_upload_handoff_does_not_change_metadata_or_repeat_validated_work(self):
+        self.save_upload_receipt()
+        self.args.action = 'upload'
+        with patch.object(automation, 'asc', return_value={'versions': [], 'builds': [self.build]}) as apple, \
+             patch.object(automation, 'test') as tests, patch.object(automation.subprocess, 'run') as upload:
+            automation.release(self.args)
+        self.assertEqual([call.args[0] for call in apple.call_args_list], ['status'])
+        tests.assert_not_called()
+        upload.assert_not_called()
+        self.assertEqual(json.loads((self.directory / 'release.json').read_text())['status'], 'prepared')
+        self.assertEqual(json.loads(self.receipt.read_text())['build_id'], 'build')
+
+    def test_confirmed_upload_not_yet_visible_is_never_uploaded_twice(self):
+        self.save_upload_receipt()
+        with patch.object(automation, 'asc', return_value={'versions': [], 'builds': []}), \
+             patch.object(automation, 'test') as tests, patch.object(automation.subprocess, 'run') as upload:
+            with self.assertRaisesRegex(RuntimeError, 'still processing'):
+                automation.release(self.args)
+        tests.assert_not_called()
+        upload.assert_not_called()
+        self.assertTrue(json.loads(self.receipt.read_text())['uploaded'])
 
     def test_resume_stages_exact_notes_and_records_submission(self):
         self.save_upload_receipt()
@@ -418,6 +452,91 @@ class ReleasePipelineTests(unittest.TestCase):
         self.assertEqual(json.loads((self.directory / 'release.json').read_text())['status'], 'prepared')
         self.assertTrue(json.loads(self.receipt.read_text())['uploaded'])
 
+
+
+class CoordinatedUploadTests(unittest.TestCase):
+    def setUp(self):
+        self.enterContext(patch.object(automation.native_validation, 'passing_evidence', return_value=None))
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.enterContext(patch.object(automation, 'ROOT', self.root))
+        self.enterContext(patch.object(automation, 'CONTEXT', self.root / '.context'))
+        self.enterContext(patch.object(automation.release_state, 'restore'))
+        self.requests = []
+        for platform, version in (('macos', '1.2.3'), ('ios', '2.3.4')):
+            args = argparse.Namespace(platform=platform, version=version, action='upload',
+                                      dry_run=False, locale=None, wait_minutes=0)
+            self.requests.append(args)
+            path = automation.release_dir(platform, version)
+            path.mkdir(parents=True)
+            (path / 'release.json').write_text(json.dumps({'status': 'prepared'}))
+        self.events = []
+        self.enterContext(patch.object(automation, 'run', side_effect=lambda command, **kwargs:
+                                     'source\n' if command[1] == 'rev-parse' else ''))
+        self.preview = self.enterContext(patch.object(automation, 'release', side_effect=lambda args:
+                                                     self.events.append(('preview', args.platform, args.dry_run))))
+        self.upload = self.enterContext(patch.object(automation, 'release_with_backup', side_effect=lambda args:
+                                                    self.events.append(('upload', args.platform, args.validated_commit))))
+        self.tests = self.enterContext(patch.object(automation, 'test', side_effect=lambda args:
+                                                   self.events.append(('test', args.platform))))
+
+    def test_independent_versions_require_committed_prepared_manifests(self):
+        args = argparse.Namespace(platform='all', version=None, action='upload')
+        with patch.object(automation, 'local_version', side_effect=['1.2.3', '2.3.4']):
+            requests = automation.release_requests(args)
+        self.assertEqual([(item.platform, item.version) for item in requests],
+                         [('macos', '1.2.3'), ('ios', '2.3.4')])
+        args.version = '1.2.3'
+        with self.assertRaisesRegex(RuntimeError, 'own version'):
+            automation.release_requests(args)
+
+    def test_both_platforms_pass_before_either_upload_and_are_not_retested(self):
+        automation.upload_all(self.requests)
+        self.assertEqual(self.events, [('preview', 'macos', True), ('preview', 'ios', True),
+                                       ('test', 'all'), ('upload', 'macos', 'source'), ('upload', 'ios', 'source')])
+
+    def test_verified_pr_evidence_avoids_native_rerun_for_version_only_handoff(self):
+        with patch.object(automation.native_validation, 'passing_evidence',
+                          return_value={'counts': {'passedTests': 12}}):
+            automation.upload_all(self.requests)
+        self.tests.assert_not_called()
+        self.assertEqual(self.upload.call_count, 2)
+
+    def test_failed_validation_stops_both_uploads(self):
+        self.tests.side_effect = RuntimeError('native failure')
+        with self.assertRaisesRegex(RuntimeError, 'native failure'):
+            automation.upload_all(self.requests)
+        self.upload.assert_not_called()
+
+    def test_dry_run_and_receipted_resume_do_not_repeat_native_tests(self):
+        for request in self.requests:
+            request.dry_run = True
+        automation.upload_all(self.requests)
+        self.tests.assert_not_called()
+        self.upload.assert_not_called()
+        for request in self.requests:
+            request.dry_run = False
+            path = automation.CONTEXT / 'releases' / request.platform / request.version
+            path.mkdir(parents=True)
+            (path / 'receipt.json').write_text('{"uploaded":true}')
+        automation.upload_all(self.requests)
+        self.tests.assert_not_called()
+        self.assertEqual(self.upload.call_count, 2)
+
+    def test_source_change_after_first_upload_stops_second_and_preserves_progress(self):
+        state = {'commit': 'source'}
+        def git(command, **kwargs):
+            return state['commit'] if command[1] == 'rev-parse' else ''
+        def uploaded(args):
+            self.events.append(('uploaded', args.platform))
+            state['commit'] = 'another source'
+        self.upload.side_effect = uploaded
+        with patch.object(automation, 'run', side_effect=git):
+            with self.assertRaisesRegex(RuntimeError, 'between platform uploads'):
+                automation.upload_all(self.requests)
+        self.assertEqual(self.upload.call_count, 1)
+        self.assertEqual(self.events[-1], ('uploaded', 'macos'))
 
 
 class SubmissionOnlyTests(unittest.TestCase):
