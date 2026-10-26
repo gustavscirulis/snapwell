@@ -222,6 +222,8 @@ def test(args):
     with native_lock() if platforms else contextlib.nullcontext():
         for platform in platforms:
             try:
+                inputs = native_validation.fingerprint(ROOT, platform)
+                native_validation.pending(ROOT, platform, inputs)
                 if platform == 'macos':
                     run(['xcodegen', 'generate', '--spec', 'macos/project.yml', '--project', 'macos'])
                     run(['bash', 'macos/scripts/post-xcodegen.sh'])
@@ -251,8 +253,6 @@ def test(args):
                     command += ['CODE_SIGN_IDENTITY=-']
                 else:
                     command += ['CODE_SIGNING_ALLOWED=NO']
-                inputs = native_validation.fingerprint(ROOT, platform)
-                native_validation.pending(ROOT, platform, inputs)
                 result = logged(command, directory, platform)
                 if result['status'] == 'passed':
                     evidence = native_validation.record_pass(ROOT, platform, directory / (platform + '.xcresult'), inputs)

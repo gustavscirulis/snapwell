@@ -46,12 +46,27 @@ jobs:
           persist-credentials: false
       - name: Select affected platforms
         id: selection
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
           python3 - <<'PY'
-          import os
+          import os, re
+          from pathlib import Path
           from scripts.automation import affected_platforms, changed_files
+          from scripts.native_validation import fingerprint
+          files = changed_files()
+          platforms = affected_platforms(files)
+          base = os.environ.get('BASE_SHA', '')
+          runner_changed = any(path.startswith(('scripts/', 'tools/', '.githooks/', '.github/workflows/')) or path == 'dev.sh' for path in files)
+          if runner_changed:
+              platforms = ['macos', 'ios']
+          elif re.fullmatch(r'[a-f0-9]{40}', base) and base != '0' * 40:
+              platforms = [platform for platform in platforms
+                           if fingerprint(Path.cwd(), platform, base) != fingerprint(Path.cwd(), platform)]
+          # Version/build-only changes reuse the already tested base's native inputs.
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
-              output.write('required=' + str(bool(affected_platforms(changed_files()))).lower() + '\n')
+              output.write('required=' + str(bool(platforms)).lower() + '\n')
+              output.write('platform=' + ('all' if len(platforms) == 2 else (platforms[0] if platforms else 'changed')) + '\n')
           PY
       - name: Verify tools and isolated native services
         if: steps.selection.outputs.required == 'true'
@@ -62,7 +77,7 @@ jobs:
         if: steps.selection.outputs.required == 'true'
         run: |
           status=0
-          ./dev.sh test --platform changed --suite all || status=$?
+          ./dev.sh test --platform '${{ steps.selection.outputs.platform }}' --suite all || status=$?
           python3 scripts/ci_validation_summary.py --diagnostics
           exit "$status"
       - name: Validate result bundles and export public summary

@@ -163,7 +163,10 @@ Xcode services; release icon/signing checks still occur during the real archive.
 
 ## Public CI and privacy
 
-The Quality workflow runs privacy checks on every PR and main push. Its ephemeral macOS
+The Quality workflow runs privacy checks on every PR and main push. Native selection
+compares app/test/configuration fingerprints with the event's base revision, so version/build-only
+changes reuse the tested base without rerunning native suites. Runner/tooling changes still
+exercise both native platforms. Its ephemeral macOS
 job uses the same affected-platform Automation command, without Apple accounts, real
 provider credentials or signing secrets. The native exporter reads xcresult bundles and
 requires positive native test counts, zero failures and zero skips. Failed CI runs print only allowlisted suite states for diagnosis. Only an allowlisted

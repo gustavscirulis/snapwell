@@ -453,7 +453,8 @@ publish_mac() {
     [[ "$archived_version" == "$version" && "$archived_build" == "$build" ]] \
         || release_fail "Archived Mac version does not match the confirmed version"
     codesign --verify --deep --strict "$archive_path/Products/Applications/Snapwell.app"
-    lipo -verify_arch arm64 x86_64 "$archive_path/Products/Applications/Snapwell.app/Contents/MacOS/Snapwell"
+    lipo "$archive_path/Products/Applications/Snapwell.app/Contents/MacOS/Snapwell" -verify_arch arm64
+    lipo "$archive_path/Products/Applications/Snapwell.app/Contents/MacOS/Snapwell" -verify_arch x86_64
     printf "${GREEN}✓ Verified macOS %s (build %s)${RESET}\n" "$archived_version" "$archived_build"
 
     cp "$project_dir/ExportOptions.plist" "$upload_options"
