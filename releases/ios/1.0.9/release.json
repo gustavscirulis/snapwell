@@ -1,5 +1,6 @@
 {
   "build": 14,
+  "build_id": "c16e5af0-08df-4f12-80a2-3d68d32f6048",
   "changes": [
     {
       "id": "lazy-thumbnails",
@@ -19,7 +20,12 @@
     }
   ],
   "locale": "en-US",
+  "notes_sha256": "b93693bfc03c4cd63f5052ce7963dacd8327645df574908d116b77554424d9e3",
   "platform": "ios",
-  "status": "prepared",
-  "version": "1.0.9"
+  "source_commit": "94b06b8eaa3c8acbcc9547ce2bdfd8ee2ff0f5e1",
+  "status": "submitted",
+  "submission_id": "910a462b-a02a-41fd-87bb-4fe1cbe38fd9",
+  "submitted_at": "2026-10-26T08:10:11.459794+00:00",
+  "version": "1.0.9",
+  "version_id": "d765ab7b-0bbb-45f8-b992-a0f6e9cd44e7"
 }

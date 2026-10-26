@@ -1,5 +1,6 @@
 {
   "build": 15,
+  "build_id": "c0ae3711-874a-465a-a5e1-b35f4d08c3ec",
   "changes": [
     {
       "id": "fullscreen-metadata-reveal",
@@ -23,7 +24,12 @@
     }
   ],
   "locale": "en-US",
+  "notes_sha256": "2b758ecc75ad0229b831d6db10832f297ebe232a1a4164d8f3c0f4ff39217b75",
   "platform": "macos",
-  "status": "prepared",
-  "version": "1.0.8"
+  "source_commit": "94b06b8eaa3c8acbcc9547ce2bdfd8ee2ff0f5e1",
+  "status": "submitted",
+  "submission_id": "c70104e5-c649-4e9b-a34e-23a98bf21393",
+  "submitted_at": "2026-10-26T08:08:15.959555+00:00",
+  "version": "1.0.8",
+  "version_id": "25d8df80-1aaf-465e-b5c0-aa96d7027028"
 }

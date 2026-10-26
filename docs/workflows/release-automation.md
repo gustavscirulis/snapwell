@@ -40,8 +40,8 @@ contents never belong in chat, Git, logs, screenshots or a release artifact. Val
 then verify writes as part of the user's real authorized release. Do not claim a key's role
 or write access based on successful reads alone.
 
-For the prepared October 2026 releases, preserve the successful uploaded build receipts
-and use submission-only resume after access is repaired. Neither build needs re-uploading.
+For an already uploaded release, preserve the successful upload receipt and use
+submission-only resume after access is repaired. The build does not need re-uploading.
 
 ## Recommended execution environment
 
