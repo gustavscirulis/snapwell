@@ -35,8 +35,6 @@ jobs:
       - name: Check complete public snapshot and outgoing history
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-          REQUESTED_PLATFORM: ${{ inputs.platform || 'all' }}
-          ONLY_TEST: ${{ inputs.only }}
         run: |
           python3 scripts/check_public_content.py --all
           if [[ "$BASE_SHA" =~ ^[a-f0-9]{40}$ && "$BASE_SHA" != 0000000000000000000000000000000000000000 ]]; then
@@ -60,6 +58,8 @@ jobs:
         id: selection
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          REQUESTED_PLATFORM: ${{ inputs.platform || 'all' }}
+          ONLY_TEST: ${{ inputs.only }}
         run: |
           python3 - <<'PY'
           import os, re
