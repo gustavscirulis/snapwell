@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
+from scripts.tests.git_environment import git_fixture_environment
 
 spec = importlib.util.spec_from_file_location('public_content', Path(__file__).parents[1] / 'check_public_content.py')
 public = importlib.util.module_from_spec(spec)
@@ -42,6 +43,7 @@ class ContentRulesTests(unittest.TestCase):
 
 class GitSnapshotTests(unittest.TestCase):
     def setUp(self):
+        self.enterContext(git_fixture_environment())
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)

@@ -15,8 +15,9 @@ force-added files and earlier outgoing commits are checked too.
 
 Git author and committer email addresses are public. Use your GitHub-provided no-reply
 address in this repository's local Git configuration. Do not change global identity or
-rewrite shared main history as a side effect of a release. Existing history and cached
-copies require a separate, coordinated remediation if they contain private information.
+rewrite shared main history as a side effect of a release. Existing author emails are accepted public Git metadata. Do not rewrite history just to
+remove them or harmless IDE preferences. Actual leaked credentials or sensitive content
+require a separate, coordinated remediation that also considers cached copies.
 
 ## Enforced local and CI checks
 
@@ -28,7 +29,7 @@ already exists. Integrate both hooks if preserving a custom setup:
   a safe unstaged copy cannot hide a private staged file, and symlinks are not followed.
 - Pre-push scans every outgoing commit, including a secret added and removed in separate
   commits. The hook receives the destination remote and excludes only refs already known
-  on that remote when pushing a new branch. It also requires no-reply commit identities.
+  on that remote when pushing a new branch. It checks commit messages without treating existing author emails as leaked credentials.
 - The Quality workflow checks the public snapshot/history without Apple or signing secrets.
   A separate ephemeral Mac job runs the affected isolated native and headless suites.
   Required checks must pass before the PR is approved/merged; a skipped or unavailable

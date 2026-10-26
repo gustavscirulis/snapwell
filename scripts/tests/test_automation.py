@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
+from scripts.tests.git_environment import git_fixture_environment
 
 spec = importlib.util.spec_from_file_location('automation', Path(__file__).parents[1] / 'automation.py')
 automation = importlib.util.module_from_spec(spec)
@@ -130,6 +131,7 @@ class AppleHelperTests(unittest.TestCase):
 
 class HeadlessReuseTests(unittest.TestCase):
     def setUp(self):
+        self.enterContext(git_fixture_environment())
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
@@ -421,6 +423,7 @@ class ReleasePipelineTests(unittest.TestCase):
 class SubmissionOnlyTests(unittest.TestCase):
     # Use a real temporary Git repository to verify uploaded-source comparisons.
     def setUp(self):
+        self.enterContext(git_fixture_environment())
         ReleasePipelineTests.setUp(self)
         self.run_patch.stop()
         self.args.action = 'submit'

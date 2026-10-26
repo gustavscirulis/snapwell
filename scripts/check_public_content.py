@@ -128,7 +128,9 @@ def check_identity(commit=None):
         if findings('commit-message', message):
             print(f'{commit[:12]}: private data pattern in commit message.', file=sys.stderr)
             return 1
-    if not all(public_identity(email) for email in emails):
+    # Historical author emails are intentionally public Git metadata, not credentials.
+    # Prefer no-reply for new local commits without forcing a history rewrite.
+    if commit is None and not all(public_identity(email) for email in emails):
         label = commit[:12] if commit else 'configured Git identity'
         print(f'{label}: author-email privacy check failed; use a GitHub no-reply address.', file=sys.stderr)
         return 1
