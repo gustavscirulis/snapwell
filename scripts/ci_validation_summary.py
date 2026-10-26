@@ -10,6 +10,14 @@ HEADLESS = {'tooling-python', 'tooling-swift', 'core'}
 COUNTS = ('totalTestCount', 'passedTests', 'failedTests', 'skippedTests')
 
 
+def diagnostics(report):
+    """Keep failure triage useful without publishing test output or machine details."""
+    statuses = {'passed', 'failed', 'timed_out', 'unavailable'}
+    return {'suites': {item['name']: item['status'] for item in report.get('results', [])
+                       if item.get('name') in HEADLESS | {'macos', 'ios'}
+                       and item.get('status') in statuses}}
+
+
 def sanitized(report, native, commit):
     if not re.fullmatch(r'[a-f0-9]{40,64}', commit):
         raise RuntimeError('Invalid source commit')
@@ -37,12 +45,16 @@ def sanitized(report, native, commit):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', default='.context/public-validation.json')
+    parser.add_argument('--diagnostics', action='store_true', help='Print only allowlisted suite states, including failures')
     args = parser.parse_args()
     reports = list(Path('.context/testing').glob('*/summary.json'))
     if not reports:
         raise RuntimeError('No native validation report')
     path = max(reports, key=lambda path: path.stat().st_mtime_ns)
     report = json.loads(path.read_text())
+    if args.diagnostics:
+        print(json.dumps(diagnostics(report), sort_keys=True))
+        return
     native = {}
     for platform in report.get('platforms', []):
         if platform not in ('macos', 'ios'):

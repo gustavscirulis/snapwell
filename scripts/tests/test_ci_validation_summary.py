@@ -21,6 +21,14 @@ class PublicEvidenceTests(unittest.TestCase):
         self.assertEqual(set(data), {'source_commit', 'headless', 'native'})
         self.assertEqual(set(data['native']['ios']), set(summary.COUNTS))
 
+    def test_failure_diagnostics_expose_only_known_suite_states(self):
+        self.report['results'][0].update(status='failed', error='private failure text')
+        self.report['results'] += [{'name': 'private name', 'status': 'failed'},
+                                   {'name': 'macos', 'status': 'private status'}]
+        data = summary.diagnostics(self.report)
+        self.assertEqual(data['suites']['tooling-python'], 'failed')
+        self.assertNotIn('private', str(data))
+
     def test_skips_failures_missing_suites_and_zero_tests_are_failures(self):
         for counts in ({'skippedTests': 1}, {'failedTests': 1}, {'totalTestCount': 0}, {'passedTests': 11}):
             with self.subTest(counts=counts):

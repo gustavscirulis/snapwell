@@ -60,7 +60,11 @@ jobs:
           ./dev.sh doctor
       - name: Run affected Automation, core and tooling suites
         if: steps.selection.outputs.required == 'true'
-        run: ./dev.sh test --platform changed --suite all
+        run: |
+          status=0
+          ./dev.sh test --platform changed --suite all || status=$?
+          python3 scripts/ci_validation_summary.py --diagnostics
+          exit "$status"
       - name: Validate result bundles and export public summary
         if: steps.selection.outputs.required == 'true'
         run: python3 scripts/ci_validation_summary.py

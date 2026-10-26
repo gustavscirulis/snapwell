@@ -143,30 +143,7 @@ struct MainView: View {
             }
         }
         #if SNAPWELL_AUTOMATION
-        .safeAreaInset(edge: .top) {
-            if AutomationEnvironment.argument("--snapwell-fixture") != nil {
-                HStack {
-                    Text("\(allItems.count)").accessibilityIdentifier("automation-count")
-                    Text("\(allItems.filter { $0.analysisResult != nil }.count)").accessibilityIdentifier("automation-analyzed")
-                    Button("Import fixture") {
-                        Task {
-                            let root = AutomationEnvironment.rootURL
-                            if let image = UIImage(contentsOfFile: root.appendingPathComponent("incoming/sample.png").path) {
-                                _ = await ImageImportService.importImages([image], to: root)
-                                await loadContent()
-                            }
-                        }
-                    }.accessibilityIdentifier("automation-import")
-                    Button("Import video fixture") {
-                        Task {
-                            let root = AutomationEnvironment.rootURL
-                            _ = await ImageImportService.importItems([.video(root.appendingPathComponent("incoming/clip.mp4"))], to: root)
-                            await loadContent()
-                        }
-                    }.accessibilityIdentifier("automation-import-video")
-                }.padding(6)
-            }
-        }
+        .safeAreaInset(edge: .top) { automationControls }
         #endif
         .task {
             await loadContent()
@@ -292,6 +269,34 @@ struct MainView: View {
         }
         #endif
     }
+
+    #if SNAPWELL_AUTOMATION
+    @ViewBuilder
+    private var automationControls: some View {
+        if AutomationEnvironment.argument("--snapwell-fixture") != nil {
+            HStack {
+                Text("\(allItems.count)").accessibilityIdentifier("automation-count")
+                Text("\(allItems.filter { $0.analysisResult != nil }.count)").accessibilityIdentifier("automation-analyzed")
+                Button("Import fixture") {
+                    Task {
+                        let root = AutomationEnvironment.rootURL
+                        if let image = UIImage(contentsOfFile: root.appendingPathComponent("incoming/sample.png").path) {
+                            _ = await ImageImportService.importImages([image], to: root)
+                            await loadContent()
+                        }
+                    }
+                }.accessibilityIdentifier("automation-import")
+                Button("Import video fixture") {
+                    Task {
+                        let root = AutomationEnvironment.rootURL
+                        _ = await ImageImportService.importItems([.video(root.appendingPathComponent("incoming/clip.mp4"))], to: root)
+                        await loadContent()
+                    }
+                }.accessibilityIdentifier("automation-import-video")
+            }.padding(6)
+        }
+    }
+    #endif
 
     // MARK: - Tab Content
 
