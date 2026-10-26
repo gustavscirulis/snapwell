@@ -10,8 +10,11 @@ Apple's state. Publication still depends on Apple's review.
 
 The existing release commands implement that sequence for one platform and preserve
 resumable receipts. Local credentials persist across Conductor workspaces outside Git.
-Submission-only resume is implemented. A hosted runner is not yet installed or verified;
-this document defines the setup, rather than claiming unattended releases are operational.
+Submission-only resume, independent Apple read-back, durable private evidence and scoped
+cleanup are implemented. The Quality workflow provides a secret-free hosted native
+validation path; its runner must actually pass before its evidence can be reused. A
+credentialed archive/signing/upload runner is not installed or verified. This document
+defines that remaining setup, rather than claiming unattended releases are operational.
 
 Two independent environment problems must be addressed:
 
@@ -56,7 +59,7 @@ The concrete hosted workflow should:
 1. Run only by explicit workflow dispatch from the trusted main branch. Release-preparation
    changes must be reviewed and landed before dispatch; never inject signing credentials
    into pull-request or fork builds. Verify the requested prepared versions and exact SHA.
-2. Use a macOS 26 runner and an explicitly chosen supported Xcode 26 installation. Install
+2. Use a macOS runner with a supported Xcode installation compatible with the projects. Install
    XcodeGen, verify toolchains/runtimes, then run the existing isolated Automation suites for
    both platforms. Require actual xcresult evidence; unavailable UI services are failures.
 3. After tests pass, load signing materials from GitHub environment secrets into a temporary
@@ -105,3 +108,11 @@ materially changed release scope. Report the exact blocker and preserve all prog
 - [Apple: create and manage API keys](https://developer.apple.com/help/app-store-connect/get-started/app-store-connect-api/)
 - [GitHub: installing Apple signing materials on macOS runners](https://docs.github.com/en/actions/how-tos/deploy/deploy-to-third-party-platforms/sign-xcode-applications)
 - [GitHub: available macOS runner images](https://github.com/actions/runner-images)
+
+## Completion contract
+
+The agent must audit the actual Apple state, preserve private resumable evidence outside
+the workspace, run scoped cleanup, commit public release records, and update the PR.
+Never upload raw build logs/xcresults from a developer Mac into a public repository or CI
+artifact. See [public repository hygiene](public-repository.md) for the enforced checks and
+sanitized CI evidence. Hooks never authorize publishing: the user's release request does.

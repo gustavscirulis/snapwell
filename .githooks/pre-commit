@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
+python3 scripts/check_public_content.py --staged
 ./dev.sh test --suite tools --staged --reuse-passing
 exec ./dev.sh test --suite core --staged --reuse-passing

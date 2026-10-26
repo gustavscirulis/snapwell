@@ -16,6 +16,11 @@ import sys
 import time
 import uuid
 
+try:
+    from scripts import release_state
+except ImportError:
+    import release_state
+
 ROOT = Path(__file__).resolve().parents[1]
 CONTEXT = ROOT / '.context'
 
@@ -33,9 +38,7 @@ def run(args, *, capture=False, cwd=ROOT, env=None, timeout=1800):
 
 def write_json(path, data):
     path.parent.mkdir(parents=True, exist_ok=True)
-    temp = path.with_suffix(path.suffix + '.tmp')
-    temp.write_text(json.dumps(data, indent=2, sort_keys=True) + '\n')
-    temp.replace(path)
+    release_state.atomic_private(path, (json.dumps(data, indent=2, sort_keys=True) + '\n').encode())
 
 
 def changed_files(staged=False):
@@ -346,6 +349,33 @@ def notes_text(path):
     return text
 
 
+def verify_submission(args, manifest):
+    directory = CONTEXT / 'releases' / args.platform / args.version
+    result = asc('verify', args.platform, version=args.version, version_id=manifest['version_id'],
+                 build_id=manifest['build_id'], build=manifest['build'], submission_id=manifest['submission_id'],
+                 locale=manifest['locale'], notes=release_dir(args.platform, args.version) / (manifest['locale'] + '.txt'))
+    if (result.get('notes_verified') is not True or result.get('build_id') != manifest['build_id']
+            or result.get('version_id') != manifest['version_id'] or result.get('release_type') != 'AFTER_APPROVAL'):
+        raise RuntimeError('Apple audit did not verify the recorded build, notes and publication policy')
+    if not args.dry_run:
+        write_json(directory / 'submission-audit.json', result)
+    return result
+
+
+def finalize_submission(args, manifest, receipt_path, manifest_path):
+    audit = verify_submission(args, manifest)
+    # Persist the public record only after the independent read-back succeeds.
+    write_json(manifest_path, manifest)
+    receipt = json.loads(receipt_path.read_text())
+    for key in ('build_id', 'version_id'):
+        if receipt.get(key) not in (None, manifest[key]):
+            raise RuntimeError('Audit conflicts with the saved upload receipt')
+        receipt[key] = manifest[key]
+    write_json(receipt_path, receipt)
+    removed = release_state.cleanup(receipt_path.parent, ROOT, receipt, audit)
+    print(f'Verified App Review submission; cleaned {len(removed)} temporary export artifacts. Archives, symbols, logs and receipts retained.')
+
+
 def finish_submission(args, manifest, receipt, receipt_path, path, manifest_path):
     """Resume only the Apple processing/metadata/review steps of a verified upload."""
     deadline = time.monotonic() + args.wait_minutes * 60
@@ -379,7 +409,7 @@ def finish_submission(args, manifest, receipt, receipt_path, path, manifest_path
     manifest.update(status='submitted', source_commit=receipt['commit'], build_id=build['id'], version_id=result['version_id'],
                     notes_sha256=receipt['notes_sha256'], submission_id=submission['id'],
                     submitted_at=dt.datetime.now(dt.timezone.utc).isoformat())
-    write_json(manifest_path, manifest)
+    finalize_submission(args, manifest, receipt_path, manifest_path)
     print(f'Submitted {args.platform} {args.version} build {manifest["build"]}. Apple will publish automatically after approval. Commit the updated release record.')
 
 
@@ -412,6 +442,22 @@ def release(args):
     manifest = json.loads(manifest_path.read_text())
     if manifest['platform'] != args.platform or manifest['version'] != args.version:
         raise RuntimeError('Release manifest does not match requested platform/version.')
+    if not isinstance(manifest.get('locale'), str) or not re.fullmatch(r'[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*', manifest['locale']):
+        raise RuntimeError('Invalid manifest locale')
+    if not args.dry_run:
+        release_state.restore(CONTEXT / 'releases' / args.platform / args.version, ROOT)
+    if args.action in ('verify', 'cleanup'):
+        audit = verify_submission(args, manifest)
+        if args.action == 'cleanup':
+            receipt_path = CONTEXT / 'releases' / args.platform / args.version / 'receipt.json'
+            if not receipt_path.is_file():
+                raise RuntimeError('Cleanup needs the successful upload receipt')
+            receipt = json.loads(receipt_path.read_text())
+            removed = release_state.cleanup(receipt_path.parent, ROOT, receipt, audit, dry_run=args.dry_run)
+            print(json.dumps({'temporary_artifacts': removed, 'dry_run': args.dry_run}))
+        else:
+            print(json.dumps(audit, indent=2))
+        return
     remote = asc('status', args.platform)
     version = next((item for item in remote['versions'] if item['attributes']['versionString'] == args.version), None)
     if args.action == 'status':
@@ -441,7 +487,8 @@ def release(args):
     if state in submitted_states and manifest.get('status') in ('submitted', 'released'):
         if not build or linked_build != manifest.get('build_id') or build['id'] != manifest.get('build_id') or hashlib.sha256(text.encode()).hexdigest() != manifest.get('notes_sha256'):
             raise RuntimeError('Remote submission/build or local notes do not match the release record.')
-        print('Version already submitted; no upload or submission repeated.')
+        verify_submission(args, manifest)
+        print('Version already submitted and independently verified; no upload or submission repeated.')
         return
     if args.action == 'submit':
         receipt_path = CONTEXT / 'releases' / args.platform / args.version / 'receipt.json'
@@ -475,7 +522,7 @@ def release(args):
             manifest.update(status='submitted', source_commit=source, build_id=build['id'],
                             version_id=version['id'], notes_sha256=receipt['notes_sha256'],
                             submission_id=saved['submission_id'])
-            write_json(manifest_path, manifest)
+            finalize_submission(args, manifest, receipt_path, manifest_path)
             print('Recovered the confirmed remote submission. Commit the updated release record.')
             return
         finish_submission(args, manifest, receipt, receipt_path, path, manifest_path)
@@ -503,7 +550,7 @@ def release(args):
             raise RuntimeError('Review checkpoint version mismatch.')
         manifest.update(status='submitted', source_commit=commit, build_id=build['id'], version_id=version['id'],
                         notes_sha256=fingerprint, submission_id=saved['submission_id'])
-        write_json(manifest_path, manifest)
+        finalize_submission(args, manifest, receipt_path, manifest_path)
         print('Recovered the confirmed remote submission. Commit the updated release record.')
         return
     receipt = {**receipt, 'commit': commit, 'notes_sha256': fingerprint, **plan}
@@ -536,6 +583,7 @@ def release(args):
 
 
 def main():
+    os.umask(0o077)
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
     check = commands.add_parser('doctor')
@@ -555,7 +603,7 @@ def main():
     tests.add_argument('--simulator')
     tests.add_argument('--dry-run', action='store_true')
     releases = commands.add_parser('release')
-    releases.add_argument('action', choices=('prepare', 'publish', 'submit', 'status'))
+    releases.add_argument('action', choices=('prepare', 'publish', 'submit', 'verify', 'cleanup', 'status'))
     releases.add_argument('--platform', choices=('macos', 'ios'), required=True)
     releases.add_argument('--version', required=True)
     releases.add_argument('--locale')
@@ -563,11 +611,22 @@ def main():
     releases.add_argument('--dry-run', action='store_true')
     args = parser.parse_args()
     try:
+        if not getattr(args, 'dry_run', False):
+            if CONTEXT.is_symlink():
+                raise RuntimeError('Private context directory must not be a symlink')
+            release_state.protect(CONTEXT)
+
         if args.command == 'release':
-            lock_path = Path(os.environ.get('TMPDIR', '/tmp')) / ('snapwell-release-' + hashlib.sha256(str(ROOT).encode()).hexdigest()[:12] + '.lock')
+            release_dir(args.platform, args.version)
+            lock_path = Path(os.environ.get('TMPDIR', '/tmp')) / 'snapwell-release-co.snapwell.lock'
             with lock_path.open('w') as lock:
                 fcntl.flock(lock, fcntl.LOCK_EX)
-                release(args)
+                try:
+                    release(args)
+                finally:
+                    evidence = CONTEXT / 'releases' / args.platform / args.version
+                    if not args.dry_run and (evidence / 'receipt.json').is_file():
+                        release_state.backup(evidence, ROOT)
         else:
             {'doctor': doctor, 'test': test}[args.command](args)
     except (RuntimeError, subprocess.TimeoutExpired, OSError, ValueError) as error:

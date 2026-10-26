@@ -1489,7 +1489,7 @@ P.S. [CTA - share with friends, rate the app, etc.]
 
 ### 13.1 Support Email
 
-Setup: support@yourdomain.com (or use yourname+appname@gmail.com)
+Setup: support@yourdomain.com (or use app-support@example.invalid)
 
 **Auto-Response**:
 ```

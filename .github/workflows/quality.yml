@@ -1,0 +1,75 @@
+name: Quality
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  public-content:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check complete public snapshot and outgoing history
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          python3 scripts/check_public_content.py --all
+          if [[ "$BASE_SHA" =~ ^[a-f0-9]{40}$ && "$BASE_SHA" != 0000000000000000000000000000000000000000 ]]; then
+            python3 scripts/check_public_content.py --history "$BASE_SHA..HEAD"
+          fi
+      - name: Exercise privacy guard and evidence exporter
+        run: |
+          python3 -m unittest discover -s scripts/tests -p test_public_content.py -v
+          python3 -m unittest discover -s scripts/tests -p test_ci_validation_summary.py -v
+
+  native-validation:
+    needs: public-content
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Select affected platforms
+        id: selection
+        run: |
+          python3 - <<'PY'
+          import os
+          from scripts.automation import affected_platforms, changed_files
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('required=' + str(bool(affected_platforms(changed_files()))).lower() + '\n')
+          PY
+      - name: Verify tools and isolated native services
+        if: steps.selection.outputs.required == 'true'
+        run: |
+          command -v xcodegen || brew install xcodegen
+          ./dev.sh doctor
+      - name: Run affected Automation, core and tooling suites
+        if: steps.selection.outputs.required == 'true'
+        run: ./dev.sh test --platform changed --suite all
+      - name: Validate result bundles and export public summary
+        if: steps.selection.outputs.required == 'true'
+        run: python3 scripts/ci_validation_summary.py
+      - name: Retain only the sanitized evidence
+        if: steps.selection.outputs.required == 'true'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: public-validation-${{ github.run_id }}
+          path: .context/public-validation.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14

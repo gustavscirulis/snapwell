@@ -318,6 +318,14 @@ class ReleasePipelineTests(unittest.TestCase):
         self.run_patch.start(); self.addCleanup(self.run_patch.stop)
         self.build = {'id': 'build', 'attributes': {'version': '9', 'processingState': 'VALID', 'snapwellMarketingVersion': '1.2.3'}}
         self.receipt = automation.CONTEXT/'releases/ios/1.2.3/receipt.json'
+        self.private = tempfile.TemporaryDirectory()
+        self.addCleanup(self.private.cleanup)
+        private_environment = patch.dict(os.environ, SNAPWELL_RELEASE_STATE_DIR=self.private.name)
+        private_environment.start(); self.addCleanup(private_environment.stop)
+        audit = patch.object(automation, 'verify_submission', return_value={
+            'notes_verified': True, 'build_id': 'build', 'version_id': 'version',
+            'version_state': 'WAITING_FOR_REVIEW', 'release_type': 'AFTER_APPROVAL'})
+        audit.start(); self.addCleanup(audit.stop)
 
     def save_upload_receipt(self):
         automation.write_json(self.receipt, {'commit': 'commit', 'notes_sha256': automation.hashlib.sha256(self.notes.encode()).hexdigest(), 'uploaded': True})
@@ -391,6 +399,24 @@ class ReleasePipelineTests(unittest.TestCase):
         self.assertTrue(json.loads(self.receipt.read_text())['uploaded'])
         self.assertEqual(json.loads((self.directory/'release.json').read_text())['status'], 'prepared')
 
+    def test_failed_readback_does_not_record_success_or_clean_evidence(self):
+        self.save_upload_receipt()
+        def apple(command, *args, **kwargs):
+            if command == 'stage':
+                return {'version_id': 'version'}
+            if command == 'submit':
+                return {'submission': {'id': 'review'}}
+            return {'versions': [], 'builds': [self.build]}
+        with patch.object(automation, 'asc', side_effect=apple), patch.object(automation, 'test'), \
+             patch.object(automation, 'verify_submission', side_effect=RuntimeError('read-back mismatch')), \
+             patch.object(automation.release_state, 'cleanup') as cleanup:
+            with self.assertRaisesRegex(RuntimeError, 'read-back mismatch'):
+                automation.release(self.args)
+            cleanup.assert_not_called()
+        self.assertEqual(json.loads((self.directory / 'release.json').read_text())['status'], 'prepared')
+        self.assertTrue(json.loads(self.receipt.read_text())['uploaded'])
+
+
 
 class SubmissionOnlyTests(unittest.TestCase):
     # Use a real temporary Git repository to verify uploaded-source comparisons.
@@ -400,6 +426,7 @@ class SubmissionOnlyTests(unittest.TestCase):
         self.args.action = 'submit'
         self.root = automation.ROOT
         subprocess.run(['git', 'init', '-q', str(self.root)], check=True)
+        subprocess.run(['git', 'config', 'commit.gpgsign', 'false'], cwd=self.root, check=True)
         (self.root / '.gitignore').write_text('.context/\n')
         (self.root / 'ios').mkdir()
         (self.root / 'ios/App.swift').write_text('uploaded source')

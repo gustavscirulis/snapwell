@@ -172,3 +172,44 @@ import CryptoKit
     let builds = try await client.builds(appID: "1", platform: "IOS")
     #expect((builds.first?["attributes"] as? JSON)?["snapwellMarketingVersion"] as? String == "1.2.3")
 }
+
+@Test(arguments: ["valid", "app", "platform", "build", "build-number", "processing", "notes", "policy", "version-state", "review-state", "review-item"])
+func releaseAuditRequiresExactRemoteSubmission(_ scenario: String) async throws {
+    let client = AppleClient(token: { "not-logged" }, transport: { request in
+        let body: JSON
+        switch request.url!.path {
+        case "/v1/appStoreVersions/version":
+            body = ["data": ["id": "version", "attributes": [
+                "versionString": "1.2.3", "platform": scenario == "platform" ? "MAC_OS" : "IOS",
+                "appVersionState": scenario == "version-state" ? "PREPARE_FOR_SUBMISSION" : "WAITING_FOR_REVIEW",
+                "releaseType": scenario == "policy" ? "MANUAL" : "AFTER_APPROVAL"],
+                "relationships": ["app": ["data": ["id": scenario == "app" ? "other" : "app"]],
+                                  "build": ["data": ["id": scenario == "build" ? "other" : "build"]]]]]
+        case "/v1/builds/build":
+            body = ["data": ["attributes": ["version": scenario == "build-number" ? "10" : "9",
+                "processingState": scenario == "processing" ? "INVALID" : "VALID"]]]
+        case "/v1/appStoreVersions/version/appStoreVersionLocalizations":
+            body = ["data": [["attributes": ["locale": "en-US", "whatsNew": scenario == "notes" ? "other" : "• Faster imports.\n• Better sync.\n"]]]]
+        case "/v1/reviewSubmissions/review":
+            body = ["data": ["attributes": ["platform": "IOS",
+                "state": scenario == "review-state" ? "READY_FOR_REVIEW" : "WAITING_FOR_REVIEW",
+                "privateContact": "should never be returned"]]]
+        case "/v1/reviewSubmissions/review/items":
+            body = ["data": [["relationships": ["appStoreVersion": ["data": ["id": scenario == "review-item" ? "other" : "version"]]]]]]
+        default: throw ReleaseError("Unexpected audit endpoint")
+        }
+        return (try JSONSerialization.data(withJSONObject: body), HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+    })
+    func audit() async throws -> JSON {
+        try await client.verifyRelease(appID: "app", platform: "IOS", version: "1.2.3", versionID: "version",
+            buildID: "build", buildNumber: "9", submissionID: "review", notes: "• Faster imports.\n• Better sync.\n", locale: "en-US")
+    }
+    if scenario == "valid" {
+        let result = try await audit()
+        #expect(result["notes_verified"] as? Bool == true)
+        #expect(!String(describing: result).contains("privateContact"))
+        #expect(result["release_type"] as? String == "AFTER_APPROVAL")
+    } else {
+        await #expect(throws: ReleaseError.self) { try await audit() }
+    }
+}

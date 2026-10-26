@@ -184,6 +184,53 @@ public final class AppleClient {
             "data": ["type": "builds", "id": buildID]])
     }
 
+    /// Read back the exact version, notes, build and review before declaring success.
+    public func verifyRelease(appID: String, platform: String, version: String, versionID: String,
+                              buildID: String, buildNumber: String, submissionID: String,
+                              notes: String, locale: String) async throws -> JSON {
+        let response = try await request("/v1/appStoreVersions/\(versionID)?include=app,build")
+        guard let item = response["data"] as? JSON, let attributes = item["attributes"] as? JSON,
+              let relationships = item["relationships"] as? JSON,
+              ((relationships["app"] as? JSON)?["data"] as? JSON)?["id"] as? String == appID,
+              ((relationships["build"] as? JSON)?["data"] as? JSON)?["id"] as? String == buildID,
+              attributes["versionString"] as? String == version,
+              attributes["platform"] as? String == platform,
+              attributes["releaseType"] as? String == "AFTER_APPROVAL" else {
+            throw ReleaseError("Remote app/version/build/publication policy does not match the release record")
+        }
+        let state = attributes["appVersionState"] as? String ?? attributes["appStoreState"] as? String ?? "UNKNOWN"
+        guard ["WAITING_FOR_REVIEW", "IN_REVIEW", "PENDING_APPLE_RELEASE", "PROCESSING_FOR_DISTRIBUTION",
+               "READY_FOR_DISTRIBUTION", "READY_FOR_SALE"].contains(state) else {
+            throw ReleaseError("Version has not been submitted or needs attention: \(state)")
+        }
+        let build = try await request("/v1/builds/\(buildID)")
+        let buildAttributes = (build["data"] as? JSON)?["attributes"] as? JSON
+        guard buildAttributes?["version"] as? String == buildNumber,
+              buildAttributes?["processingState"] as? String == "VALID" else {
+            throw ReleaseError("Remote build number or processing state does not match")
+        }
+        let localizations = try await pages("/v1/appStoreVersions/\(versionID)/appStoreVersionLocalizations?limit=200")
+        let localized = localizations.first { ($0["attributes"] as? JSON)?["locale"] as? String == locale }
+        guard (localized?["attributes"] as? JSON)?["whatsNew"] as? String == notes else {
+            throw ReleaseError("Remote What's New does not match the release notes")
+        }
+        let review = try await request("/v1/reviewSubmissions/\(submissionID)")
+        let reviewAttributes = (review["data"] as? JSON)?["attributes"] as? JSON ?? [:]
+        let reviewState = reviewAttributes["state"] as? String ?? "UNKNOWN"
+        guard reviewAttributes["platform"] as? String == platform,
+              ["WAITING_FOR_REVIEW", "IN_REVIEW", "COMPLETING", "COMPLETE"].contains(reviewState) else {
+            throw ReleaseError("Review has not been submitted or needs attention: \(reviewState)")
+        }
+        let items = try await pages("/v1/reviewSubmissions/\(submissionID)/items?include=appStoreVersion&limit=200")
+        guard items.contains(where: {
+            (((($0["relationships"] as? JSON)?["appStoreVersion"] as? JSON)?["data"] as? JSON)?["id"] as? String) == versionID
+        }) else { throw ReleaseError("Review does not contain the expected version") }
+        // Deliberately whitelist the result. Never return review contacts or account data.
+        return ["version_id": versionID, "build_id": buildID, "submission_id": submissionID,
+                "version_state": state, "review_state": reviewState, "notes_verified": true,
+                "release_type": "AFTER_APPROVAL", "verified_at": ISO8601DateFormatter().string(from: Date())]
+    }
+
     public func submit(appID: String, platform: String, versionID: String, resumeID: String? = nil, checkpoint: (String) throws -> Void = { _ in }) async throws -> JSON {
         let submissions = try await pages("/v1/reviewSubmissions?filter[app]=\(appID)&filter[platform]=\(platform)&limit=200")
         for submission in submissions {

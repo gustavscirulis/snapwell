@@ -8,6 +8,7 @@ The Mac app is the reference implementation; both apps share media and JSON side
 - [Architecture and platform conventions](docs/architecture.md): storage, iCloud, state ownership, project generation and native interaction patterns.
 - [Testing](docs/testing.md): validation commands, automation builds, fixtures and evidence.
 - [Releases](docs/releases.md): changelog, build numbers, notes, upload and App Review. A request to release delegates notes, submission and automatic publication after approval; follow the release runbook without asking the user to repeat these steps.
+- [Public repository hygiene](docs/workflows/public-repository.md): privacy hooks, commit identity, CI artifacts, durable release evidence and safe cleanup.
 - [Agent workflow](docs/workflows/agent-loop.md): task handoffs and focused reviews.
 - [Change history](CHANGELOG.md): user-visible changes waiting to ship.
 
@@ -51,3 +52,9 @@ not repeat hosted native or UI tests. Keep the full native PR gate separate from
 Every user-visible change adds an entry to `CHANGELOG.md` in the same PR; otherwise state
 that it has no user-visible change. Report what passed, what failed, and what could not run.
 Screenshots, logs and local handoffs belong under `.context/`; preserve useful evidence.
+Before committing or pushing, run the public-content checks and use a GitHub no-reply
+commit identity. Never publish credentials, personal paths/contact details or raw artifacts.
+Complete releases with the independent Apple audit, durable private evidence backup and
+scoped cleanup, then commit the release records and update the PR. Follow
+[public repository hygiene](docs/workflows/public-repository.md); do not claim unattended
+signing is configured until a credentialed release runner has passed a real verification.

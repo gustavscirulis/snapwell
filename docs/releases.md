@@ -81,7 +81,7 @@ requires a suitable replacement key; team-key roles cannot be edited after creat
    platform test suite, archives and verifies metadata, uploads, waits for processing,
    updates What's New, attaches the exact build, and **submits for App Review** with
    **automatic publication after approval**. This is the live release action.
-6. Commit the updated submission record. `./dev.sh release status --platform macos --version 1.0.8`
+6. The command independently verifies the exact remote build, notes, review and publication policy, backs up private evidence, and cleans temporary exports. Commit the updated submission record. `./dev.sh release status --platform macos --version 1.0.8`
    reads Apple's status and marks the release as distributed only after Apple confirms it.
 
 If upload succeeded and only processing/notes/review remain, use
@@ -96,7 +96,14 @@ validation or fabricate an upload receipt.
 The API helper compiles once per command with a separate build timeout, then executes the
 prebuilt binary for Apple requests. Swift compilation cannot consume the request timeout.
 
-`release status --dry-run` is read-only, including local files. Publishing requires a
+Use `./dev.sh release verify --platform macos --version 1.0.8` to repeat the independent
+read-back without resubmission. Use `release cleanup` with the same platform/version to
+verify, back up, and remove known temporary exports; add `--dry-run` to preview cleanup.
+Archives, symbols, logs and receipts are retained. Private evidence is automatically backed
+up outside the repository and restored in new workspaces; see
+[public repository hygiene](workflows/public-repository.md) for permissions and scope.
+
+`release status --dry-run` does not change release records or restore/back up evidence. Publishing requires a
 clean prepared revision and validated notes. Artifacts and resumable receipts live under
 `.context/releases/`. A processing timeout is resumable; failed builds and API errors are
 reported as failures. If an upload is interrupted before success can be recorded, the

@@ -157,3 +157,13 @@ A `com.apple.testmanagerd.control` sandbox error requires running the same comma
 an environment with native test-service access, such as a normal local Terminal session.
 Automation builds omit the app icon because Icon Studio export can require unavailable
 Xcode services; release icon/signing checks still occur during the real archive.
+
+## Public CI and privacy
+
+The Quality workflow runs privacy checks on every PR and main push. Its ephemeral macOS
+job uses the same affected-platform Automation command, without Apple accounts, real
+provider credentials or signing secrets. The native exporter reads xcresult bundles and
+requires positive native test counts, zero failures and zero skips. Only an allowlisted
+source/suite/count summary is retained for 14 days; raw logs and result bundles are not
+published. A workflow definition is not passing evidence: inspect the actual run before
+reusing it at the PR gate. See [public repository hygiene](workflows/public-repository.md).
