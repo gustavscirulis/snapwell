@@ -13,9 +13,24 @@ COUNTS = ('totalTestCount', 'passedTests', 'failedTests', 'skippedTests')
 def diagnostics(report):
     """Keep failure triage useful without publishing test output or machine details."""
     statuses = {'passed', 'failed', 'timed_out', 'unavailable'}
-    return {'suites': {item['name']: item['status'] for item in report.get('results', [])
-                       if item.get('name') in HEADLESS | {'macos', 'ios'}
-                       and item.get('status') in statuses}}
+    result = {'suites': {item['name']: item['status'] for item in report.get('results', [])
+                         if item.get('name') in HEADLESS | {'macos', 'ios'}
+                         and item.get('status') in statuses}}
+    # Error locations only: never echo source lines, compiler messages or absolute paths.
+    locations = set()
+    for item in report.get('results', []):
+        if item.get('name') not in ('macos', 'ios') or item.get('status') != 'failed':
+            continue
+        path = Path(item.get('log', ''))
+        if not path.is_file():
+            continue
+        for match in re.finditer(r'/(ios|macos|Shared)/([A-Za-z0-9_+./-]+\.swift):(\d+):(\d+): error:',
+                                 path.read_text(errors='replace')):
+            locations.add((match[1] + '/' + match[2], int(match[3]), int(match[4])))
+    if locations:
+        result['compiler_error_locations'] = [dict(file=file, line=line, column=column)
+                                              for file, line, column in sorted(locations)]
+    return result
 
 
 def sanitized(report, native, commit):

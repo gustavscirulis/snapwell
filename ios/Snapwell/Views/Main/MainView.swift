@@ -84,107 +84,22 @@ struct MainView: View {
     // MARK: - Body
 
     var body: some View {
+        presentationContent
+        #if DEBUG
+        .overlay {
+            DebugDialOverlay(
+                metrics: $nudgeMetrics,
+                onShowNudge: { appState.activeNudge = $0 },
+                onResetNudges: { nudges.resetAll() }
+            )
+        }
+        #endif
+    }
+
+    private var presentationContent: some View {
         @Bindable var appState = appState
 
-        GeometryReader { geo in
-            let gridWidth = geo.size.width - 24
-            // Keep the detail toolbar clearance in the same global space as grid cells.
-            let screenTop = geo.frame(in: .global).minY - geo.safeAreaInsets.top
-            let detailTopGlobalY = screenTop + DetailChrome.reservedTopInset(safeAreaTop: geo.safeAreaInsets.top)
-            // Computed once per pass. Each access filters `allItems` (faulting every item's
-            // `spaces` relationship) and re-sorts, and body reached it four times.
-            let searchItems = searchContentItems
-            let overlayItems = detailOverlayItems
-
-            ZStack {
-                tabContent(gridWidth: gridWidth, searchItems: searchItems)
-                    .allowsHitTesting(!appState.showOverlay)
-                    .environment(appState)
-
-                if appState.showOverlay, appState.selectedIndex != nil, !overlayItems.isEmpty {
-                    MediaDetailModal(
-                        items: overlayItems,
-                        title: detailOverlayTitle,
-                        showOverlay: $appState.showOverlay,
-                        selectedItemId: $appState.selectedItemId,
-                        selectedIndex: $appState.selectedIndex,
-                        sourceRect: appState.sourceRect,
-                        topReservedGlobalY: detailTopGlobalY,
-                        thumbnailImage: $appState.thumbnailImage,
-                        detailGridTarget: $appState.detailGridTarget,
-                        onSearchPattern: handleSearchPattern,
-                        onRetryAnalysis: handleRetryAnalysis,
-                        onDelete: handleItemDeleted,
-                        onOverlayClosed: handleOverlayClosed
-                    )
-                    .zIndex(1)
-                }
-            }
-        }
-        .overlay(alignment: .bottom) {
-            if appState.isImporting {
-                HStack(spacing: 10) {
-                    ProgressView()
-                    Text("\(appState.importStage) \(appState.importCompletedCount)/\(appState.importTotalCount)")
-                        .font(.subheadline.weight(.medium))
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(.regularMaterial, in: Capsule())
-                .padding(.bottom, 70)
-                .accessibilityLabel("\(appState.importStage) \(appState.importCompletedCount) of \(appState.importTotalCount)")
-            } else if let message = appState.importMessage {
-                Text(message)
-                    .font(.subheadline.weight(.medium))
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .background(.regularMaterial, in: Capsule())
-                    .padding(.bottom, 70)
-            }
-        }
-        #if SNAPWELL_AUTOMATION
-        .safeAreaInset(edge: .top) { automationControls }
-        #endif
-        .task {
-            await loadContent()
-        }
-        .onChange(of: appState.searchText) { _, newValue in
-            refreshSearchScores(for: newValue)
-        }
-        .onChange(of: searchService.generation) { _, _ in
-            refreshSearchScores(for: appState.searchText)
-        }
-        .onChange(of: allItems.count) { _, _ in
-            indexRebuildTask?.cancel()
-            indexRebuildTask = Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(500))
-                guard !Task.isCancelled else { return }
-                searchService.buildIndex(items: allItems)
-            }
-        }
-        .onChange(of: keySyncService.isConfigured) { _, isConfigured in
-            appState.dismissAPIKeyNudgeIfConfigured(isConfigured: isConfigured)
-        }
-        .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .active {
-                if let rootURL = fileSystem.rootURL {
-                    if !AutomationEnvironment.isEnabled { ShareImportService.importPendingItems(to: rootURL) }
-                }
-                Task { await loadContent() }
-            }
-        }
-        .onChange(of: appState.selectedTab) { _, newTab in
-            if newTab == .search {
-                if appState.pendingGlobalSearch {
-                    appState.searchSpaceId = nil
-                    appState.pendingGlobalSearch = false
-                } else {
-                    appState.searchSpaceId = appState.activeSpaceId
-                }
-            } else {
-                appState.searchSpaceId = nil
-            }
-        }
+        observedContent
         .sheet(isPresented: $appState.showPhotosPicker) {
             PhotosPickerWrapper(onItemsPicked: handlePickedMedia, onPreparing: updatePickerProgress)
         }
@@ -259,14 +174,113 @@ struct MainView: View {
         } message: {
             Text(deleteError ?? "The media file could not be moved to Trash.")
         }
-        #if DEBUG
-        .overlay {
-            DebugDialOverlay(
-                metrics: $nudgeMetrics,
-                onShowNudge: { appState.activeNudge = $0 },
-                onResetNudges: { nudges.resetAll() }
-            )
+    }
+
+    private var observedContent: some View {
+        mainContent
+        .task {
+            await loadContent()
         }
+        .onChange(of: appState.searchText) { _, newValue in
+            refreshSearchScores(for: newValue)
+        }
+        .onChange(of: searchService.generation) { _, _ in
+            refreshSearchScores(for: appState.searchText)
+        }
+        .onChange(of: allItems.count) { _, _ in
+            indexRebuildTask?.cancel()
+            indexRebuildTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(500))
+                guard !Task.isCancelled else { return }
+                searchService.buildIndex(items: allItems)
+            }
+        }
+        .onChange(of: keySyncService.isConfigured) { _, isConfigured in
+            appState.dismissAPIKeyNudgeIfConfigured(isConfigured: isConfigured)
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                if let rootURL = fileSystem.rootURL {
+                    if !AutomationEnvironment.isEnabled { ShareImportService.importPendingItems(to: rootURL) }
+                }
+                Task { await loadContent() }
+            }
+        }
+        .onChange(of: appState.selectedTab) { _, newTab in
+            if newTab == .search {
+                if appState.pendingGlobalSearch {
+                    appState.searchSpaceId = nil
+                    appState.pendingGlobalSearch = false
+                } else {
+                    appState.searchSpaceId = appState.activeSpaceId
+                }
+            } else {
+                appState.searchSpaceId = nil
+            }
+        }
+    }
+
+    private var mainContent: some View {
+        @Bindable var appState = appState
+
+        GeometryReader { geo in
+            let gridWidth = geo.size.width - 24
+            // Keep the detail toolbar clearance in the same global space as grid cells.
+            let screenTop = geo.frame(in: .global).minY - geo.safeAreaInsets.top
+            let detailTopGlobalY = screenTop + DetailChrome.reservedTopInset(safeAreaTop: geo.safeAreaInsets.top)
+            // Computed once per pass. Each access filters `allItems` (faulting every item's
+            // `spaces` relationship) and re-sorts, and body reached it four times.
+            let searchItems = searchContentItems
+            let overlayItems = detailOverlayItems
+
+            ZStack {
+                tabContent(gridWidth: gridWidth, searchItems: searchItems)
+                    .allowsHitTesting(!appState.showOverlay)
+                    .environment(appState)
+
+                if appState.showOverlay, appState.selectedIndex != nil, !overlayItems.isEmpty {
+                    MediaDetailModal(
+                        items: overlayItems,
+                        title: detailOverlayTitle,
+                        showOverlay: $appState.showOverlay,
+                        selectedItemId: $appState.selectedItemId,
+                        selectedIndex: $appState.selectedIndex,
+                        sourceRect: appState.sourceRect,
+                        topReservedGlobalY: detailTopGlobalY,
+                        thumbnailImage: $appState.thumbnailImage,
+                        detailGridTarget: $appState.detailGridTarget,
+                        onSearchPattern: handleSearchPattern,
+                        onRetryAnalysis: handleRetryAnalysis,
+                        onDelete: handleItemDeleted,
+                        onOverlayClosed: handleOverlayClosed
+                    )
+                    .zIndex(1)
+                }
+            }
+        }
+        .overlay(alignment: .bottom) {
+            if appState.isImporting {
+                HStack(spacing: 10) {
+                    ProgressView()
+                    Text("\(appState.importStage) \(appState.importCompletedCount)/\(appState.importTotalCount)")
+                        .font(.subheadline.weight(.medium))
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(.regularMaterial, in: Capsule())
+                .padding(.bottom, 70)
+                .accessibilityLabel("\(appState.importStage) \(appState.importCompletedCount) of \(appState.importTotalCount)")
+            } else if let message = appState.importMessage {
+                Text(message)
+                    .font(.subheadline.weight(.medium))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(.regularMaterial, in: Capsule())
+                    .padding(.bottom, 70)
+            }
+        }
+        #if SNAPWELL_AUTOMATION
+        .safeAreaInset(edge: .top) { automationControls }
         #endif
     }
 
