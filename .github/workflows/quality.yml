@@ -5,12 +5,22 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      platform:
+        description: Platform for a deliberate diagnostic run
+        type: choice
+        options: [all, macos, ios]
+        default: all
+      only:
+        description: Optional test target/case; partial runs never certify full release validation
+        type: string
+        default: ''
 
 permissions:
   contents: read
 
 concurrency:
-  group: quality-${{ github.ref }}
+  group: quality-${{ github.ref }}-${{ inputs.platform || 'all' }}-${{ inputs.only || 'complete' }}
   cancel-in-progress: true
 
 jobs:
@@ -25,6 +35,8 @@ jobs:
       - name: Check complete public snapshot and outgoing history
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          REQUESTED_PLATFORM: ${{ inputs.platform || 'all' }}
+          ONLY_TEST: ${{ inputs.only }}
         run: |
           python3 scripts/check_public_content.py --all
           if [[ "$BASE_SHA" =~ ^[a-f0-9]{40}$ && "$BASE_SHA" != 0000000000000000000000000000000000000000 ]]; then
@@ -64,28 +76,43 @@ jobs:
           elif valid_base:
               platforms = [platform for platform in platforms
                            if fingerprint(Path.cwd(), platform, base) != fingerprint(Path.cwd(), platform)]
+          if not valid_base and os.environ['REQUESTED_PLATFORM'] != 'all':
+              platforms = [os.environ['REQUESTED_PLATFORM']]
           # Version/build-only changes reuse the already tested base's native inputs.
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               output.write('required=' + str(bool(platforms)).lower() + '\n')
               output.write('platform=' + ('all' if len(platforms) == 2 else (platforms[0] if platforms else 'changed')) + '\n')
+              output.write('partial=' + str(bool(os.environ.get('ONLY_TEST'))).lower() + '\n')
           PY
       - name: Verify tools and isolated native services
         if: steps.selection.outputs.required == 'true'
         run: |
           command -v xcodegen || brew install xcodegen
-          ./dev.sh doctor
+          ./dev.sh doctor --platform '${{ steps.selection.outputs.platform }}'
       - name: Run affected Automation, core and tooling suites
         if: steps.selection.outputs.required == 'true'
+        env:
+          ONLY_TEST: ${{ inputs.only }}
+          SELECTED_PLATFORM: ${{ steps.selection.outputs.platform }}
         run: |
           status=0
-          ./dev.sh test --platform '${{ steps.selection.outputs.platform }}' --suite all || status=$?
+          if [[ -n "$ONLY_TEST" ]]; then
+            case "$ONLY_TEST" in
+              SnapwellUITests/*) suite=ui ;;
+              SnapwellTests/*) suite=logic ;;
+              *) exit 1 ;;
+            esac
+            ./dev.sh test --platform "$SELECTED_PLATFORM" --suite "$suite" --only "$ONLY_TEST" || status=$?
+          else
+            ./dev.sh test --platform "$SELECTED_PLATFORM" --suite all || status=$?
+          fi
           python3 scripts/ci_validation_summary.py --diagnostics
           exit "$status"
       - name: Validate result bundles and export public summary
-        if: steps.selection.outputs.required == 'true'
+        if: steps.selection.outputs.required == 'true' && steps.selection.outputs.partial != 'true'
         run: python3 scripts/ci_validation_summary.py
       - name: Retain only the sanitized evidence
-        if: steps.selection.outputs.required == 'true'
+        if: steps.selection.outputs.required == 'true' && steps.selection.outputs.partial != 'true'
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: public-validation-${{ github.run_id }}

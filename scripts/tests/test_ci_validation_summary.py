@@ -12,6 +12,7 @@ class PublicEvidenceTests(unittest.TestCase):
     def setUp(self):
         self.report = {'suite': 'all', 'platforms': ['ios'], 'results': [
             {'name': name, 'status': 'passed', 'input_fingerprint': 'b' * 64,
+             'complete_native_suite': True,
              'log': 'private local path', 'account': 'private account'}
             for name in ('tooling-python', 'tooling-swift', 'core', 'ios')]}
         self.native = {'ios': {'totalTestCount': 12, 'passedTests': 12, 'failedTests': 0, 'skippedTests': 0,
@@ -49,4 +50,9 @@ class PublicEvidenceTests(unittest.TestCase):
                     summary.sanitized(self.report, native, 'a' * 40)
         self.report['results'].pop()
         with self.assertRaisesRegex(RuntimeError, 'incomplete'):
+            summary.sanitized(self.report, self.native, 'a' * 40)
+
+    def test_partial_native_run_cannot_export_full_suite_evidence(self):
+        self.report['results'][-1]['complete_native_suite'] = False
+        with self.assertRaisesRegex(RuntimeError, 'Partial native selection'):
             summary.sanitized(self.report, self.native, 'a' * 40)

@@ -24,12 +24,16 @@ def diagnostics(report):
         path = Path(item.get('log', ''))
         if not path.is_file():
             continue
-        for match in re.finditer(r'/(ios|macos|Shared)/([A-Za-z0-9_+./-]+\.swift):(\d+):(\d+): error:',
+        for match in re.finditer(r'/(ios|macos|Shared|Tests)/([A-Za-z0-9_+./-]+\.swift):(\d+)(?::(\d+))?: error:',
                                  path.read_text(errors='replace')):
-            locations.add((match[1] + '/' + match[2], int(match[3]), int(match[4])))
+            locations.add((match[1] + '/' + match[2], int(match[3]), int(match[4] or 0)))
     if locations:
         result['compiler_error_locations'] = [dict(file=file, line=line, column=column)
                                               for file, line, column in sorted(locations)]
+    result['native_counts'] = {item['name']: {key: item['native_counts'][key] for key in COUNTS}
+                               for item in report.get('results', []) if item.get('name') in ('macos', 'ios')
+                               and isinstance(item.get('native_counts'), dict)
+                               and all(type(item['native_counts'].get(key)) is int for key in COUNTS)}
     return result
 
 
@@ -46,6 +50,8 @@ def sanitized(report, native, commit):
         if name in HEADLESS:
             result['headless'][name] = 'passed'
         else:
+            if item.get('complete_native_suite') is not True:
+                raise RuntimeError('Partial native selection cannot certify the complete suite')
             counts = {key: native[name].get(key) for key in COUNTS}
             if (any(type(value) is not int for value in counts.values()) or counts['totalTestCount'] <= 0
                     or counts['failedTests'] != 0 or counts['skippedTests'] != 0

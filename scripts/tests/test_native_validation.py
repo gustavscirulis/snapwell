@@ -92,6 +92,13 @@ class NativeReuseTests(unittest.TestCase):
         validation.save(self.root, 'ios', self.inputs, self.counts)
         self.assertIsNotNone(validation.passing_evidence(self.root, 'ios'))
 
+    def test_partial_test_pass_does_not_create_full_suite_release_evidence(self):
+        with patch.object(validation, 'fingerprint', return_value=self.inputs), \
+             patch.object(validation.subprocess, 'check_output', return_value=json.dumps(self.counts).encode()):
+            result = validation.record_pass(self.root, 'ios', 'result.xcresult', self.inputs, complete=False)
+        self.assertEqual(result['counts'], self.counts)
+        self.assertIsNone(validation.passing_evidence(self.root, 'ios'))
+
     def ci_responses(self, fingerprint=None, conclusion='success'):
         evidence = {'source_commit': self.commit, 'headless': {name: 'passed' for name in
                      ('tooling-python', 'tooling-swift', 'core')}, 'native': {'ios': self.counts},

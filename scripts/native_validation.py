@@ -105,11 +105,12 @@ def save(root, platform, inputs, counts, verified_at=None):
     return data
 
 
-def record_pass(root, platform, bundle, inputs):
+def record_pass(root, platform, bundle, inputs, complete=True):
     if fingerprint(root, platform) != inputs:
         raise RuntimeError('Native inputs changed during validation')
     raw = subprocess.check_output(['xcrun', 'xcresulttool', 'get', 'test-results', 'summary', '--path', str(bundle)])
-    return save(root, platform, inputs, json.loads(raw))
+    counts = checked_counts(json.loads(raw))
+    return save(root, platform, inputs, counts) if complete else {'counts': counts}
 
 
 def passing_evidence(root, platform):

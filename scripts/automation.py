@@ -221,9 +221,12 @@ def test(args):
         results.append(headless_check(['python3', 'scripts/test_core.py'], directory, 'core', args))
     with native_lock() if platforms else contextlib.nullcontext():
         for platform in platforms:
+            complete_native = args.suite == 'all' and not args.only
+            inputs = None
             try:
                 inputs = native_validation.fingerprint(ROOT, platform)
-                native_validation.pending(ROOT, platform, inputs)
+                if complete_native:
+                    native_validation.pending(ROOT, platform, inputs)
                 if platform == 'macos':
                     run(['xcodegen', 'generate', '--spec', 'macos/project.yml', '--project', 'macos'])
                     run(['bash', 'macos/scripts/post-xcodegen.sh'])
@@ -255,10 +258,14 @@ def test(args):
                     command += ['CODE_SIGNING_ALLOWED=NO']
                 result = logged(command, directory, platform)
                 if result['status'] == 'passed':
-                    evidence = native_validation.record_pass(ROOT, platform, directory / (platform + '.xcresult'), inputs)
-                    result.update(input_fingerprint=inputs, native_counts=evidence['counts'])
+                    evidence = native_validation.record_pass(ROOT, platform, directory / (platform + '.xcresult'), inputs, complete=complete_native)
+                    result.update(input_fingerprint=inputs, native_counts=evidence['counts'], complete_native_suite=complete_native)
+                elif not complete_native:
+                    native_validation.pending(ROOT, platform, inputs)
                 results.append(result)
-            except (RuntimeError, subprocess.TimeoutExpired) as error:
+            except (RuntimeError, subprocess.SubprocessError, OSError) as error:
+                if inputs and not complete_native:
+                    native_validation.pending(ROOT, platform, inputs)
                 results.append({'name': platform, 'status': 'unavailable', 'error': str(error)})
                 print(str(error), file=sys.stderr)
     report = {'results': results, 'platforms': platforms, 'suite': args.suite}
