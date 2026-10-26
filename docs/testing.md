@@ -4,7 +4,7 @@
 
 - `./dev.sh doctor` checks local tools and simulator availability; `--platform macos` skips simulator checks.
 - `./dev.sh test --platform changed --suite all` runs affected native suites and tooling checks.
-- `./dev.sh test --platform all --suite all` runs both platforms before a coordinated release.
+- `./dev.sh test --platform all --suite all` validates both platforms when their native inputs need testing. Version-only releases reuse verified PR results.
 - `./dev.sh test --platform macos --suite logic --only SnapwellTests/SyncWatcherIntegrationTests` narrows investigation.
 - `./dev.sh test --platform ios --suite ui` runs native interaction checks.
 - `./dev.sh test --suite tools` runs the Python orchestration and Swift release-client tests.

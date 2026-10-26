@@ -12,7 +12,7 @@ on:
         options: [all, macos, ios]
         default: all
       only:
-        description: Optional test target/case; partial runs never certify full release validation
+        description: Optional target/class[/case]; partial runs never certify full release validation
         type: string
         default: ''
 
