@@ -232,7 +232,11 @@ def test(args):
                     run(['bash', 'macos/scripts/post-xcodegen.sh'])
                     destination = 'platform=macOS'
                 else:
-                    destination = 'platform=iOS Simulator,id=' + (args.simulator or simulator())
+                    identifier = args.simulator or simulator()
+                    # Wait for the dedicated simulator's first-boot services before
+                    # XCTest attempts to install or launch the Automation app.
+                    run(['xcrun', 'simctl', 'bootstatus', identifier, '-b'], timeout=300)
+                    destination = 'platform=iOS Simulator,id=' + identifier
                 command = ['xcodebuild', 'test', '-project', f'{platform}/Snapwell.xcodeproj', '-scheme', 'Snapwell',
                            '-configuration', 'Automation', '-destination', destination,
                            '-derivedDataPath', str(CONTEXT / 'testing' / (platform + '-derived')),

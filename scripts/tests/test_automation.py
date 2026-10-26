@@ -211,6 +211,23 @@ class HeadlessReuseTests(unittest.TestCase):
         results = [r for path in reports for r in json.loads(path.read_text())['results']]
         self.assertEqual(sum('reused_from' in r for r in results), 3)
 
+    def test_simulator_readiness_failure_blocks_tests_and_invalidates_old_evidence(self):
+        args = argparse.Namespace(platform='ios', suite='all', only=None,
+                                  staged=False, dry_run=False, simulator='synthetic-simulator')
+        with patch.object(automation, 'headless_check', return_value={'name': 'core', 'status': 'passed'}), \
+             patch.object(automation, 'native_lock', return_value=contextlib.nullcontext()), \
+             patch.object(automation.native_validation, 'pending') as pending, \
+             patch.object(automation, 'run', side_effect=RuntimeError('Simulator not ready')) as command, \
+             patch.object(automation, 'logged') as logged:
+            with self.assertRaisesRegex(RuntimeError, 'Validation did not pass'):
+                automation.test(args)
+        pending.assert_called_once()
+        logged.assert_not_called()
+        self.assertEqual(command.call_args.args[0],
+                         ['xcrun', 'simctl', 'bootstatus', 'synthetic-simulator', '-b'])
+        report = json.loads(next(self.context.glob('testing/*/summary.json')).read_text())
+        self.assertEqual(report['results'][-1]['status'], 'unavailable')
+
     def test_relevant_edits_additions_and_deletions_invalidate_result(self):
         result = self.passed()
         self.record(result)

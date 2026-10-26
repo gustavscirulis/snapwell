@@ -70,7 +70,8 @@ tests against normal Debug builds or physical devices with production data. Real
 and provider checks are a separate, explicit verification step.
 
 The iOS runner creates one dedicated simulator per worktree, keeping normal simulator app
-state separate. Native runs share a machine-wide lock to avoid competing for desktop UI.
+state separate, and waits for its boot services before XCTest installs or launches the app.
+Native runs share a machine-wide lock to avoid competing for desktop UI.
 `--simulator <UDID>` selects an explicitly chosen device instead. The runner does not reset
 or delete unrelated simulators or kill the normal Snapwell app.
 
