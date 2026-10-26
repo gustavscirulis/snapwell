@@ -6,6 +6,27 @@ Group unreleased changes under `macOS`, `iOS`, or `Both`. Release manifests reco
 entries shipped on each platform; a shared entry remains pending on the other platform.
 Do not invent historical release notes. Existing entries are a starting point for future releases.
 
+## Delegating a release
+
+A user request such as “bump the version and release iOS and Mac” authorizes the agent to
+prepare, draft notes, validate, upload, fill the version metadata, submit for App Review,
+and choose automatic publication after approval. Do not ask the user to write notes or
+click Submit for Review when suitable API access is configured. Default an unspecified
+version bump to the next patch version of each platform independently, after checking
+Apple's versions and build numbers. Preserve existing store descriptions, screenshots,
+privacy information and review contact details unless the release requires changes.
+Answer new required compliance questions from verified app facts; ask only when a required
+answer cannot be established. Legal agreements and account ownership remain human tasks.
+
+Draft notes from the platform's unshipped changelog entries and the actual changes. Complete
+all authorized steps and report Apple's exact state. Uploaded/VALID is not submitted;
+submitted is not approved or released. Resume a partially completed release before creating
+another version or uploading another build. Read the saved receipt and Apple state first.
+
+For unattended native tests and signing, see the concrete
+[release automation setup](workflows/release-automation.md). Local API credentials alone do
+not give an agent sandbox access to Apple's native services.
+
 ## One-time local configuration
 
 For automatic access across local Conductor workspaces, create
@@ -40,7 +61,10 @@ an individual key inherits its user's app access, so an App Manager user limited
 can provide narrower app access. The local configuration makes commands available; it is
 not standing authorization to publish. Live publication still requires a user release request.
 
-Run `./dev.sh doctor --platform macos --apple` to verify read-only API access.
+Run `./dev.sh doctor --platform macos --apple` to verify read-only API access. A successful
+read does **not** prove permission to change metadata or submit a review. Apple requires
+Account Holder, Admin or App Manager for submission. A 403 for version creation/submission
+requires a suitable replacement key; team-key roles cannot be edited after creation.
 
 ## Prepare, draft, validate, publish
 
@@ -59,6 +83,18 @@ Run `./dev.sh doctor --platform macos --apple` to verify read-only API access.
    **automatic publication after approval**. This is the live release action.
 6. Commit the updated submission record. `./dev.sh release status --platform macos --version 1.0.8`
    reads Apple's status and marks the release as distributed only after Apple confirms it.
+
+If upload succeeded and only processing/notes/review remain, use
+`./dev.sh release submit --platform macos --version 1.0.8` (and independently for iOS).
+This path never runs native tests, archives or uploads. It requires the original successful
+upload receipt, unchanged native source/build inputs, identical notes, and the exact Apple
+build with a matching marketing version. Tooling/docs or another release record may advance
+without discarding the original uploaded source commit. It saves submission checkpoints and
+recovers a confirmed remote submission after interruption. Do not use it to bypass failed
+validation or fabricate an upload receipt.
+
+The API helper compiles once per command with a separate build timeout, then executes the
+prebuilt binary for Apple requests. Swift compilation cannot consume the request timeout.
 
 `release status --dry-run` is read-only, including local files. Publishing requires a
 clean prepared revision and validated notes. Artifacts and resumable receipts live under

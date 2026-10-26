@@ -115,6 +115,19 @@ class AutomationTests(unittest.TestCase):
                     automation.test(args)
 
 
+class AppleHelperTests(unittest.TestCase):
+    def test_build_and_api_have_separate_timeouts_and_build_once(self):
+        with patch.object(automation, '_asc_executable', None), \
+             patch.object(automation, 'run', side_effect=['', '{}', '{}']) as command:
+            automation.asc('status', 'ios')
+            automation.asc('status', 'macos')
+        self.assertEqual(command.call_count, 3)
+        self.assertEqual(command.call_args_list[0].args[0][:2], ['swift', 'build'])
+        self.assertEqual(command.call_args_list[0].kwargs['timeout'], 600)
+        self.assertEqual(command.call_args_list[1].kwargs['timeout'], 180)
+        self.assertEqual(command.call_args_list[1].args[0][1:], ['status', '--platform', 'ios'])
+
+
 class HeadlessReuseTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -377,6 +390,109 @@ class ReleasePipelineTests(unittest.TestCase):
                 automation.release(self.args)
         self.assertTrue(json.loads(self.receipt.read_text())['uploaded'])
         self.assertEqual(json.loads((self.directory/'release.json').read_text())['status'], 'prepared')
+
+
+class SubmissionOnlyTests(unittest.TestCase):
+    # Use a real temporary Git repository to verify uploaded-source comparisons.
+    def setUp(self):
+        ReleasePipelineTests.setUp(self)
+        self.run_patch.stop()
+        self.args.action = 'submit'
+        self.root = automation.ROOT
+        subprocess.run(['git', 'init', '-q', str(self.root)], check=True)
+        (self.root / '.gitignore').write_text('.context/\n')
+        (self.root / 'ios').mkdir()
+        (self.root / 'ios/App.swift').write_text('uploaded source')
+        subprocess.run(['git', 'add', '.'], cwd=self.root, check=True)
+        subprocess.run(['git', '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid',
+                        'commit', '-qm', 'Prepared'], cwd=self.root, check=True)
+        self.commit = automation.run(['git', 'rev-parse', 'HEAD'], capture=True, cwd=self.root).strip()
+        # automation.run's cwd default is bound at import time; route calls to the fixture.
+        original = automation.run
+        def run_here(args, **kwargs):
+            return original(args, **dict(kwargs, cwd=self.root))
+        self.local_run = patch.object(automation, 'run', side_effect=run_here)
+        self.local_run.start()
+        self.addCleanup(self.local_run.stop)
+        self.save_upload_receipt()
+
+    def save_upload_receipt(self):
+        automation.write_json(self.receipt, dict(self.manifest, commit=self.commit, uploaded=True,
+            notes_sha256=automation.hashlib.sha256(self.notes.encode()).hexdigest()))
+
+    def apple(self, command, *args, **kwargs):
+        if command == 'stage':
+            return {'version_id': 'version'}
+        if command == 'submit':
+            return {'submission': {'id': 'review'}}
+        return {'versions': [], 'builds': [self.build]}
+
+    def test_submit_does_not_test_archive_or_upload_and_preserves_source(self):
+        # Updating tooling and another platform's record must not invalidate an upload.
+        (self.root / 'scripts').mkdir()
+        (self.root / 'scripts/automation.py').write_text('new tooling')
+        with patch.object(automation, 'asc', side_effect=self.apple), \
+             patch.object(automation, 'test') as tests, \
+             patch.object(automation, 'logged') as archive:
+            automation.release(self.args)
+            tests.assert_not_called()
+            archive.assert_not_called()
+        result = json.loads((self.directory / 'release.json').read_text())
+        self.assertEqual(result['source_commit'], self.commit)
+        self.assertEqual(result['status'], 'submitted')
+        self.assertEqual(result['build_id'], 'build')
+
+    def test_submit_rejects_missing_receipt_changed_notes_and_native_inputs(self):
+        for case, message in [('missing', 'original successful'), ('notes', 'notes changed'),
+                              ('native', 'Native inputs differ'), ('new-native', 'Native inputs differ')]:
+            with self.subTest(case=case):
+                self.save_upload_receipt()
+                (self.directory / 'en-US.txt').write_text(self.notes)
+                (self.root / 'ios/App.swift').write_text('uploaded source')
+                new = self.root / 'ios/New.swift'
+                new.unlink(missing_ok=True)
+                if case == 'missing':
+                    self.receipt.unlink()
+                elif case == 'notes':
+                    (self.directory / 'en-US.txt').write_text('• New notes.\n• Different notes.\n')
+                elif case == 'native':
+                    (self.root / 'ios/App.swift').write_text('changed source')
+                else:
+                    new.write_text('new source')
+                with patch.object(automation, 'asc', side_effect=self.apple) as apple, \
+                     self.assertRaisesRegex(RuntimeError, message):
+                    automation.release(self.args)
+                self.assertEqual([c.args[0] for c in apple.call_args_list], ['status'])
+
+    def test_submit_requires_exact_uploaded_platform_version_and_build(self):
+        for field, value in [('platform', 'macos'), ('version', '1.0.0'), ('build', 10), ('uploaded', False)]:
+            with self.subTest(field=field):
+                self.save_upload_receipt()
+                record = json.loads(self.receipt.read_text())
+                record[field] = value
+                automation.write_json(self.receipt, record)
+                with patch.object(automation, 'asc', side_effect=self.apple), \
+                     self.assertRaisesRegex(RuntimeError, 'does not confirm'):
+                    automation.release(self.args)
+
+    def test_submit_never_uploads_when_receipted_build_is_missing(self):
+        with patch.object(automation, 'asc', return_value={'versions': [], 'builds': []}), \
+             self.assertRaisesRegex(RuntimeError, 'never builds or uploads'):
+            automation.release(self.args)
+
+    def test_submit_recovers_after_remote_submission_without_staging_again(self):
+        record = json.loads(self.receipt.read_text())
+        record['version_id'] = 'version'
+        automation.write_json(self.receipt, record)
+        automation.write_json(self.receipt.parent / 'submission.json',
+                              {'version_id': 'version', 'submission_id': 'review'})
+        remote = {'builds': [self.build], 'versions': [{'id': 'version',
+                  'attributes': {'versionString': '1.2.3', 'appVersionState': 'WAITING_FOR_REVIEW'},
+                  'relationships': {'build': {'data': {'id': 'build'}}}}]}
+        with patch.object(automation, 'asc', return_value=remote) as apple:
+            automation.release(self.args)
+        self.assertEqual([c.args[0] for c in apple.call_args_list], ['status'])
+        self.assertEqual(json.loads((self.directory / 'release.json').read_text())['submission_id'], 'review')
 
 
 if __name__ == '__main__':

@@ -259,9 +259,18 @@ def test(args):
         raise RuntimeError('Validation did not pass; see the report for failed or unavailable checks.')
 
 
+_asc_executable = None
+
+
 def asc(command, platform, **options):
-    args = ['swift', 'run', '--disable-sandbox', '--package-path', 'tools/ReleaseTools', '--scratch-path', str(CONTEXT / 'release-tools-build'),
-            'snapwell-asc', command, '--platform', platform]
+    global _asc_executable
+    if _asc_executable is None:
+        # Build separately: a cold Swift build must not consume the API timeout.
+        scratch = CONTEXT / 'release-tools-build'
+        run(['swift', 'build', '--disable-sandbox', '--package-path', 'tools/ReleaseTools',
+             '--scratch-path', str(scratch), '--product', 'snapwell-asc'], capture=True, timeout=600)
+        _asc_executable = scratch / 'debug/snapwell-asc'
+    args = [str(_asc_executable), command, '--platform', platform]
     for key, value in options.items():
         if value is not None:
             args += ['--' + key.replace('_', '-'), str(value)]
@@ -337,6 +346,43 @@ def notes_text(path):
     return text
 
 
+def finish_submission(args, manifest, receipt, receipt_path, path, manifest_path):
+    """Resume only the Apple processing/metadata/review steps of a verified upload."""
+    deadline = time.monotonic() + args.wait_minutes * 60
+    while True:
+        remote = asc('status', args.platform)
+        build = next((item for item in remote['builds'] if item['attributes']['version'] == str(manifest['build'])), None)
+        state = build['attributes'].get('processingState') if build else 'NOT_VISIBLE'
+        if state == 'VALID':
+            break
+        if state in ('FAILED', 'INVALID'):
+            raise RuntimeError(f'Apple build processing failed: {state}')
+        if time.monotonic() >= deadline:
+            raise RuntimeError('Build is still processing. Rerun release submit to resume; the upload receipt is saved.')
+        print(f'Apple processing: {state}; waiting 20 seconds…', flush=True)
+        time.sleep(20)
+    marketing = build['attributes'].get('snapwellMarketingVersion')
+    if marketing != args.version:
+        raise RuntimeError(f'Apple build belongs to version {marketing}, expected {args.version}')
+    if receipt.get('build_id') and receipt['build_id'] != build['id']:
+        raise RuntimeError('Apple build ID differs from the upload receipt.')
+    if hashlib.sha256(notes_text(path).encode()).hexdigest() != receipt['notes_sha256']:
+        raise RuntimeError('Release notes changed before staging.')
+    receipt['build_id'] = build['id']
+    write_json(receipt_path, receipt)
+    result = asc('stage', args.platform, version=args.version, build_id=build['id'], notes=path, locale=manifest['locale'])
+    receipt['version_id'] = result['version_id']
+    write_json(receipt_path, receipt)
+    submission = asc('submit', args.platform, version_id=result['version_id'], checkpoint=receipt_path.parent / 'submission.json')['submission']
+    receipt['submission'] = submission
+    write_json(receipt_path, receipt)
+    manifest.update(status='submitted', source_commit=receipt['commit'], build_id=build['id'], version_id=result['version_id'],
+                    notes_sha256=receipt['notes_sha256'], submission_id=submission['id'],
+                    submitted_at=dt.datetime.now(dt.timezone.utc).isoformat())
+    write_json(manifest_path, manifest)
+    print(f'Submitted {args.platform} {args.version} build {manifest["build"]}. Apple will publish automatically after approval. Commit the updated release record.')
+
+
 def release(args):
     if args.locale is not None and not re.fullmatch(r'[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*', args.locale):
         raise RuntimeError('Invalid release locale')
@@ -397,6 +443,43 @@ def release(args):
             raise RuntimeError('Remote submission/build or local notes do not match the release record.')
         print('Version already submitted; no upload or submission repeated.')
         return
+    if args.action == 'submit':
+        receipt_path = CONTEXT / 'releases' / args.platform / args.version / 'receipt.json'
+        if not receipt_path.exists():
+            raise RuntimeError('Submission requires the original successful upload receipt; use publish for a new release.')
+        receipt = json.loads(receipt_path.read_text())
+        if not receipt.get('uploaded') or any(receipt.get(key) != manifest[key] for key in ('platform', 'version', 'build')):
+            raise RuntimeError('Upload receipt does not confirm this platform/version/build.')
+        if receipt.get('notes_sha256') != hashlib.sha256(text.encode()).hexdigest():
+            raise RuntimeError('Release notes changed since upload; inspect the receipt before submitting.')
+        source = receipt.get('commit', '')
+        if not re.fullmatch(r'[0-9a-f]{40,64}', source):
+            raise RuntimeError('Upload receipt is missing a valid source commit.')
+        # Tooling/docs and another platform's submission record may have advanced since
+        # upload. Require the actual native inputs to remain byte-for-byte identical.
+        inputs = ['macos', 'ios', 'Shared', 'Tests', 'dev.sh']
+        changed = run(['git', 'diff', '--name-only', source, '--', *inputs], capture=True).strip()
+        untracked = run(['git', 'ls-files', '--others', '--exclude-standard', '--', *inputs], capture=True).strip()
+        if changed or untracked:
+            raise RuntimeError('Native inputs differ from the uploaded source; inspect before submitting.')
+        if not build:
+            raise RuntimeError('The receipted build is not visible in Apple; submission never builds or uploads.')
+        if receipt.get('build_id') and receipt['build_id'] != build['id']:
+            raise RuntimeError('Apple build ID differs from the upload receipt.')
+        if state in submitted_states:
+            checkpoint = receipt_path.parent / 'submission.json'
+            saved = json.loads(checkpoint.read_text()) if checkpoint.exists() else {}
+            if (linked_build != build['id'] or receipt.get('version_id') != version['id']
+                    or saved.get('version_id') != version['id'] or not saved.get('submission_id')):
+                raise RuntimeError('Remote submission has no matching local receipt/checkpoint; inspect before proceeding.')
+            manifest.update(status='submitted', source_commit=source, build_id=build['id'],
+                            version_id=version['id'], notes_sha256=receipt['notes_sha256'],
+                            submission_id=saved['submission_id'])
+            write_json(manifest_path, manifest)
+            print('Recovered the confirmed remote submission. Commit the updated release record.')
+            return
+        finish_submission(args, manifest, receipt, receipt_path, path, manifest_path)
+        return
     if run(['git', 'status', '--porcelain'], capture=True).strip():
         raise RuntimeError('Commit the prepared release and notes before publishing; working tree must be clean.')
     commit = run(['git', 'rev-parse', 'HEAD'], capture=True).strip()
@@ -449,33 +532,7 @@ def release(args):
         write_json(receipt_path, receipt)
     elif not receipt.get('uploaded'):
         raise RuntimeError('This build number already exists without an upload receipt; refusing to attach an unverified build.')
-    deadline = time.monotonic() + args.wait_minutes * 60
-    while True:
-        remote = asc('status', args.platform)
-        build = next((item for item in remote['builds'] if item['attributes']['version'] == str(manifest['build'])), None)
-        state = build['attributes'].get('processingState') if build else 'NOT_VISIBLE'
-        if state == 'VALID':
-            break
-        if state in ('FAILED', 'INVALID'):
-            raise RuntimeError(f'Apple build processing failed: {state}')
-        if time.monotonic() >= deadline:
-            raise RuntimeError('Build is still processing. Rerun publish to resume; the upload receipt is saved.')
-        print(f'Apple processing: {state}; waiting 20 seconds…', flush=True)
-        time.sleep(20)
-    marketing = build['attributes'].get('snapwellMarketingVersion')
-    if marketing != args.version:
-        raise RuntimeError(f'Apple build belongs to version {marketing}, expected {args.version}')
-    result = asc('stage', args.platform, version=args.version, build_id=build['id'], notes=path, locale=manifest['locale'])
-    receipt['version_id'] = result['version_id']
-    write_json(receipt_path, receipt)
-    submission = asc('submit', args.platform, version_id=result['version_id'], checkpoint=receipt_path.parent / 'submission.json')['submission']
-    receipt['submission'] = submission
-    write_json(receipt_path, receipt)
-    manifest.update(status='submitted', source_commit=commit, build_id=build['id'], version_id=result['version_id'],
-                    notes_sha256=fingerprint, submission_id=submission['id'],
-                    submitted_at=dt.datetime.now(dt.timezone.utc).isoformat())
-    write_json(manifest_path, manifest)
-    print(f'Submitted {args.platform} {args.version} build {manifest["build"]}. Apple will publish automatically after approval. Commit the updated release record.')
+    finish_submission(args, manifest, receipt, receipt_path, path, manifest_path)
 
 
 def main():
@@ -498,7 +555,7 @@ def main():
     tests.add_argument('--simulator')
     tests.add_argument('--dry-run', action='store_true')
     releases = commands.add_parser('release')
-    releases.add_argument('action', choices=('prepare', 'publish', 'status'))
+    releases.add_argument('action', choices=('prepare', 'publish', 'submit', 'status'))
     releases.add_argument('--platform', choices=('macos', 'ios'), required=True)
     releases.add_argument('--version', required=True)
     releases.add_argument('--locale')
