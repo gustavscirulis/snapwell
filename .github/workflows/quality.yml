@@ -46,6 +46,7 @@ jobs:
           python3 -m unittest discover -s scripts/tests -p test_ci_validation_summary.py -v
 
   native-validation:
+    name: ${{ github.event_name == 'workflow_dispatch' && 'native-diagnostic' || 'native-validation' }}
     needs: public-content
     runs-on: macos-26
     timeout-minutes: 90

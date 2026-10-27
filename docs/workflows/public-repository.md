@@ -35,6 +35,8 @@ already exists. Integrate both hooks if preserving a custom setup:
   Required checks must pass before the PR is approved/merged; a skipped or unavailable
   native service is not a pass. Branch-protection settings must enforce the checks remotely;
   adding workflow YAML does not configure repository protection rules.
+  Manual runs report `native-diagnostic`, so a targeted success cannot satisfy the required
+  `native-validation` PR/main check.
 
 Run `python3 scripts/check_public_content.py --all` before preparing a public diff and
 `--history origin/main..HEAD` before publishing a branch. Diagnostics identify rules and

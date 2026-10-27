@@ -174,3 +174,7 @@ requires positive native test counts, zero failures and zero skips. Failed CI ru
 source/suite/count summary from a fully passing run is retained for 14 days; raw logs and result bundles are not
 published. A workflow definition is not passing evidence: inspect the actual run before
 reusing it at the PR gate. See [public repository hygiene](workflows/public-repository.md).
+
+Manual workflow runs use the separate `native-diagnostic` check name, even when selecting
+all tests. They cannot replace the PR/main `native-validation` merge check. Partial test
+selections never produce complete-suite release evidence.
