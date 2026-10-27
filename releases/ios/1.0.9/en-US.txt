@@ -1,0 +1,3 @@
+• Thumbnails load as you browse your library.
+• Shared images and videos recover more reliably after interrupted imports or iCloud downloads.
+• Moving your library to iCloud better protects local media and keeps your organization intact.

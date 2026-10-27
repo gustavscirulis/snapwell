@@ -3,12 +3,14 @@
 <plist version="1.0">
 <dict>
 	<key>method</key>
-	<string>app-store</string>
+	<string>app-store-connect</string>
 	<key>teamID</key>
 	<string>HJ4HYUU2Y6</string>
 	<key>signingStyle</key>
 	<string>automatic</string>
 	<key>uploadSymbols</key>
 	<true/>
+	<key>manageAppVersionAndBuildNumber</key>
+	<false/>
 </dict>
 </plist>

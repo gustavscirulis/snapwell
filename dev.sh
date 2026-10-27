@@ -316,14 +316,26 @@ confirm_app_store_upload() {
     [[ "$response" == "y" || "$response" == "Y" ]]
 }
 
+new_release_archive_dir() (
+    umask 077
+    local platform="$1"
+    local version="$2"
+    local build="$3"
+    [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$build" =~ ^[0-9]+$ ]] \
+        || release_fail "Invalid release version/build"
+    local directory="$SCRIPT_DIR/.context/releases/$platform/$version/archives"
+    mkdir -p "$directory"
+    mktemp -d "$directory/build-$build.XXXXXX"
+)
+
 publish_ios() {
     release_preflight false
 
     local project_dir="$SCRIPT_DIR/ios"
-    local build_dir="$project_dir/build"
-    local archive_path="$build_dir/Snapwell.xcarchive"
-    local upload_dir="$build_dir/upload"
-    local upload_options="$build_dir/ExportOptions-Upload.plist"
+    local build_dir
+    local archive_path
+    local upload_dir
+    local upload_options
     local settings
     local version
     local build
@@ -342,9 +354,11 @@ publish_ios() {
         return
     fi
 
+    build_dir=$(new_release_archive_dir ios "$version" "$build")
+    archive_path="$build_dir/Snapwell.xcarchive"
+    upload_dir="$SCRIPT_DIR/.context/releases/ios/$version/temporary/$(basename "$build_dir")"
+    upload_options="$SCRIPT_DIR/.context/releases/ios/$version/ExportOptions-Upload.plist"
     printf "\n${BOLD}Archiving Snapwell for iOS...${RESET}\n\n"
-    rm -rf "$build_dir"
-    mkdir -p "$build_dir"
 
     run_release_command xcodebuild archive \
         -project "$project_dir/Snapwell.xcodeproj" \
@@ -372,12 +386,15 @@ publish_ios() {
         || release_fail "Archived iOS version does not match the confirmed version"
     [[ "$extension_version" == "$archived_version" && "$extension_build" == "$archived_build" ]] \
         || release_fail "The iOS app and share extension versions do not match"
+    codesign --verify --deep --strict "$archive_path/Products/Applications/Snapwell.app"
+    codesign --verify --strict "$archive_path/Products/Applications/Snapwell.app/PlugIns/ShareExtension.appex"
     printf "${GREEN}✓ Verified iOS %s (build %s)${RESET}\n" "$archived_version" "$archived_build"
 
     cp "$project_dir/ExportOptions-AppStore.plist" "$upload_options"
     /usr/libexec/PlistBuddy -c 'Delete :destination' "$upload_options" 2>/dev/null || true
     /usr/libexec/PlistBuddy -c 'Add :destination string upload' "$upload_options"
 
+    mkdir -p "$upload_dir"
     printf "\n${BOLD}Uploading to App Store Connect...${RESET}\n\n"
     run_release_command xcodebuild -exportArchive \
         -archivePath "$archive_path" \
@@ -393,10 +410,10 @@ publish_mac() {
     release_preflight true
 
     local project_dir="$SCRIPT_DIR/macos"
-    local build_dir="$project_dir/build"
-    local archive_path="$build_dir/Snapwell.xcarchive"
-    local upload_dir="$build_dir/upload"
-    local upload_options="$build_dir/ExportOptions-Upload.plist"
+    local build_dir
+    local archive_path
+    local upload_dir
+    local upload_options
     local version
     local build
     version=$(awk -F': ' '/MARKETING_VERSION:/ {gsub(/"/, "", $2); print $2; exit}' "$project_dir/project.yml")
@@ -408,14 +425,16 @@ publish_mac() {
         return
     fi
 
+    build_dir=$(new_release_archive_dir macos "$version" "$build")
+    archive_path="$build_dir/Snapwell.xcarchive"
+    upload_dir="$SCRIPT_DIR/.context/releases/macos/$version/temporary/$(basename "$build_dir")"
+    upload_options="$SCRIPT_DIR/.context/releases/macos/$version/ExportOptions-Upload.plist"
     printf "\n${DIM}Generating the Mac project...${RESET}\n"
     cd "$project_dir"
     xcodegen generate
     scripts/post-xcodegen.sh
 
     printf "\n${BOLD}Archiving Snapwell for Mac...${RESET}\n\n"
-    rm -rf "$build_dir"
-    mkdir -p "$build_dir"
 
     run_release_command xcodebuild archive \
         -project Snapwell.xcodeproj \
@@ -433,12 +452,16 @@ publish_mac() {
     archived_build=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app_info")
     [[ "$archived_version" == "$version" && "$archived_build" == "$build" ]] \
         || release_fail "Archived Mac version does not match the confirmed version"
+    codesign --verify --deep --strict "$archive_path/Products/Applications/Snapwell.app"
+    lipo "$archive_path/Products/Applications/Snapwell.app/Contents/MacOS/Snapwell" -verify_arch arm64
+    lipo "$archive_path/Products/Applications/Snapwell.app/Contents/MacOS/Snapwell" -verify_arch x86_64
     printf "${GREEN}✓ Verified macOS %s (build %s)${RESET}\n" "$archived_version" "$archived_build"
 
     cp "$project_dir/ExportOptions.plist" "$upload_options"
     /usr/libexec/PlistBuddy -c 'Delete :destination' "$upload_options" 2>/dev/null || true
     /usr/libexec/PlistBuddy -c 'Add :destination string upload' "$upload_options"
 
+    mkdir -p "$upload_dir"
     printf "\n${BOLD}Uploading to App Store Connect...${RESET}\n\n"
     run_release_command xcodebuild -exportArchive \
         -archivePath "$archive_path" \

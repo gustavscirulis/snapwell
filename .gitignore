@@ -9,8 +9,22 @@
 *.sln
 *.sw?
 
-# Environment variables
+# Credentials and machine-local configuration
 .env
+.env.*
+!.env.example
+!.env.sample
+*.p8
+*.p12
+*.pfx
+*.key
+*.mobileprovision
+*.provisionprofile
+*.keychain
+*.keychain-db
+.claude/settings.local.json
+.conductor/settings.local.toml
+.appstoreconnect/
 
 # Xcode user-specific files
 xcuserdata/

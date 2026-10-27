@@ -4,8 +4,9 @@ import ReleaseCore
 @main struct Main {
     static func main() async {
         do {
+            umask(0o077)
             let args = Array(CommandLine.arguments.dropFirst())
-            guard let command = args.first else { throw ReleaseError("Expected inspect, stage, submit, or status") }
+            guard let command = args.first else { throw ReleaseError("Expected inspect, stage, submit, verify, or status") }
             var options: [String: String] = [:]
             var index = 1
             while index < args.count {
@@ -42,6 +43,18 @@ import ReleaseCore
                 let versionID = try requiredID(versionObject)
                 try await client.attach(versionID: versionID, buildID: buildID)
                 output["version_id"] = versionID
+            case "verify":
+                guard let version = options["version"], let versionID = options["version-id"],
+                      let buildID = options["build-id"], let build = options["build"],
+                      let submissionID = options["submission-id"], let path = options["notes"] else {
+                    throw ReleaseError("verify needs version, version-id, build-id, build, submission-id and notes")
+                }
+                let notes = try String(contentsOfFile: path, encoding: .utf8)
+                try validateNotes(notes)
+                let verified = try await client.verifyRelease(appID: appID, platform: apiPlatform,
+                    version: version, versionID: versionID, buildID: buildID, buildNumber: build,
+                    submissionID: submissionID, notes: notes, locale: options["locale"] ?? "en-US")
+                output.merge(verified) { _, new in new }
             case "submit":
                 guard let id = options["version-id"] else { throw ReleaseError("submit needs --version-id") }
                 guard let checkpoint = options["checkpoint"] else { throw ReleaseError("submit needs --checkpoint for resumable submission") }

@@ -36,6 +36,51 @@ import CryptoKit
     #expect(key.publicKey.isValidSignature(signature, for: Data((parts[0] + "." + parts[1]).utf8)))
 }
 
+@Test func loadsLocalCredentialsAndAllowsEnvironmentOverrides() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let configuration = directory.appendingPathComponent("snapwell.json")
+    try Data(#"{"key_path":"/fixture/key.p8","key_id":"LOCAL","issuer_id":" issuer "}"#.utf8).write(to: configuration)
+
+    let local = try Credentials(environment: [:], configurationURL: configuration)
+    #expect(local.keyURL.path == "/fixture/key.p8")
+    #expect(local.keyID == "LOCAL")
+    #expect(local.issuerID == "issuer")
+    let override = try Credentials(environment: ["ASC_ISSUER_ID": "replacement"], configurationURL: configuration)
+    #expect(override.keyID == "LOCAL")
+    #expect(override.issuerID == "replacement")
+    let individual = try Credentials(environment: ["ASC_ISSUER_ID": ""], configurationURL: configuration)
+    #expect(individual.issuerID == nil)
+
+    // Explicit environment credentials work even if the local file is malformed,
+    // and do not inherit a team issuer when using an individual key.
+    try Data("invalid private configuration".utf8).write(to: configuration)
+    let explicit = try Credentials(environment: ["ASC_KEY_PATH": "/fixture/override.p8", "ASC_KEY_ID": "ENV"],
+                                   configurationURL: configuration)
+    #expect(explicit.keyURL.path == "/fixture/override.p8")
+    #expect(explicit.keyID == "ENV")
+    #expect(explicit.issuerID == nil)
+    do {
+        _ = try Credentials(environment: [:], configurationURL: configuration)
+        Issue.record("Expected invalid configuration to fail")
+    } catch {
+        #expect(!error.localizedDescription.contains("invalid private configuration"))
+    }
+}
+
+@Test func missingOrIncompleteLocalCredentialsFailWithoutReadingAKey() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let configuration = directory.appendingPathComponent("snapwell.json")
+    #expect(throws: ReleaseError.self) { try Credentials(environment: [:], configurationURL: configuration) }
+    try Data(#"{"key_path":"/fixture/key.p8","key_id":" "}"#.utf8).write(to: configuration)
+    #expect(throws: ReleaseError.self) { try Credentials(environment: [:], configurationURL: configuration) }
+    try Data(#"{"key_path":"/fixture/key.p8","key_id":"INDIVIDUAL"}"#.utf8).write(to: configuration)
+    #expect(try Credentials(environment: [:], configurationURL: configuration).issuerID == nil)
+}
+
 @Test func paginationAndAppleHostRestriction() async throws {
     var requests: [String] = []
     let client = AppleClient(token: { "test" }, transport: { request in
@@ -126,4 +171,45 @@ import CryptoKit
     })
     let builds = try await client.builds(appID: "1", platform: "IOS")
     #expect((builds.first?["attributes"] as? JSON)?["snapwellMarketingVersion"] as? String == "1.2.3")
+}
+
+@Test(arguments: ["valid", "app", "platform", "build", "build-number", "processing", "notes", "policy", "version-state", "review-state", "review-item"])
+func releaseAuditRequiresExactRemoteSubmission(_ scenario: String) async throws {
+    let client = AppleClient(token: { "not-logged" }, transport: { request in
+        let body: JSON
+        switch request.url!.path {
+        case "/v1/appStoreVersions/version":
+            body = ["data": ["id": "version", "attributes": [
+                "versionString": "1.2.3", "platform": scenario == "platform" ? "MAC_OS" : "IOS",
+                "appVersionState": scenario == "version-state" ? "PREPARE_FOR_SUBMISSION" : "WAITING_FOR_REVIEW",
+                "releaseType": scenario == "policy" ? "MANUAL" : "AFTER_APPROVAL"],
+                "relationships": ["app": ["data": ["id": scenario == "app" ? "other" : "app"]],
+                                  "build": ["data": ["id": scenario == "build" ? "other" : "build"]]]]]
+        case "/v1/builds/build":
+            body = ["data": ["attributes": ["version": scenario == "build-number" ? "10" : "9",
+                "processingState": scenario == "processing" ? "INVALID" : "VALID"]]]
+        case "/v1/appStoreVersions/version/appStoreVersionLocalizations":
+            body = ["data": [["attributes": ["locale": "en-US", "whatsNew": scenario == "notes" ? "other" : "• Faster imports.\n• Better sync.\n"]]]]
+        case "/v1/reviewSubmissions/review":
+            body = ["data": ["attributes": ["platform": "IOS",
+                "state": scenario == "review-state" ? "READY_FOR_REVIEW" : "WAITING_FOR_REVIEW",
+                "privateContact": "should never be returned"]]]
+        case "/v1/reviewSubmissions/review/items":
+            body = ["data": [["relationships": ["appStoreVersion": ["data": ["id": scenario == "review-item" ? "other" : "version"]]]]]]
+        default: throw ReleaseError("Unexpected audit endpoint")
+        }
+        return (try JSONSerialization.data(withJSONObject: body), HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+    })
+    func audit() async throws -> JSON {
+        try await client.verifyRelease(appID: "app", platform: "IOS", version: "1.2.3", versionID: "version",
+            buildID: "build", buildNumber: "9", submissionID: "review", notes: "• Faster imports.\n• Better sync.\n", locale: "en-US")
+    }
+    if scenario == "valid" {
+        let result = try await audit()
+        #expect(result["notes_verified"] as? Bool == true)
+        #expect(!String(describing: result).contains("privateContact"))
+        #expect(result["release_type"] as? String == "AFTER_APPROVAL")
+    } else {
+        await #expect(throws: ReleaseError.self) { try await audit() }
+    }
 }

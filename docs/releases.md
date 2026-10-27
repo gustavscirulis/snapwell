@@ -6,15 +6,66 @@ Group unreleased changes under `macOS`, `iOS`, or `Both`. Release manifests reco
 entries shipped on each platform; a shared entry remains pending on the other platform.
 Do not invent historical release notes. Existing entries are a starting point for future releases.
 
+## Delegating a release
+
+A user request such as “bump the version and release iOS and Mac” authorizes the agent to
+prepare, draft notes, validate, upload, fill the version metadata, submit for App Review,
+and choose automatic publication after approval. Do not ask the user to write notes or
+click Submit for Review when suitable API access is configured. Default an unspecified
+version bump to the next patch version of each platform independently, after checking
+Apple's versions and build numbers. Preserve existing store descriptions, screenshots,
+privacy information and review contact details unless the release requires changes.
+Answer new required compliance questions from verified app facts; ask only when a required
+answer cannot be established. Legal agreements and account ownership remain human tasks.
+
+Draft notes from the platform's unshipped changelog entries and the actual changes. Complete
+all authorized steps and report Apple's exact state. Uploaded/VALID is not submitted;
+submitted is not approved or released. Resume a partially completed release before creating
+another version or uploading another build. Read the saved receipt and Apple state first.
+
+For the preferred single-command local Terminal handoff, see
+[release automation](workflows/release-automation.md). Keep signing secrets on the Mac;
+local API credentials alone do not give an agent sandbox access to Apple's native services.
+Reuse verified PR native evidence when only version/build numbers change.
+
 ## One-time local configuration
 
-Export `ASC_KEY_PATH` (absolute path to the existing .p8 outside the repository),
-`ASC_KEY_ID`, and `ASC_ISSUER_ID` for a team key. Individual keys omit issuer ID.
+For automatic access across local Conductor workspaces, create
+`~/.appstoreconnect/snapwell.json` on your Mac (outside every repository):
+
+```json
+{
+  "key_path": "/absolute/path/to/AuthKey_YOUR_KEY_ID.p8",
+  "key_id": "YOUR_KEY_ID",
+  "issuer_id": "YOUR_ISSUER_ID"
+}
+```
+
+Use the existing private key; the configuration contains only identifiers and its path.
+For an individual key, omit `issuer_id`. Keep the directory private (`chmod 700
+~/.appstoreconnect`) and the JSON and `.p8` files readable only by your macOS user
+(`chmod 600` on each file). Never copy these files into workspaces or cloud environments.
+The helper loads this file directly, so new workspaces need no shell exports, copied
+`.env`, browser login or remembered chat context. Other processes running as your macOS
+user can also read these files; filesystem permissions do not isolate one agent from another.
+
+Alternatively, export `ASC_KEY_PATH` (absolute path to the existing .p8 outside the repository),
+`ASC_KEY_ID`, and `ASC_ISSUER_ID` for a team key. Environment values override local fields;
+setting both key path and key ID bypasses the local configuration entirely, so an individual
+environment key does not inherit a team issuer. An empty `ASC_ISSUER_ID` clears a local issuer.
 `ASC_APP_ID` defaults to Snapwell's `6762541353`; the helper verifies the bundle ID.
 Never commit keys or tokens. The key must permit version metadata and App Review submissions.
 Xcode must have the signing certificates/profiles needed to archive both apps.
 
-Run `./dev.sh doctor --platform macos --apple` to verify read-only API access.
+Use the narrowest Apple permissions suitable for releases. Team keys apply to all apps;
+an individual key inherits its user's app access, so an App Manager user limited to Snapwell
+can provide narrower app access. The local configuration makes commands available; it is
+not standing authorization to publish. Live publication still requires a user release request.
+
+Run `./dev.sh doctor --platform macos --apple` to verify read-only API access. A successful
+read does **not** prove permission to change metadata or submit a review. Apple requires
+Account Holder, Admin or App Manager for submission. A 403 for version creation/submission
+requires a suitable replacement key; team-key roles cannot be edited after creation.
 
 ## Prepare, draft, validate, publish
 
@@ -27,14 +78,33 @@ Run `./dev.sh doctor --platform macos --apple` to verify read-only API access.
    use `--locale` for another existing English localization.
 4. Review and commit the prepared release. `./dev.sh release publish --platform macos --version 1.0.8 --dry-run`
    reads Apple state and prints the exact notes, version, build and publication policy.
-5. Invoke the same publish command without `--dry-run` when releasing. It runs the full
-   platform test suite, archives and verifies metadata, uploads, waits for processing,
+5. Invoke the same publish command without `--dry-run` when releasing. It reuses verified PR validation for unchanged native inputs (including version-only bumps),
+   otherwise runs the required platform suite, then archives and verifies metadata, uploads, waits for processing,
    updates What's New, attaches the exact build, and **submits for App Review** with
    **automatic publication after approval**. This is the live release action.
-6. Commit the updated submission record. `./dev.sh release status --platform macos --version 1.0.8`
+6. The command independently verifies the exact remote build, notes, review and publication policy, backs up private evidence, and cleans temporary exports. Commit the updated submission record. `./dev.sh release status --platform macos --version 1.0.8`
    reads Apple's status and marks the release as distributed only after Apple confirms it.
 
-`release status --dry-run` is read-only, including local files. Publishing requires a
+If upload succeeded and only processing/notes/review remain, use
+`./dev.sh release submit --platform macos --version 1.0.8` (and independently for iOS).
+This path never runs native tests, archives or uploads. It requires the original successful
+upload receipt, unchanged native source/build inputs, identical notes, and the exact Apple
+build with a matching marketing version. Tooling/docs or another release record may advance
+without discarding the original uploaded source commit. It saves submission checkpoints and
+recovers a confirmed remote submission after interruption. Do not use it to bypass failed
+validation or fabricate an upload receipt.
+
+The API helper compiles once per command with a separate build timeout, then executes the
+prebuilt binary for Apple requests. Swift compilation cannot consume the request timeout.
+
+Use `./dev.sh release verify --platform macos --version 1.0.8` to repeat the independent
+read-back without resubmission. Use `release cleanup` with the same platform/version to
+verify, back up, and remove known temporary exports; add `--dry-run` to preview cleanup.
+Archives, symbols, logs and receipts are retained. Private evidence is automatically backed
+up outside the repository and restored in new workspaces; see
+[public repository hygiene](workflows/public-repository.md) for permissions and scope.
+
+`release status --dry-run` does not change release records or restore/back up evidence. Publishing requires a
 clean prepared revision and validated notes. Artifacts and resumable receipts live under
 `.context/releases/`. A processing timeout is resumable; failed builds and API errors are
 reported as failures. If an upload is interrupted before success can be recorded, the

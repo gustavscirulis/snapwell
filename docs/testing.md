@@ -4,7 +4,7 @@
 
 - `./dev.sh doctor` checks local tools and simulator availability; `--platform macos` skips simulator checks.
 - `./dev.sh test --platform changed --suite all` runs affected native suites and tooling checks.
-- `./dev.sh test --platform all --suite all` runs both platforms before a coordinated release.
+- `./dev.sh test --platform all --suite all` validates both platforms when their native inputs need testing. Version-only releases reuse verified PR results.
 - `./dev.sh test --platform macos --suite logic --only SnapwellTests/SyncWatcherIntegrationTests` narrows investigation.
 - `./dev.sh test --platform ios --suite ui` runs native interaction checks.
 - `./dev.sh test --suite tools` runs the Python orchestration and Swift release-client tests.
@@ -23,7 +23,8 @@ same commands; no Claude-only hook masks exit status.
 Pre-commit runs the headless tooling and core suites, using `--reuse-passing --staged`.
 Hosted native and UI tests run at the PR gate, rather than again on every commit. A full
 validation run also records reusable headless results, so committing the tested files does
-not rerun those checks. Native results still need to pass before opening the PR.
+not rerun those checks. Native results still need to pass before opening the PR. Successful native runs also verify
+actual xcresult counts and save private input-bound evidence for release reuse.
 
 Headless results include content fingerprints of their source, test, fixture, configuration
 and runner inputs plus the Swift/Python toolchain and host OS version. Documentation-only
@@ -34,7 +35,9 @@ run; editing them during validation invalidates the result. Staged checks reject
 unstaged or untracked inputs so tests cannot accidentally validate different code from the
 commit. Stage those inputs or stash them before committing. All test commands reuse verified
 headless results by default; `--fresh` forces them to run again. `--reuse-passing` remains
-supported for existing hooks and scripts. These options never skip selected native tests.
+supported for existing hooks and scripts. These options never skip native tests explicitly selected by `dev.sh test`. Release commands
+reuse verified PR evidence for unchanged native inputs; version/build number changes alone
+do not invalidate it. See [release automation](workflows/release-automation.md#validation-reuse).
 When handing a blocked native run to a normal Terminal, use the same full command: already
 passing headless checks are reused automatically. Do not separately rerun core after logic/all
 already passed it. Reuse passing native evidence at the PR gate when the app, native tests,
@@ -67,7 +70,8 @@ tests against normal Debug builds or physical devices with production data. Real
 and provider checks are a separate, explicit verification step.
 
 The iOS runner creates one dedicated simulator per worktree, keeping normal simulator app
-state separate. Native runs share a machine-wide lock to avoid competing for desktop UI.
+state separate, and waits for its boot services before XCTest installs or launches the app.
+Native runs share a machine-wide lock to avoid competing for desktop UI.
 `--simulator <UDID>` selects an explicitly chosen device instead. The runner does not reset
 or delete unrelated simulators or kill the normal Snapwell app.
 
@@ -157,3 +161,20 @@ A `com.apple.testmanagerd.control` sandbox error requires running the same comma
 an environment with native test-service access, such as a normal local Terminal session.
 Automation builds omit the app icon because Icon Studio export can require unavailable
 Xcode services; release icon/signing checks still occur during the real archive.
+
+## Public CI and privacy
+
+The Quality workflow runs privacy checks on every PR and main push. Native selection
+compares app/test/configuration fingerprints with the event's base revision, so version/build-only
+changes reuse the tested base without rerunning native suites. Runner/tooling changes still
+exercise both native platforms. Its ephemeral macOS
+job uses the same affected-platform Automation command, without Apple accounts, real
+provider credentials or signing secrets. The native exporter reads xcresult bundles and
+requires positive native test counts, zero failures and zero skips. Failed CI runs print only allowlisted suite states for diagnosis. Only an allowlisted
+source/suite/count summary from a fully passing run is retained for 14 days; raw logs and result bundles are not
+published. A workflow definition is not passing evidence: inspect the actual run before
+reusing it at the PR gate. See [public repository hygiene](workflows/public-repository.md).
+
+Manual workflow runs use the separate `native-diagnostic` check name, even when selecting
+all tests. They cannot replace the PR/main `native-validation` merge check. Partial test
+selections never produce complete-suite release evidence.
