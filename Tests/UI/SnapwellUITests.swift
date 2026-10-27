@@ -119,8 +119,10 @@ final class SnapwellUITests: XCTestCase {
         revealMacMetadata(expectedTitle: "Orange inspiration")
 
         // Browse in either direction: fixture ordering is not part of this test.
+        // The title changes after the navigation animation, so an immediate read
+        // can still return Orange and send a second key during the transition.
         app.typeKey(.rightArrow, modifierFlags: [])
-        if (app.staticTexts["detail-metadata-title"].value as? String)?.hasPrefix("Orange inspiration") == true {
+        if !waitForMacMetadataTitle("Blue architecture", timeout: 2) {
             app.typeKey(.leftArrow, modifierFlags: [])
         }
         revealMacMetadata(expectedTitle: "Blue architecture")
@@ -155,17 +157,27 @@ final class SnapwellUITests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [prematureReveal], timeout: 1), .completed)
     }
 
-    private func revealMacMetadata(expectedTitle: String) {
+    private func waitForMacMetadataTitle(_ expectedTitle: String, timeout: TimeInterval) -> Bool {
+        let title = app.staticTexts["detail-metadata-title"]
+        let matching = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            title.exists && (title.value as? String)?.hasPrefix(expectedTitle) == true
+        }, object: nil)
+        return XCTWaiter.wait(for: [matching], timeout: timeout) == .completed
+    }
+
+    private func revealMacMetadata(expectedTitle: String, file: StaticString = #filePath, line: UInt = #line) {
         let scroll = app.scrollViews["detail-scroll"]
-        XCTAssertTrue(scroll.waitForExistence(timeout: 10))
+        XCTAssertTrue(scroll.waitForExistence(timeout: 10), file: file, line: line)
+        XCTAssertTrue(waitForMacMetadataTitle(expectedTitle, timeout: 10),
+                      "Destination metadata must mount before scrolling", file: file, line: line)
         scroll.scroll(byDeltaX: 0, deltaY: -650)
         let title = app.staticTexts["detail-metadata-title"]
         let visible = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
             title.exists && title.isHittable && (title.value as? String)?.hasPrefix(expectedTitle) == true
         }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [visible], timeout: 10), .completed)
-        XCTAssertTrue(app.buttons["Pattern: Fixture"].isHittable)
-        XCTAssertEqual(scroll.value as? String, "Metadata revealed")
+        XCTAssertEqual(XCTWaiter.wait(for: [visible], timeout: 10), .completed, file: file, line: line)
+        XCTAssertTrue(app.buttons["Pattern: Fixture"].isHittable, file: file, line: line)
+        XCTAssertEqual(scroll.value as? String, "Metadata revealed", file: file, line: line)
     }
 
     private func attachMacWindow(_ name: String) {
