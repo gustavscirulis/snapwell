@@ -125,6 +125,8 @@ final class SnapwellUITests: XCTestCase {
         if !waitForMacMetadataTitle("Blue architecture", timeout: 2) {
             app.typeKey(.leftArrow, modifierFlags: [])
         }
+        XCTAssertTrue(waitForMacMetadataTitle("Blue architecture", timeout: 10),
+                      "Destination metadata must mount before scrolling")
         revealMacMetadata(expectedTitle: "Blue architecture")
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value CONTAINS %@", "Dimensions")).firstMatch.isHittable)
         attachMacWindow("Metadata after browsing")
@@ -168,8 +170,6 @@ final class SnapwellUITests: XCTestCase {
     private func revealMacMetadata(expectedTitle: String, file: StaticString = #filePath, line: UInt = #line) {
         let scroll = app.scrollViews["detail-scroll"]
         XCTAssertTrue(scroll.waitForExistence(timeout: 10), file: file, line: line)
-        XCTAssertTrue(waitForMacMetadataTitle(expectedTitle, timeout: 10),
-                      "Destination metadata must mount before scrolling", file: file, line: line)
         scroll.scroll(byDeltaX: 0, deltaY: -650)
         let title = app.staticTexts["detail-metadata-title"]
         let visible = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
