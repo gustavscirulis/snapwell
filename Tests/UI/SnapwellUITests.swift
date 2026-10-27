@@ -274,8 +274,14 @@ final class SnapwellUITests: XCTestCase {
         clickVisibleMenuItem("Automation space")
         app.typeKey("3", modifierFlags: .command)
         #else
+        // The All tab's grid can exist before its transition accepts gestures.
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true"), object: thumbnail)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 10), .completed)
         thumbnail.press(forDuration: 1)
-        let update = app.buttons["Update Spaces"]
+        // Find the submenu by its accessible label without assuming a button type.
+        let update = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == %@ OR label == %@", "Update Spaces", "Update Spaces"))
+            .firstMatch
         XCTAssertTrue(update.waitForExistence(timeout: 10))
         update.tap()
         let space = app.buttons["Automation space"]
