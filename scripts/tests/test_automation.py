@@ -111,9 +111,13 @@ class AutomationTests(unittest.TestCase):
         args = argparse.Namespace(platform='macos', suite='ui', only=None, staged=False, dry_run=False, simulator=None)
         with tempfile.TemporaryDirectory(dir=automation.CONTEXT) as directory:
             with patch.object(automation, 'CONTEXT', Path(directory)), patch.object(automation, 'run'), \
+                 patch.object(automation, 'native_lock', return_value=contextlib.nullcontext()), \
+                 patch.object(automation.native_validation, 'fingerprint', return_value='a' * 64), \
+                 patch.object(automation.native_validation, 'pending') as pending, \
                  patch.object(automation, 'logged', return_value={'name': 'macos', 'status': 'failed'}):
                 with self.assertRaises(RuntimeError):
                     automation.test(args)
+                pending.assert_called_once_with(automation.ROOT, 'macos', 'a' * 64)
 
 
 class AppleHelperTests(unittest.TestCase):
