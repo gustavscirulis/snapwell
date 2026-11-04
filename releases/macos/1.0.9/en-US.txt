@@ -1,0 +1,2 @@
+• Choose 2–8 columns for your media grid with a slider in Settings.
+• Your grid adapts to the window size while keeping your preferred layout.

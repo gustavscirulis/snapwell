@@ -1,0 +1,13 @@
+{
+  "build": 16,
+  "changes": [
+    {
+      "id": "grid-columns",
+      "text": "Adjust media-grid columns with a native slider in Settings: 1\u20134 on iPhone, 1\u20138 on iPad and 2\u20138 on Mac. Layouts adapt to available space."
+    }
+  ],
+  "locale": "en-US",
+  "platform": "macos",
+  "status": "prepared",
+  "version": "1.0.9"
+}
