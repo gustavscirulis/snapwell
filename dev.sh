@@ -2,6 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/scripts/release_permissions.sh"
 
 BOLD='\033[1m'
 DIM='\033[2m'
@@ -276,14 +277,6 @@ release_fail() {
     exit 1
 }
 
-run_release_command() {
-    if command -v xcbeautify &>/dev/null; then
-        "$@" 2>&1 | xcbeautify --quiet
-    else
-        "$@"
-    fi
-}
-
 release_preflight() {
     local needs_xcodegen="${1:-false}"
 
@@ -386,6 +379,7 @@ publish_ios() {
         || release_fail "Archived iOS version does not match the confirmed version"
     [[ "$extension_version" == "$archived_version" && "$extension_build" == "$archived_build" ]] \
         || release_fail "The iOS app and share extension versions do not match"
+    prepare_release_bundle "$archive_path/Products/Applications/Snapwell.app"
     codesign --verify --deep --strict "$archive_path/Products/Applications/Snapwell.app"
     codesign --verify --strict "$archive_path/Products/Applications/Snapwell.app/PlugIns/ShareExtension.appex"
     printf "${GREEN}✓ Verified iOS %s (build %s)${RESET}\n" "$archived_version" "$archived_build"
@@ -452,6 +446,7 @@ publish_mac() {
     archived_build=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app_info")
     [[ "$archived_version" == "$version" && "$archived_build" == "$build" ]] \
         || release_fail "Archived Mac version does not match the confirmed version"
+    prepare_release_bundle "$archive_path/Products/Applications/Snapwell.app"
     codesign --verify --deep --strict "$archive_path/Products/Applications/Snapwell.app"
     lipo "$archive_path/Products/Applications/Snapwell.app/Contents/MacOS/Snapwell" -verify_arch arm64
     lipo "$archive_path/Products/Applications/Snapwell.app/Contents/MacOS/Snapwell" -verify_arch x86_64

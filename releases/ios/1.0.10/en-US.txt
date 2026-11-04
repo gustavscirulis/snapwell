@@ -1,0 +1,2 @@
+• Choose your media-grid layout in Settings: 1–4 columns on iPhone or 1–8 on iPad.
+• Your grid adapts to the available screen space while keeping your preferred layout.

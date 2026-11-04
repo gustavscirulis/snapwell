@@ -76,6 +76,11 @@ runner is not configured or required for the local handoff.
 
 ## Archives, interruptions and cleanup
 
+Archive/export commands use a scoped `022` file mask so signatures and installer payloads
+are readable after installation. Cached app bundles also have read/traversal permissions
+normalized before signature verification. Private archive containers, receipts, credentials
+and logs retain their restrictive permissions; only the distributable app is normalized.
+
 New archives use unique attempt directories under
 `.context/releases/<platform>/<version>/archives/`. Another release or retry must not delete
 an earlier archive. Both app/extension versions and signatures are checked; Mac archives
