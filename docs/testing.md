@@ -69,8 +69,11 @@ Hosted unit tests also launch through this isolated configuration. Do not execut
 tests against normal Debug builds or physical devices with production data. Real cloud
 and provider checks are a separate, explicit verification step.
 
-The iOS runner creates one dedicated simulator per worktree, keeping normal simulator app
-state separate, and waits for its boot services before XCTest installs or launches the app.
+The iOS runner creates one dedicated iPhone 17 Pro simulator per worktree using the newest
+available runtime with that model, keeping normal simulator app state separate. It waits
+for boot services before XCTest installs or launches the app. The model is fixed so adding
+a different iPhone model cannot silently change the release test device. An existing
+worktree simulator of another model is retained and replaced as the default, without deleting it.
 Native runs share a machine-wide lock to avoid competing for desktop UI.
 `--simulator <UDID>` selects an explicitly chosen device instead. The runner does not reset
 or delete unrelated simulators or kill the normal Snapwell app.

@@ -66,17 +66,19 @@ def affected_platforms(files):
 
 def simulator():
     devices = json.loads(run(['xcrun', 'simctl', 'list', 'devices', 'available', '-j'], capture=True))['devices']
+    device_type = 'com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro'
     record = CONTEXT / 'testing/simulator.json'
     if record.exists():
         identifier = json.loads(record.read_text())['id']
-        if any(d['udid'] == identifier for group in devices.values() for d in group):
+        if any(d['udid'] == identifier and d.get('deviceTypeIdentifier') == device_type
+               for group in devices.values() for d in group):
             return identifier
     candidates = [(runtime, device) for runtime, group in devices.items() if '.iOS-' in runtime
-                  for device in group if 'iPhone' in device['name'] and device.get('isAvailable')]
+                  for device in group if device.get('deviceTypeIdentifier') == device_type
+                  and device.get('isAvailable')]
     if not candidates:
-        raise RuntimeError('No available iPhone simulator runtime. Open Xcode Settings → Components and install an iOS runtime.')
+        raise RuntimeError('No available iPhone 17 Pro simulator. Add one in Xcode Devices and Simulators, or select a dedicated device with --simulator <UDID>.')
     runtime, template = sorted(candidates, key=lambda pair: tuple(map(int, re.findall(r'\d+', pair[0]))))[-1]
-    device_type = template.get('deviceTypeIdentifier', 'com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro')
     name = 'Snapwell-' + hashlib.sha256(str(ROOT).encode()).hexdigest()[:8]
     identifier = run(['xcrun', 'simctl', 'create', name, device_type, runtime], capture=True).strip()
     write_json(record, {'id': identifier, 'name': name})

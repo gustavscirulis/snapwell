@@ -17,6 +17,43 @@ spec.loader.exec_module(automation)
 
 
 class AutomationTests(unittest.TestCase):
+    def test_default_simulator_keeps_a_fixed_model_when_new_models_are_added(self):
+        with tempfile.TemporaryDirectory() as directory:
+            context = Path(directory)
+            record = context / 'testing/simulator.json'
+            record.parent.mkdir()
+            record.write_text(json.dumps({'id': 'old-worktree-device'}))
+            devices = {'devices': {
+                'com.apple.CoreSimulator.SimRuntime.iOS-26-2': [
+                    {'udid': 'template', 'name': 'iPhone 17 Pro', 'isAvailable': True,
+                     'deviceTypeIdentifier': 'com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro'}],
+                'com.apple.CoreSimulator.SimRuntime.iOS-27-1': [
+                    {'udid': 'old-worktree-device', 'name': 'Snapwell-old', 'isAvailable': True,
+                     'deviceTypeIdentifier': 'com.apple.CoreSimulator.SimDeviceType.iPhone-Duo'}]}}
+            with patch.object(automation, 'CONTEXT', context), \
+                 patch.object(automation, 'run', side_effect=[json.dumps(devices), 'new-worktree-device\n']) as command:
+                self.assertEqual(automation.simulator(), 'new-worktree-device')
+            create = command.call_args_list[1].args[0]
+            self.assertEqual(create[:3], ['xcrun', 'simctl', 'create'])
+            self.assertEqual(create[-2:], ['com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro',
+                                          'com.apple.CoreSimulator.SimRuntime.iOS-26-2'])
+            self.assertEqual(json.loads(record.read_text())['id'], 'new-worktree-device')
+            self.assertEqual(command.call_count, 2, 'Old devices must not be deleted or reset')
+
+    def test_default_simulator_reuses_its_dedicated_matching_device(self):
+        with tempfile.TemporaryDirectory() as directory:
+            context = Path(directory)
+            record = context / 'testing/simulator.json'
+            record.parent.mkdir()
+            record.write_text(json.dumps({'id': 'existing-worktree-device'}))
+            devices = {'devices': {'com.apple.CoreSimulator.SimRuntime.iOS-26-2': [
+                {'udid': 'existing-worktree-device', 'isAvailable': True,
+                 'deviceTypeIdentifier': 'com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro'}]}}
+            with patch.object(automation, 'CONTEXT', context), \
+                 patch.object(automation, 'run', return_value=json.dumps(devices)) as command:
+                self.assertEqual(automation.simulator(), 'existing-worktree-device')
+            command.assert_called_once()
+
     def test_shared_changes_select_both_platforms(self):
         self.assertEqual(automation.affected_platforms(['Shared/Sync/ICloudFile.swift']), ['ios', 'macos'])
         self.assertEqual(automation.affected_platforms(['ios/Snapwell/App.swift']), ['ios'])
