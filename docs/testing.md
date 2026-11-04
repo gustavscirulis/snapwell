@@ -21,7 +21,7 @@ existing custom hooksPath is preserved with integration instructions. Both agent
 same commands; no Claude-only hook masks exit status.
 
 Pre-commit runs the headless tooling and core suites, using `--reuse-passing --staged`.
-Hosted native and UI tests run at the PR gate, rather than again on every commit. A full
+Native and UI tests run locally before opening a PR, rather than again on every commit. A full
 validation run also records reusable headless results, so committing the tested files does
 not rerun those checks. Native results still need to pass before opening the PR. Successful native runs also verify
 actual xcresult counts and save private input-bound evidence for release reuse.
@@ -165,19 +165,18 @@ an environment with native test-service access, such as a normal local Terminal 
 Automation builds omit the app icon because Icon Studio export can require unavailable
 Xcode services; release icon/signing checks still occur during the real archive.
 
-## Public CI and privacy
+## Local validation and privacy
 
-The Quality workflow runs privacy checks on every PR and main push. Native selection
-compares app/test/configuration fingerprints with the event's base revision, so version/build-only
-changes reuse the tested base without rerunning native suites. Runner/tooling changes still
-exercise both native platforms. Its ephemeral macOS
-job uses the same affected-platform Automation command, without Apple accounts, real
-provider credentials or signing secrets. The native exporter reads xcresult bundles and
-requires positive native test counts, zero failures and zero skips. Failed CI runs print only allowlisted suite states for diagnosis. Only an allowlisted
-source/suite/count summary from a fully passing run is retained for 14 days; raw logs and result bundles are not
-published. A workflow definition is not passing evidence: inspect the actual run before
-reusing it at the PR gate. See [public repository hygiene](workflows/public-repository.md).
+All testing and privacy checks run locally. There are no GitHub Actions validation workflows
+or artifact uploads. Pre-commit runs the headless tooling/core checks and scans the staged
+snapshot; pre-push scans outgoing history. See
+[public repository hygiene](workflows/public-repository.md).
 
-Manual workflow runs use the separate `native-diagnostic` check name, even when selecting
-all tests. They cannot replace the PR/main `native-validation` merge check. Partial test
-selections never produce complete-suite release evidence.
+Before opening a native PR, run `./dev.sh test --platform changed --suite all` locally and
+inspect the results as described above. This full native/UI gate is separate from the
+headless pre-commit checks. Native runs save verified evidence for unchanged inputs;
+release commands reuse it or run the required local suites when it is missing. Partial
+test selections never produce complete-suite release evidence.
+
+Importing evidence from a historical successful Quality run remains optional while its
+artifact is retained; see [release automation](workflows/release-automation.md#validation-reuse).

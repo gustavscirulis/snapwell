@@ -8,7 +8,7 @@ The Mac app is the reference implementation; both apps share media and JSON side
 - [Architecture and platform conventions](docs/architecture.md): storage, iCloud, state ownership, project generation and native interaction patterns.
 - [Testing](docs/testing.md): validation commands, automation builds, fixtures and evidence.
 - [Releases](docs/releases.md): changelog, build numbers, notes, upload and App Review. A request to release delegates notes, submission and automatic publication after approval; follow the release runbook without asking the user to repeat these steps.
-- [Public repository hygiene](docs/workflows/public-repository.md): privacy hooks, commit identity, CI artifacts, durable release evidence and safe cleanup.
+- [Public repository hygiene](docs/workflows/public-repository.md): privacy hooks, commit identity, private validation artifacts, durable release evidence and safe cleanup.
 - [Agent workflow](docs/workflows/agent-loop.md): task handoffs and focused reviews.
 - [Change history](CHANGELOG.md): user-visible changes waiting to ship.
 
@@ -30,6 +30,7 @@ same task when its behavior changes. User instructions always take precedence.
 
 ## Completion
 
+Testing and privacy checks run locally; there are no GitHub validation workflows.
 Run `./dev.sh test --platform changed --suite all` before handing off native work.
 Headless checks reuse passing results for unchanged inputs by default; use `--fresh` only
 when a fresh rerun is needed. The core suite is included in logic/all, even when native
