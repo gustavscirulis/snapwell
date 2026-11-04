@@ -19,7 +19,7 @@ rewrite shared main history as a side effect of a release. Existing author email
 remove them or harmless IDE preferences. Actual leaked credentials or sensitive content
 require a separate, coordinated remediation that also considers cached copies.
 
-## Enforced local and CI checks
+## Enforced local checks
 
 `bash scripts/setup.sh` installs the tracked hook directory unless a custom hooksPath
 already exists. Integrate both hooks if preserving a custom setup:
@@ -30,13 +30,12 @@ already exists. Integrate both hooks if preserving a custom setup:
 - Pre-push scans every outgoing commit, including a secret added and removed in separate
   commits. The hook receives the destination remote and excludes only refs already known
   on that remote when pushing a new branch. It checks commit messages without treating existing author emails as leaked credentials.
-- The Quality workflow checks the public snapshot/history without Apple or signing secrets.
-  A separate ephemeral Mac job runs the affected isolated native and headless suites.
-  Required checks must pass before the PR is approved/merged; a skipped or unavailable
-  native service is not a pass. Branch-protection settings must enforce the checks remotely;
-  adding workflow YAML does not configure repository protection rules.
-  Manual runs report `native-diagnostic`, so a targeted success cannot satisfy the required
-  `native-validation` PR/main check.
+
+All testing and privacy checks run locally; there are no GitHub validation workflows.
+Run `./dev.sh test --platform changed --suite all` before opening a native PR, following
+the verification gate in `CLAUDE.md`. A skipped or unavailable native service is not a pass.
+GitHub review requirements and CODEOWNERS still apply; local test results are not a
+GitHub status check.
 
 Run `python3 scripts/check_public_content.py --all` before preparing a public diff and
 `--history origin/main..HEAD` before publishing a branch. Diagnostics identify rules and
@@ -45,16 +44,17 @@ private artifact paths, not every possible form of PII or encoded secret. Review
 PR body, commit identities and artifact contents as well. Never bypass a failed privacy
 check or put real credentials in a test to prove the scanner works.
 
-## CI logs and artifacts
+## Validation logs and artifacts
 
-The Quality workflow uses read-only repository permissions, does not persist checkout
-credentials, and references actions by immutable commit IDs. It uses `pull_request`, not a
-privileged workflow that executes PR code with signing secrets. Raw logs/xcresults remain
-on the disposable runner. The only uploaded artifact is an allowlisted JSON summary:
-source commit, suite pass states and native test counts. The exporter validates actual
-xcresult bundles and requires positive counts with no failures or skips. It omits paths,
-hostnames, device IDs, failure text and arbitrary Apple responses. Artifacts expire after
-14 days. Public runner logs still need care: never add an environment dump or echo secrets.
+Local logs, screenshots and xcresult bundles stay under `.context/`; GitHub does not run
+validation or upload new artifacts. Verified native evidence is saved privately outside
+the repository for release reuse. Do not publish raw artifacts in commits or PRs.
+
+The historical CI evidence exporter/importer remains available for old successful Quality
+runs while their artifacts are retained. Those allowlisted summaries contain only the
+source commit, suite pass states, native fingerprints and test counts; raw logs and result
+bundles were not uploaded. Historical artifacts expire after 14 days. See
+[release automation](release-automation.md#validation-reuse) for optional import.
 
 Keep future release-signing jobs separate, trusted-main/manual-dispatch only, with a
 short-lived keychain, explicit credentials, cleanup on every exit, and no raw artifacts.
