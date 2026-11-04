@@ -237,7 +237,7 @@ final class SnapwellUITests: XCTestCase {
         createAutomationSpace()
     }
 
-    func testVisualGridColumnsApplyAcrossLibrarySearchAndSpaces() {
+    private func configureFourColumnGrid() -> CGFloat {
         launch("grid")
         waitForCount(18)
         openGridSettings()
@@ -260,7 +260,11 @@ final class SnapwellUITests: XCTestCase {
         let narrow = (wide - spacing) / 2
         waitForMediaWidth(approximately: narrow)
         captureGridScreenshot("Four-column library")
+        return narrow
+    }
 
+    func testGridColumnsApplyToLibraryAndSearch() {
+        let narrow = configureFourColumnGrid()
         #if os(macOS)
         app.typeKey("f", modifierFlags: .command)
         let search = app.searchFields.firstMatch
@@ -272,10 +276,12 @@ final class SnapwellUITests: XCTestCase {
         search.tap()
         search.typeText("image")
         waitForMediaWidth(approximately: narrow)
+        captureGridScreenshot("Four-column search")
+    }
 
+    func testGridColumnsApplyToSpaces() {
+        let narrow = configureFourColumnGrid()
         #if os(macOS)
-        search.typeKey("a", modifierFlags: .command)
-        search.typeKey(XCUIKeyboardKey.delete, modifierFlags: [])
         app.typeKey("2", modifierFlags: .command)
         #else
         selectTab("Spaces")
@@ -400,7 +406,10 @@ final class SnapwellUITests: XCTestCase {
     private func assertGridColumnsSelected(_ count: Int) {
         let slider = app.sliders["grid-columns-slider"]
         let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            slider.value as? String == (count == 1 ? "1 column" : "\(count) columns")
+            // NSSlider exposes its numeric AX value; iOS exposes the spoken description.
+            if let value = slider.value as? NSNumber { return value.doubleValue == Double(count) }
+            guard let value = slider.value as? String else { return false }
+            return Double(value) == Double(count) || value == (count == 1 ? "1 column" : "\(count) columns")
         }, object: nil)
         XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 10), .completed)
     }
