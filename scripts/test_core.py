@@ -25,12 +25,14 @@ SOURCES = [
     'Shared/AutomationFixtures.swift',
     'Shared/AnalysisRecovery.swift',
     'Shared/ShareStagingStore.swift',
+    'Shared/GridColumnPreferences.swift',
 ]
 TESTS = [
     'macos/SnapwellTests/Helpers/TestTags.swift',
     'Tests/Compatibility/CloudProviderHTTPTests.swift',
     'Tests/Compatibility/PersistenceIntegrationTests.swift',
     'Tests/Compatibility/ShareStagingTests.swift',
+    'Tests/Compatibility/GridColumnPreferencesTests.swift',
     'ios/SnapwellTests/ShareHandoffIntegrationTests.swift',
     'ios/SnapwellTests/LocalMigrationIntegrationTests.swift',
 ]

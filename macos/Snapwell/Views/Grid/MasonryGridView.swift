@@ -21,7 +21,7 @@ final class ItemFrameStore {
 
 struct MasonryGridView: View {
     let items: [MediaItem]
-    let thumbnailSize: ThumbnailSize
+    let preferredColumnCount: Int
     let spaces: [Space]
     let activeSpaceId: String?
     let onSelect: (String, CGRect, NSImage?) -> Void
@@ -64,7 +64,10 @@ struct MasonryGridView: View {
             let spacing: CGFloat = 16  // masonry-grid.css:10,16 — 16px column/row gaps
             let horizontalPadding: CGFloat = 24
             let availableWidth = geometry.size.width - horizontalPadding * 2
-            let columnCount = thumbnailSize.columns(forWidth: geometry.size.width)
+            let columnCount = GridColumnPreferences.effectiveColumns(
+                preferred: preferredColumnCount, availableWidth: availableWidth,
+                minimumItemWidth: 120, spacing: spacing
+            )
             let columnWidth = max(1, (availableWidth - spacing * CGFloat(columnCount - 1)) / CGFloat(columnCount))
             let columns = MasonryLayout.distribute(
                 items,

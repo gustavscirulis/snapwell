@@ -1,4 +1,7 @@
 import XCTest
+#if os(iOS)
+import UIKit
+#endif
 
 @MainActor
 final class SnapwellUITests: XCTestCase {
@@ -232,6 +235,194 @@ final class SnapwellUITests: XCTestCase {
     func testSpaceCanBeCreated() {
         launch("library")
         createAutomationSpace()
+    }
+
+    func testVisualGridColumnsApplyAcrossLibrarySearchAndSpaces() {
+        launch("grid")
+        waitForCount(18)
+        openGridSettings()
+        chooseGridColumns(2)
+        captureGridScreenshot("Grid settings — two columns selected")
+        closeGridSettings()
+        let wide = firstMediaWidth()
+        XCTAssertGreaterThan(wide, 0)
+
+        openGridSettings()
+        chooseGridColumns(4)
+        captureGridScreenshot("Grid settings — four columns selected")
+        closeGridSettings()
+        waitForMediaWidth(lessThan: wide * 0.75)
+        #if os(macOS)
+        let spacing: CGFloat = 16
+        #else
+        let spacing: CGFloat = 8
+        #endif
+        let narrow = (wide - spacing) / 2
+        waitForMediaWidth(approximately: narrow)
+        captureGridScreenshot("Four-column library")
+
+        #if os(macOS)
+        app.typeKey("f", modifierFlags: .command)
+        let search = app.searchFields.firstMatch
+        #else
+        if #available(iOS 26, *) { selectTab("Search") }
+        let search = app.searchFields.firstMatch
+        #endif
+        XCTAssertTrue(search.waitForExistence(timeout: 10))
+        search.tap()
+        search.typeText("image")
+        waitForMediaWidth(approximately: narrow)
+
+        #if os(macOS)
+        search.typeKey("a", modifierFlags: .command)
+        search.typeKey(XCUIKeyboardKey.delete, modifierFlags: [])
+        app.typeKey("2", modifierFlags: .command)
+        #else
+        selectTab("Spaces")
+        app.staticTexts["Inspiration"].tap()
+        #endif
+        waitForMediaWidth(approximately: narrow)
+        captureGridScreenshot("Four-column Space")
+    }
+
+    #if os(iOS)
+    func testOneColumnSettingUsesFullContentWidth() {
+        launch("grid")
+        openGridSettings()
+        chooseGridColumns(2)
+        closeGridSettings()
+        let twoColumnWidth = firstMediaWidth()
+        openGridSettings()
+        chooseGridColumns(1)
+        captureGridScreenshot("Grid settings — one column selected")
+        closeGridSettings()
+        waitForMediaWidth(approximately: twoColumnWidth * 2 + 8)
+        openGridSettings()
+        assertGridColumnsSelected(1)
+        closeGridSettings()
+    }
+
+    func testGridPreferenceSurvivesRotation() {
+        launch("grid")
+        openGridSettings()
+        chooseGridColumns(4)
+        closeGridSettings()
+        let portraitWidth = firstMediaWidth()
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+        waitForMediaWidth(differentFrom: portraitWidth)
+        openGridSettings()
+        assertGridColumnsSelected(4)
+        captureGridScreenshot("Grid settings — landscape")
+        closeGridSettings()
+        XCUIDevice.shared.orientation = .portrait
+        waitForMediaWidth(approximately: portraitWidth)
+    }
+    #endif
+
+    #if os(macOS)
+    func testMacZoomUpdatesTheSettingsSelection() {
+        launch("grid")
+        openGridSettings()
+        chooseGridColumns(4)
+        app.typeKey("+", modifierFlags: .command)
+        assertGridColumnsSelected(3)
+        app.typeKey("-", modifierFlags: .command)
+        assertGridColumnsSelected(4)
+        chooseGridColumns(2)
+        app.typeKey("+", modifierFlags: .command)
+        assertGridColumnsSelected(2)
+        chooseGridColumns(8)
+        app.typeKey("-", modifierFlags: .command)
+        assertGridColumnsSelected(8)
+        closeGridSettings()
+    }
+    #endif
+
+    private func waitForMediaWidth(differentFrom width: CGFloat) {
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate { [self] _, _ in
+            firstGridMedia.exists && firstGridMedia.frame.width > 0 && abs(firstGridMedia.frame.width - width) > 2
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 10), .completed)
+    }
+
+    private var firstGridMedia: XCUIElement {
+        app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH 'media-'")).firstMatch
+    }
+
+    private func firstMediaWidth() -> CGFloat {
+        XCTAssertTrue(firstGridMedia.waitForExistence(timeout: 10))
+        return firstGridMedia.frame.width
+    }
+
+    private func waitForMediaWidth(lessThan width: CGFloat) {
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate { [self] _, _ in
+            firstGridMedia.exists && firstGridMedia.frame.width > 0 && firstGridMedia.frame.width < width
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 10), .completed)
+    }
+
+    private func waitForMediaWidth(approximately width: CGFloat) {
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate { [self] _, _ in
+            firstGridMedia.exists && abs(firstGridMedia.frame.width - width) < 2
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 10), .completed)
+    }
+
+    private func openGridSettings() {
+        #if os(macOS)
+        app.typeKey(",", modifierFlags: .command)
+        let general = app.buttons["General"]
+        if general.waitForExistence(timeout: 3) { general.click() }
+        #else
+        let settings = app.buttons["Settings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 10))
+        settings.tap()
+        #endif
+        XCTAssertTrue(app.sliders["grid-columns-slider"].waitForExistence(timeout: 10))
+    }
+
+    private func chooseGridColumns(_ count: Int) {
+        let slider = app.sliders["grid-columns-slider"]
+        XCTAssertTrue(slider.waitForExistence(timeout: 10))
+        #if os(macOS)
+        let minimum = 2
+        let maximum = 8
+        #else
+        let minimum = 1
+        let maximum = UIDevice.current.userInterfaceIdiom == .pad ? 8 : 4
+        #endif
+        slider.adjust(toNormalizedSliderPosition: CGFloat(count - minimum) / CGFloat(maximum - minimum))
+        assertGridColumnsSelected(count)
+    }
+
+    private func assertGridColumnsSelected(_ count: Int) {
+        let slider = app.sliders["grid-columns-slider"]
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            slider.value as? String == (count == 1 ? "1 column" : "\(count) columns")
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 10), .completed)
+    }
+
+    private func closeGridSettings() {
+        #if os(macOS)
+        app.typeKey("w", modifierFlags: .command)
+        #else
+        app.buttons["Done"].tap()
+        #endif
+    }
+
+    private func captureGridScreenshot(_ title: String) {
+        #if os(macOS)
+        let screenshot = app.windows.firstMatch.screenshot()
+        #else
+        let screenshot = app.screenshot()
+        #endif
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = title
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     private func createAutomationSpace() {

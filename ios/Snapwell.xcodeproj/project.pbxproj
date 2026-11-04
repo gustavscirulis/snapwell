@@ -99,6 +99,9 @@
 		8CC1DA5D2EB161CF45A1E211 /* ShareStagingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EA52B37A49624485F6A2C2F /* ShareStagingTests.swift */; };
 		9D2C4594C2F90E87240AF564 /* ShareHandoffIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5FB92466008EB2B566A499B /* ShareHandoffIntegrationTests.swift */; };
 		A90000000000000000000002 /* LocalMigrationIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A90000000000000000000001 /* LocalMigrationIntegrationTests.swift */; };
+		533B86F8A8B549F88D71480E /* GridColumnPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5875091A20D24EAD9201493B /* GridColumnPreferences.swift */; };
+		10F28BDD50DB4FC8B5375B4F /* GridColumnChooser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B358F3CE981491C9A9E6988 /* GridColumnChooser.swift */; };
+		729EE96DFD6A4FBD88F6A354 /* GridColumnPreferencesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCCE124AE66E44C1A8034405 /* GridColumnPreferencesTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -229,6 +232,9 @@
 		4EA52B37A49624485F6A2C2F /* ShareStagingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Tests/Compatibility/ShareStagingTests.swift"; sourceTree = SOURCE_ROOT; };
 		F5FB92466008EB2B566A499B /* ShareHandoffIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SnapwellTests/ShareHandoffIntegrationTests.swift"; sourceTree = SOURCE_ROOT; };
 		A90000000000000000000001 /* LocalMigrationIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SnapwellTests/LocalMigrationIntegrationTests.swift"; sourceTree = SOURCE_ROOT; };
+		5875091A20D24EAD9201493B /* GridColumnPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Shared/GridColumnPreferences.swift"; sourceTree = SOURCE_ROOT; };
+		3B358F3CE981491C9A9E6988 /* GridColumnChooser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Shared/GridColumnChooser.swift"; sourceTree = SOURCE_ROOT; };
+		CCCE124AE66E44C1A8034405 /* GridColumnPreferencesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Tests/Compatibility/GridColumnPreferencesTests.swift"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -328,6 +334,9 @@
 		E100000001 = {
 			isa = PBXGroup;
 			children = (
+				CCCE124AE66E44C1A8034405 /* GridColumnPreferencesTests.swift */,
+				3B358F3CE981491C9A9E6988 /* GridColumnChooser.swift */,
+				5875091A20D24EAD9201493B /* GridColumnPreferences.swift */,
 				A90000000000000000000001 /* LocalMigrationIntegrationTests.swift */,
 				F5FB92466008EB2B566A499B /* ShareHandoffIntegrationTests.swift */,
 				4EA52B37A49624485F6A2C2F /* ShareStagingTests.swift */,
@@ -676,6 +685,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				729EE96DFD6A4FBD88F6A354 /* GridColumnPreferencesTests.swift in Sources */,
 				A90000000000000000000002 /* LocalMigrationIntegrationTests.swift in Sources */,
 				9D2C4594C2F90E87240AF564 /* ShareHandoffIntegrationTests.swift in Sources */,
 				8CC1DA5D2EB161CF45A1E211 /* ShareStagingTests.swift in Sources */,
@@ -719,6 +729,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				10F28BDD50DB4FC8B5375B4F /* GridColumnChooser.swift in Sources */,
+				533B86F8A8B549F88D71480E /* GridColumnPreferences.swift in Sources */,
 				260DE9E1F4286E54A7A7B113 /* ShareStagingStore.swift in Sources */,
 				4C52566AF14DBA31E43BE0B7 /* AnalysisRecovery.swift in Sources */,
 				8B15D014508B33FAC1833D9D /* AutomationFixtures.swift in Sources */,

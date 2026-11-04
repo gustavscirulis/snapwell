@@ -28,7 +28,8 @@ enum AutomationFixtures {
                 try FileManager.default.copyItem(at: video, to: destination)
             }
         } else { throw CocoaError(.fileNoSuchFile) }
-        guard AutomationEnvironment.argument("--snapwell-fixture") == "library" else { return }
+        let fixture = AutomationEnvironment.argument("--snapwell-fixture")
+        guard fixture == "library" || fixture == "grid" else { return }
         let blue = try imageData(red: 0, green: 122, blue: 255)
         for (id, summary, image) in [("fixture-orange", "Orange inspiration", orange),
                                      ("fixture-blue", "Blue architecture", blue)] {
@@ -42,6 +43,21 @@ enum AutomationFixtures {
             ]
             try JSONSerialization.data(withJSONObject: sidecar, options: [.sortedKeys])
                 .write(to: root.appendingPathComponent("metadata/\(id).json"), options: .atomic)
+        }
+        if fixture == "grid" {
+            for index in 0..<16 {
+                let id = "fixture-grid-\(index)"
+                try orange.png.write(to: root.appendingPathComponent("images/\(id).png"), options: .atomic)
+                try orange.jpeg.write(to: root.appendingPathComponent("thumbnails/\(id).jpg"), options: .atomic)
+                let sidecar: [String: Any] = [
+                    "id": id, "type": "image", "width": 320, "height": 240,
+                    "createdAt": "2026-02-01T12:00:00Z", "analyzedAt": "2026-02-01T12:00:00Z",
+                    "spaceIds": ["fixture-space"], "imageSummary": "Grid inspiration \(index)",
+                    "imageContext": "Grid inspiration", "patterns": [["name": "Fixture", "confidence": 1.0]]
+                ]
+                try JSONSerialization.data(withJSONObject: sidecar, options: [.sortedKeys])
+                    .write(to: root.appendingPathComponent("metadata/\(id).json"), options: .atomic)
+            }
         }
         let spaces: [String: Any] = ["useAllSpaceGuidance": false, "spaces": [[
             "id": "fixture-space", "name": "Inspiration", "order": 0,

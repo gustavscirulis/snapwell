@@ -29,6 +29,7 @@ enum AppearanceMode: String, CaseIterable {
 }
 
 struct GeneralSettingsTab: View {
+    @Environment(GridColumnPreferences.self) private var gridColumns
     @AppStorage("appearanceMode") private var appearanceMode: String = AppearanceMode.dark.rawValue
     @AppStorage("aiProvider") private var selectedProvider: String = AIProvider.openai.rawValue
     @AppStorage("openaiModel") private var openaiModel: String = ModelDiscoveryService.autoModelValue
@@ -70,6 +71,8 @@ struct GeneralSettingsTab: View {
                     }
                 }
                 .pickerStyle(.inline)
+
+                GridColumnChooser(preferences: gridColumns)
             }
 
             Section("AI Analysis") {

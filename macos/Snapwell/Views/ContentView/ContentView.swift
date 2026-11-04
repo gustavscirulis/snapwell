@@ -4,6 +4,7 @@ import AppKit
 import UniformTypeIdentifiers
 
 struct ContentView: View {
+    @Environment(GridColumnPreferences.self) private var gridColumns
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \MediaItem.createdAt, order: .reverse) private var allItems: [MediaItem]
     @Query(sort: \Space.order) private var spaces: [Space]
@@ -387,16 +388,6 @@ struct ContentView: View {
                 appState.clearSelection()
             }
         }
-        .task {
-            for await _ in NotificationCenter.default.notifications(named: .zoomIn) {
-                appState.zoomIn()
-            }
-        }
-        .task {
-            for await _ in NotificationCenter.default.notifications(named: .zoomOut) {
-                appState.zoomOut()
-            }
-        }
         #if SNAPWELL_AUTOMATION
         .safeAreaInset(edge: .bottom) {
             if AutomationEnvironment.argument("--snapwell-fixture") != nil {
@@ -441,7 +432,7 @@ struct ContentView: View {
         } else {
             MasonryGridView(
                 items: items,
-                thumbnailSize: appState.thumbnailSize,
+                preferredColumnCount: gridColumns.preferredColumnCount,
                 spaces: spaces,
                 activeSpaceId: appState.activeSpaceId,
                 onSelect: { id, frame, openingImage in

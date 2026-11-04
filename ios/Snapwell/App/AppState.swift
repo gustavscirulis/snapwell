@@ -31,6 +31,12 @@ struct DetailGridTarget: Equatable {
 @Observable
 @MainActor
 final class AppState {
+    let gridColumns: GridColumnPreferences
+
+    init(gridColumns: GridColumnPreferences? = nil) {
+        self.gridColumns = gridColumns ?? GridColumnPreferences(device: .current)
+    }
+
     var selectedTab: AppTab = .all
     var detailHost: DetailHost?
     var selectedIndex: Int?

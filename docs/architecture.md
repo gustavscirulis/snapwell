@@ -96,3 +96,21 @@ analysis; incremental updates and deletions take precedence over an in-flight em
 
 iOS lazy grid cells request thumbnails as they appear. Content refresh does not prefetch the
 whole library; thumbnail caching, downsampling and the decode concurrency limit remain in place.
+
+## Grid column preferences
+
+Media grids use a device-local preferred maximum column count: 1–4 on iPhone, 1–8 on
+iPad and 2–8 on Mac. Defaults are 2 on iPhone and 4 on iPad/Mac. `GridColumnPreferences` owns
+persistence and width resolution; iOS exposes it through `AppState`, while Mac injects one
+instance into its windows and Settings without sharing window navigation state.
+The native SwiftUI slider in Settings applies immediately to All Media, search, and media
+inside Spaces; the Spaces overview keeps its own layout. The iOS empty-library ghost grid
+follows the preference.
+
+Effective columns account for content width and existing gaps, with minimum card widths of
+80 pt on iPhone and 120 pt on iPad/Mac, and at least one column. Narrowing or rotating never
+changes the saved preference. Mac migrates the legacy thumbnail size once (Small 6, Medium 4,
+Large 3, Extra Large 2); an existing column preference wins. Zoom In/Out adjusts the same
+preference, bounded to 2–8. On Mac, saved one-column preferences are raised to two; automatic width
+reduction can still use one column. Preferences stay in local UserDefaults and do not sync
+with media or AI settings.

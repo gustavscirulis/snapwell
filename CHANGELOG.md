@@ -23,6 +23,8 @@ User-visible changes are recorded as they are implemented. Release manifests und
 
 ### Both
 
+- [grid-columns] Adjust media-grid columns with a native slider in Settings: 1–4 on iPhone, 1–8 on iPad and 2–8 on Mac. Layouts adapt to available space.
+
 ## Releases
 
 See the platform/version manifests under `releases/`. Earlier changes remain in Git

@@ -116,6 +116,9 @@ iOS provider implementation there. Core success does not replace either platform
 
 Coverage includes:
 
+- Device-local grid preferences, Mac thumbnail-size migration, zoom bounds, persistence and
+  width-based column reduction/restoration. Native UI coverage uses the populated grid fixture
+  to adjust the Settings slider and compare media widths in the library, search and Spaces.
 - On-disk SwiftData containers reopened between operations: media, analysis, memberships,
   guidance, durable cascade/nullify deletion, uncommitted edits and interrupted analysis recovery.
 - Authenticated image request bodies and response envelopes for OpenAI, Anthropic, Gemini and

@@ -8,12 +8,15 @@ struct EmptyStateView: View {
         170, 250, 190, 340, 160, 270, 210, 290,
     ]
 
-    private let columns = 2
+    @Environment(AppState.self) private var appState
     private let spacing: CGFloat = 8    // Match MasonryGrid
     private let padding: CGFloat = 12   // Match grid horizontal padding
 
     var body: some View {
         GeometryReader { geometry in
+            let columns = appState.gridColumns.columns(
+                availableWidth: geometry.size.width - padding * 2, spacing: spacing
+            )
             let totalSpacing = spacing * CGFloat(columns - 1) + padding * 2
             let columnWidth = (geometry.size.width - totalSpacing) / CGFloat(columns)
 
