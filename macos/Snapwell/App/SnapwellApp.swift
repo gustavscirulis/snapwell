@@ -4,6 +4,7 @@ import SwiftData
 @main
 struct SnapwellApp: App {
     @AppStorage("appearanceMode") private var appearanceMode: String = AppearanceMode.dark.rawValue
+    @State private var gridColumns: GridColumnPreferences
     let container: ModelContainer
     private static let multiSpaceStoreResetKey = "multiSpaceStoreReset_v1"
 
@@ -46,6 +47,7 @@ struct SnapwellApp: App {
             }
         }
         #endif
+        _gridColumns = State(initialValue: GridColumnPreferences(device: .mac))
     }
 
     private static func deleteStoreFiles(at storeURL: URL) {
@@ -61,6 +63,7 @@ struct SnapwellApp: App {
     var body: some Scene {
         WindowGroup("Snapwell") {
             ContentView()
+                .environment(gridColumns)
                 .preferredColorScheme(appearanceColorScheme)
                 .task {
                     KeySyncService.syncFromiCloud()
@@ -142,14 +145,14 @@ struct SnapwellApp: App {
 
             CommandGroup(replacing: .toolbar) {
                 Button {
-                    NotificationCenter.default.post(name: .zoomIn, object: nil)
+                    gridColumns.zoomIn()
                 } label: {
                     Label("Zoom In", systemImage: "plus.magnifyingglass")
                 }
                 .keyboardShortcut("+")
 
                 Button {
-                    NotificationCenter.default.post(name: .zoomOut, object: nil)
+                    gridColumns.zoomOut()
                 } label: {
                     Label("Zoom Out", systemImage: "minus.magnifyingglass")
                 }
@@ -178,6 +181,7 @@ struct SnapwellApp: App {
 
         Settings {
             SettingsView()
+                .environment(gridColumns)
                 .preferredColorScheme(appearanceColorScheme)
         }
         .modelContainer(container)
@@ -217,8 +221,6 @@ extension Notification.Name {
     static let importFolder = Notification.Name("importFolder")
     static let deleteSelected = Notification.Name("deleteSelected")
     static let analysisCompleted = Notification.Name("analysisCompleted")
-    static let zoomIn = Notification.Name("zoomIn")
-    static let zoomOut = Notification.Name("zoomOut")
     static let closeDetail = Notification.Name("closeDetail")
     static let showAPIKeyToast = Notification.Name("showAPIKeyToast")
     static let thumbnailsRegenerated = Notification.Name("thumbnailsRegenerated")

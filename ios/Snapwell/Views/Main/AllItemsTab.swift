@@ -72,7 +72,7 @@ struct AllItemsTab<AddMenu: View>: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button(action: onShowAISettings) {
-                        Label("AI Settings", systemImage: "gearshape")
+                        Label("Settings", systemImage: "gearshape")
                     }
                 }
 

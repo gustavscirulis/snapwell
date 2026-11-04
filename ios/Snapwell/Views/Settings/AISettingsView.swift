@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct AISettingsView: View {
+    @Environment(AppState.self) private var appState
     @EnvironmentObject private var fileSystem: FileSystemManager
     @EnvironmentObject private var keySyncService: KeySyncService
     @Environment(\.dismiss) private var dismiss
@@ -54,6 +55,10 @@ struct AISettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section("Appearance") {
+                    GridColumnChooser(preferences: appState.gridColumns)
+                }
+
                 Section {
                     Picker("Provider", selection: providerBinding) {
                         ForEach(providerOptions, id: \.rawValue) { option in
@@ -121,7 +126,7 @@ struct AISettingsView: View {
                     }
                 }
             }
-            .navigationTitle("AI Settings")
+            .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -322,6 +327,7 @@ struct AISettingsView: View {
 
 #Preview {
     AISettingsView()
+        .environment(AppState())
         .environmentObject(FileSystemManager())
         .environmentObject(KeySyncService.shared)
 }

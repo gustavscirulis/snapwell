@@ -109,6 +109,7 @@ struct MainView: View {
         }
         .sheet(isPresented: $appState.showAISettings) {
             AISettingsView()
+                .environment(appState)
                 .presentationDetents([.large])
         }
         .sheet(isPresented: Binding(

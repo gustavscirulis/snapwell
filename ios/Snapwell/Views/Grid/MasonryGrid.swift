@@ -12,10 +12,11 @@ struct MasonryGrid: View {
     var onDeleteItem: ((MediaItem) -> Void)?
     var onAssignToSpace: ((String, String?) -> Void)?
 
-    private let columnCount = 2
+    @Environment(AppState.self) private var appState
     private let spacing: CGFloat = 8
 
     var body: some View {
+        let columnCount = appState.gridColumns.columns(availableWidth: availableWidth, spacing: spacing)
         let columnWidth = max(1, (availableWidth - spacing * CGFloat(columnCount - 1)) / CGFloat(columnCount))
         let columns = MasonryLayout.distribute(
             items,
