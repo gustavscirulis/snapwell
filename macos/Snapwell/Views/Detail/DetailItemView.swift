@@ -123,6 +123,8 @@ private struct HeroFlightView<Content: View>: View, @MainActor Animatable {
 }
 
 struct DetailItemView: View {
+    let incomingItems: [MediaItem]
+    let orderingGeneration: Int
     let startItemId: String
     let sourceFrame: CGRect
     let onClose: () -> Void
@@ -190,6 +192,7 @@ struct DetailItemView: View {
 
     init(
         items: [MediaItem],
+        orderingGeneration: Int = 0,
         startItemId: String,
         sourceFrame: CGRect,
         openingImage: NSImage?,
@@ -203,6 +206,8 @@ struct DetailItemView: View {
         activeSpaceId: String? = nil
     ) {
         let startIndex = items.firstIndex(where: { $0.id == startItemId }) ?? 0
+        self.incomingItems = items
+        self.orderingGeneration = orderingGeneration
         _items = State(initialValue: items)
         self.startItemId = startItemId
         self.sourceFrame = sourceFrame
@@ -332,6 +337,18 @@ struct DetailItemView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .closeDetail)) { _ in
             triggerClose()
+        }
+        .onChange(of: orderingGeneration) {
+            guard !phase.isClosing,
+                  let index = incomingItems.firstIndex(where: { $0.id == currentItem.id }) else { return }
+            navigationGeneration += 1
+            navigationFallbackTask?.cancel()
+            isNavigating = false
+            swipeOffset = 0
+            items = incomingItems
+            currentIndex = index
+            appState.detailGridTarget = nil
+            preloadAdjacentImages()
         }
         // Trackpad scroll for swipe navigation
         .onChange(of: trackpadScroll.cumulativeOffset) { _, offset in

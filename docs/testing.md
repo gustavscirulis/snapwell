@@ -119,6 +119,9 @@ iOS provider implementation there. Core success does not replace either platform
 
 Coverage includes:
 
+- Device-local library shuffle persistence, seed lifecycle, stable ID ordering, insertion/
+  deletion stability and chronological restoration. Native UI checks use dated media and
+  an automation-only deterministic shuffle seed in All Media, Spaces, search and detail.
 - Device-local grid preferences, Mac thumbnail-size migration, zoom bounds, persistence and
   width-based column reduction/restoration. Native UI coverage uses the populated grid fixture
   to adjust the Settings slider and compare media widths in the library, search and Spaces.

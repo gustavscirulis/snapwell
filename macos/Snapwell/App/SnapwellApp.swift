@@ -5,6 +5,7 @@ import SwiftData
 struct SnapwellApp: App {
     @AppStorage("appearanceMode") private var appearanceMode: String = AppearanceMode.dark.rawValue
     @State private var gridColumns: GridColumnPreferences
+    @State private var libraryShuffle: LibraryShufflePreferences
     let container: ModelContainer
     private static let multiSpaceStoreResetKey = "multiSpaceStoreReset_v1"
 
@@ -48,6 +49,7 @@ struct SnapwellApp: App {
         }
         #endif
         _gridColumns = State(initialValue: GridColumnPreferences(device: .mac))
+        _libraryShuffle = State(initialValue: LibraryShufflePreferences())
     }
 
     private static func deleteStoreFiles(at storeURL: URL) {
@@ -64,6 +66,7 @@ struct SnapwellApp: App {
         WindowGroup("Snapwell") {
             ContentView()
                 .environment(gridColumns)
+                .environment(libraryShuffle)
                 .preferredColorScheme(appearanceColorScheme)
                 .task {
                     KeySyncService.syncFromiCloud()
@@ -182,6 +185,7 @@ struct SnapwellApp: App {
         Settings {
             SettingsView()
                 .environment(gridColumns)
+                .environment(libraryShuffle)
                 .preferredColorScheme(appearanceColorScheme)
         }
         .modelContainer(container)

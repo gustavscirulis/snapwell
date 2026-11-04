@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 
 struct ContentView: View {
     @Environment(GridColumnPreferences.self) private var gridColumns
+    @Environment(LibraryShufflePreferences.self) private var libraryShuffle
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \MediaItem.createdAt, order: .reverse) private var allItems: [MediaItem]
     @Query(sort: \Space.order) private var spaces: [Space]
@@ -46,7 +47,7 @@ struct ContentView: View {
             items = items.filter { !$0.spaces.contains(where: { $0.hideFromAllMedia }) }
         }
 
-        guard isSearchActive else { return items }
+        guard isSearchActive else { return libraryShuffle.ordered(items) }
 
         let query = appState.searchText.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         let scores = query == searchScoresQuery ? searchScores : [:]
@@ -117,6 +118,7 @@ struct ContentView: View {
                         ? filteredItems : allItems
                     DetailItemView(
                         items: overlayItems,
+                        orderingGeneration: libraryShuffle.generation,
                         startItemId: detailId,
                         sourceFrame: sourceFrame,
                         openingImage: appState.detailOpeningImage,

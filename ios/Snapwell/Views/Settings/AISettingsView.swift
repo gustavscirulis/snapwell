@@ -57,6 +57,7 @@ struct AISettingsView: View {
             Form {
                 Section("Appearance") {
                     GridColumnChooser(preferences: appState.gridColumns)
+                    LibraryShuffleToggle(preferences: appState.libraryShuffle)
                 }
 
                 Section {

@@ -29,7 +29,7 @@ enum AutomationFixtures {
             }
         } else { throw CocoaError(.fileNoSuchFile) }
         let fixture = AutomationEnvironment.argument("--snapwell-fixture")
-        guard fixture == "library" || fixture == "grid" else { return }
+        guard fixture == "library" || fixture == "grid" || fixture == "shuffle" else { return }
         let blue = try imageData(red: 0, green: 122, blue: 255)
         for (id, summary, image) in [("fixture-orange", "Orange inspiration", orange),
                                      ("fixture-blue", "Blue architecture", blue)] {
@@ -37,12 +37,41 @@ enum AutomationFixtures {
             try image.jpeg.write(to: root.appendingPathComponent("thumbnails/\(id).jpg"), options: .atomic)
             let sidecar: [String: Any] = [
                 "id": id, "type": "image", "width": 320, "height": 240,
-                "createdAt": "2026-01-01T12:00:00Z", "analyzedAt": "2026-01-01T12:00:00Z",
+                "createdAt": fixture == "shuffle" && id == "fixture-orange"
+                    ? "2026-01-02T12:00:00Z" : "2026-01-01T12:00:00Z",
+                "analyzedAt": "2026-01-01T12:00:00Z",
                 "spaceIds": ["fixture-space"], "imageSummary": summary,
                 "imageContext": summary, "patterns": [["name": "Fixture", "confidence": 1.0]]
             ]
             try JSONSerialization.data(withJSONObject: sidecar, options: [.sortedKeys])
                 .write(to: root.appendingPathComponent("metadata/\(id).json"), options: .atomic)
+        }
+        if fixture == "shuffle" {
+            for (id, type, filename, date, summary) in [
+                ("fixture-green", "image", "fixture-green.png", "2026-01-03T12:00:00Z", "Green inspiration"),
+                ("fixture-video", "video", "fixture-video.mp4", "2026-01-04T12:00:00Z", "Video inspiration")
+            ] {
+                let destination = root.appendingPathComponent("images/\(filename)")
+                let thumbnail: Data
+                if type == "video" {
+                    if !FileManager.default.fileExists(atPath: destination.path) {
+                        try FileManager.default.copyItem(at: root.appendingPathComponent("incoming/clip.mp4"), to: destination)
+                    }
+                    thumbnail = orange.jpeg
+                } else {
+                    let green = try imageData(red: 52, green: 199, blue: 89)
+                    try green.png.write(to: destination, options: .atomic)
+                    thumbnail = green.jpeg
+                }
+                try thumbnail.write(to: root.appendingPathComponent("thumbnails/\(id).jpg"), options: .atomic)
+                let sidecar: [String: Any] = [
+                    "id": id, "type": type, "width": 320, "height": 240, "createdAt": date,
+                    "analyzedAt": date, "spaceIds": ["fixture-space"], "imageSummary": summary,
+                    "imageContext": summary, "patterns": [["name": "Fixture", "confidence": 1.0]]
+                ]
+                try JSONSerialization.data(withJSONObject: sidecar, options: [.sortedKeys])
+                    .write(to: root.appendingPathComponent("metadata/\(id).json"), options: .atomic)
+            }
         }
         if fixture == "grid" {
             for index in 0..<16 {

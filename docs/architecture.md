@@ -114,3 +114,15 @@ Large 3, Extra Large 2); an existing column preference wins. Zoom In/Out adjusts
 preference, bounded to 2–8. On Mac, saved one-column preferences are raised to two; automatic width
 reduction can still use one column. Preferences stay in local UserDefaults and do not sync
 with media or AI settings.
+
+## Library shuffle
+
+The Appearance section in Settings offers a device-local “Shuffle library” toggle, off by
+default. `LibraryShufflePreferences` persists only the enabled flag in UserDefaults; iOS
+owns it through `AppState`, and Mac shares one instance across windows and Settings.
+All Media and media inside Spaces use stable ID-based ranks with a fresh seed on launch
+and each off-to-on transition. Refreshing, backgrounding, analysis, imports and deletions
+do not reshuffle existing items. Turning shuffle off restores descending `createdAt` order.
+Search retains its existing order, including image/video filters and the empty search view.
+The Spaces overview retains its own order. Detail browsing receives the grid order, and
+explicit ordering changes keep the open item selected by ID.

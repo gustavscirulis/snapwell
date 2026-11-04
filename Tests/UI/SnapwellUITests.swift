@@ -34,6 +34,7 @@ final class SnapwellUITests: XCTestCase {
 
     private func launch(_ fixture: String) {
         app.launchArguments = ["--snapwell-test-id", UUID().uuidString, "--snapwell-fixture", fixture]
+        if fixture == "shuffle" { app.launchArguments += ["--snapwell-shuffle-seed", "1"] }
         app.launch()
         XCTAssertTrue(app.staticTexts["automation-count"].waitForExistence(timeout: 30), "Library must mount")
     }
@@ -277,6 +278,153 @@ final class SnapwellUITests: XCTestCase {
         search.typeText("image")
         waitForMediaWidth(approximately: narrow)
         captureGridScreenshot("Four-column search")
+    }
+
+    private let chronologicalIDs = ["fixture-video", "fixture-green", "fixture-orange", "fixture-blue"]
+    private let shuffledIDs = ["fixture-orange", "fixture-video", "fixture-blue", "fixture-green"]
+
+    func testShuffleAppliesToLibrarySpacesAndDetailAndRestoresDateOrder() {
+        launch("shuffle")
+        waitForCount(4)
+        waitForMediaOrder(chronologicalIDs)
+        openGridSettings()
+        assertShuffleEnabled(false)
+        shuffleToggle.tap()
+        assertShuffleEnabled(true)
+        captureGridScreenshot("Shuffle enabled in Settings")
+        closeGridSettings()
+        waitForMediaOrder(shuffledIDs)
+        captureGridScreenshot("Shuffled library")
+
+        #if os(macOS)
+        app.typeKey("2", modifierFlags: .command)
+        #else
+        selectTab("Spaces")
+        app.staticTexts["Inspiration"].tap()
+        #endif
+        waitForMediaOrder(shuffledIDs)
+        captureGridScreenshot("Shuffled Space")
+        let blue = media("fixture-blue")
+        #if os(macOS)
+        clickMacMedia(blue)
+        XCTAssertTrue(app.buttons["Back"].waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForMacMetadataTitle("Blue architecture", timeout: 10))
+        app.typeKey(.rightArrow, modifierFlags: [])
+        XCTAssertTrue(waitForMacMetadataTitle("Green inspiration", timeout: 10))
+        app.buttons["Back"].click()
+        #else
+        blue.tap()
+        XCTAssertTrue(app.buttons["Close"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["Blue architecture"].waitForExistence(timeout: 10))
+        app.swipeLeft()
+        XCTAssertTrue(app.navigationBars["Green inspiration"].waitForExistence(timeout: 10))
+        app.buttons["Close"].tap()
+        #endif
+
+        #if os(macOS)
+        app.typeKey("1", modifierFlags: .command)
+        #else
+        selectTab("All")
+        #endif
+        waitForMediaOrder(shuffledIDs)
+        openGridSettings()
+        assertShuffleEnabled(true)
+        shuffleToggle.tap()
+        assertShuffleEnabled(false)
+        closeGridSettings()
+        waitForMediaOrder(chronologicalIDs)
+        captureGridScreenshot("Newest-first library restored")
+
+        #if os(macOS)
+        app.typeKey("2", modifierFlags: .command)
+        #else
+        selectTab("Spaces")
+        #endif
+        waitForMediaOrder(chronologicalIDs)
+    }
+
+    func testShufflePreservesSearchOrder() {
+        launch("shuffle")
+        openGridSettings()
+        shuffleToggle.tap()
+        closeGridSettings()
+        waitForMediaOrder(shuffledIDs)
+        #if os(macOS)
+        app.typeKey("f", modifierFlags: .command)
+        #else
+        if #available(iOS 26, *) {
+            selectTab("Search")
+            // The empty dedicated search view retains chronological order.
+            waitForMediaOrder(chronologicalIDs)
+        }
+        #endif
+        let search = app.searchFields.firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 10))
+        search.tap()
+        search.typeText("image")
+        waitForMediaOrder(["fixture-green", "fixture-orange", "fixture-blue"])
+        XCTAssertFalse(media("fixture-video").exists)
+        captureGridScreenshot("Search retains date order with shuffle enabled")
+        #if os(macOS)
+        search.typeKey("a", modifierFlags: .command)
+        search.typeText("video")
+        #else
+        if let clear = search.buttons.allElementsBoundByIndex.first { clear.tap() }
+        else { search.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 5)) }
+        search.typeText("video")
+        #endif
+        waitForMediaOrder(["fixture-video"])
+        XCTAssertFalse(media("fixture-orange").exists)
+    }
+
+    #if os(macOS)
+    func testShuffleChangeKeepsOpenDetailSelected() {
+        launch("shuffle")
+        openGridSettings()
+        shuffleToggle.tap()
+        closeGridSettings()
+        waitForMediaOrder(shuffledIDs)
+        clickMacMedia(media("fixture-blue"))
+        XCTAssertTrue(app.buttons["Back"].waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForMacMetadataTitle("Blue architecture", timeout: 10))
+        openGridSettings()
+        shuffleToggle.tap()
+        closeGridSettings()
+        XCTAssertTrue(waitForMacMetadataTitle("Blue architecture", timeout: 10))
+        app.typeKey(.leftArrow, modifierFlags: [])
+        XCTAssertTrue(waitForMacMetadataTitle("Orange inspiration", timeout: 10))
+    }
+    #endif
+
+    private var shuffleToggle: XCUIElement {
+        #if os(macOS)
+        app.descendants(matching: .any).matching(identifier: "library-shuffle-toggle").firstMatch
+        #else
+        app.switches["library-shuffle-toggle"]
+        #endif
+    }
+
+    private func assertShuffleEnabled(_ enabled: Bool) {
+        let toggle = shuffleToggle
+        XCTAssertTrue(toggle.waitForExistence(timeout: 10))
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            if let value = toggle.value as? NSNumber { return value.boolValue == enabled }
+            return (toggle.value as? String) == (enabled ? "1" : "0")
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 10), .completed)
+    }
+
+    private func waitForMediaOrder(_ ids: [String]) {
+        for id in ids { XCTAssertTrue(media(id).waitForExistence(timeout: 10)) }
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate { [self] _, _ in
+            let frames = ids.map { (id: $0, frame: media($0).frame) }
+            guard frames.allSatisfy({ $0.frame.width > 0 && $0.frame.height > 0 }) else { return false }
+            let visibleOrder = frames.sorted { a, b in
+                abs(a.frame.minY - b.frame.minY) > 4 ? a.frame.minY < b.frame.minY : a.frame.minX < b.frame.minX
+            }.map(\.id)
+            return visibleOrder == ids
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 10), .completed, "Expected media order: \(ids)")
     }
 
     func testGridColumnsApplyToSpaces() {

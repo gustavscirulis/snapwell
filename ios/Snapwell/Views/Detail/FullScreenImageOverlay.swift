@@ -139,6 +139,8 @@ private struct DetailScrollOffsetKey: PreferenceKey {
 // MARK: - Full Screen Image Overlay
 
 struct FullScreenImageOverlay: View {
+    let incomingItems: [MediaItem]
+    let orderingGeneration: Int
     let sourceRect: CGRect
     let thumbnailImage: UIImage?
     @Binding var detailGridTarget: DetailGridTarget?
@@ -155,7 +157,7 @@ struct FullScreenImageOverlay: View {
 
     @Environment(\.colorScheme) private var colorScheme
 
-    /// Captured at open time — stays stable even when parent re-filters.
+    /// Captured at open time; explicit ordering changes preserve the current item by ID.
     @State private var items: [MediaItem]
     @State private var currentIndex: Int
     @State private var openingItemID: String?
@@ -241,6 +243,7 @@ struct FullScreenImageOverlay: View {
 
     init(
         items: [MediaItem],
+        orderingGeneration: Int = 0,
         startIndex: Int,
         sourceRect: CGRect,
         thumbnailImage: UIImage?,
@@ -257,6 +260,8 @@ struct FullScreenImageOverlay: View {
         onDelete: ((MediaItem) -> Bool)? = nil
     ) {
         _items = State(initialValue: items)
+        self.incomingItems = items
+        self.orderingGeneration = orderingGeneration
         self.sourceRect = sourceRect
         self.thumbnailImage = thumbnailImage
         _detailGridTarget = detailGridTarget
@@ -540,6 +545,19 @@ struct FullScreenImageOverlay: View {
             }
         }
         .onChange(of: screenSize) { _, _ in prepareHeroImage(for: computeFinalFrame(for: item).size) }
+        .onChange(of: orderingGeneration) {
+            guard !isClosing, !isDeleting,
+                  let index = incomingItems.firstIndex(where: { $0.id == item.id }) else { return }
+            navigationGeneration += 1
+            isNavigating = false
+            swipeOffset = 0
+            items = incomingItems
+            currentIndex = index
+            detailGridTarget = nil
+            onCurrentItemChanged?(item.id)
+            prepareVideoIfNeeded()
+            preloadAdjacentImages()
+        }
         .onDisappear {
             closeFlightTask?.cancel()
             loadTask?.cancel()
