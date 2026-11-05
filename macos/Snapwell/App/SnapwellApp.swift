@@ -94,10 +94,10 @@ struct SnapwellApp: App {
         .windowResizability(.contentMinSize)
         .defaultPosition(.center)
         .commands {
-            #if SNAPWELL_AUTOMATION
-            AutomationLibraryCommands()
-            #endif
             CommandGroup(replacing: .newItem) {
+                #if SNAPWELL_AUTOMATION
+                AutomationLibraryButton()
+                #endif
                 Button("Import Images...") {
                     NotificationCenter.default.post(name: .importFiles, object: nil)
                 }
@@ -212,14 +212,12 @@ struct SnapwellApp: App {
 }
 
 #if SNAPWELL_AUTOMATION
-private struct AutomationLibraryCommands: Commands {
+private struct AutomationLibraryButton: View {
     @Environment(\.openWindow) private var openWindow
 
-    var body: some Commands {
-        CommandGroup(before: .newItem) {
-            Button("Open Test Library") {
-                openWindow(id: "automation-library")
-            }
+    var body: some View {
+        Button("Open Test Library") {
+            openWindow(id: "automation-library")
         }
     }
 }
