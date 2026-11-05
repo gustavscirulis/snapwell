@@ -36,6 +36,7 @@ final class SnapwellUITests: XCTestCase {
         app.launchArguments = ["--snapwell-test-id", UUID().uuidString, "--snapwell-fixture", fixture]
         if fixture == "shuffle" { app.launchArguments += ["--snapwell-shuffle-seed", "1"] }
         app.launch()
+        app.activate()
         XCTAssertTrue(app.staticTexts["automation-count"].waitForExistence(timeout: 30), "Library must mount")
     }
 
@@ -289,7 +290,7 @@ final class SnapwellUITests: XCTestCase {
         waitForMediaOrder(chronologicalIDs)
         openGridSettings()
         assertShuffleEnabled(false)
-        shuffleToggle.tap()
+        setShuffleEnabled(true)
         assertShuffleEnabled(true)
         captureGridScreenshot("Shuffle enabled in Settings")
         closeGridSettings()
@@ -308,9 +309,9 @@ final class SnapwellUITests: XCTestCase {
         #if os(macOS)
         clickMacMedia(blue)
         XCTAssertTrue(app.buttons["Back"].waitForExistence(timeout: 10))
-        XCTAssertTrue(waitForMacMetadataTitle("Blue architecture", timeout: 10))
+        XCTAssertTrue(app.windows["Blue architecture"].waitForExistence(timeout: 10))
         app.typeKey(.rightArrow, modifierFlags: [])
-        XCTAssertTrue(waitForMacMetadataTitle("Green inspiration", timeout: 10))
+        XCTAssertTrue(app.windows["Green inspiration"].waitForExistence(timeout: 10))
         app.buttons["Back"].click()
         #else
         blue.tap()
@@ -329,7 +330,7 @@ final class SnapwellUITests: XCTestCase {
         waitForMediaOrder(shuffledIDs)
         openGridSettings()
         assertShuffleEnabled(true)
-        shuffleToggle.tap()
+        setShuffleEnabled(false)
         assertShuffleEnabled(false)
         closeGridSettings()
         waitForMediaOrder(chronologicalIDs)
@@ -346,7 +347,7 @@ final class SnapwellUITests: XCTestCase {
     func testShufflePreservesSearchOrder() {
         launch("shuffle")
         openGridSettings()
-        shuffleToggle.tap()
+        setShuffleEnabled(true)
         closeGridSettings()
         waitForMediaOrder(shuffledIDs)
         #if os(macOS)
@@ -381,18 +382,18 @@ final class SnapwellUITests: XCTestCase {
     func testShuffleChangeKeepsOpenDetailSelected() {
         launch("shuffle")
         openGridSettings()
-        shuffleToggle.tap()
+        setShuffleEnabled(true)
         closeGridSettings()
         waitForMediaOrder(shuffledIDs)
         clickMacMedia(media("fixture-blue"))
         XCTAssertTrue(app.buttons["Back"].waitForExistence(timeout: 10))
-        XCTAssertTrue(waitForMacMetadataTitle("Blue architecture", timeout: 10))
+        XCTAssertTrue(app.windows["Blue architecture"].waitForExistence(timeout: 10))
         openGridSettings()
-        shuffleToggle.tap()
+        setShuffleEnabled(false)
         closeGridSettings()
-        XCTAssertTrue(waitForMacMetadataTitle("Blue architecture", timeout: 10))
+        XCTAssertTrue(app.windows["Blue architecture"].waitForExistence(timeout: 10))
         app.typeKey(.leftArrow, modifierFlags: [])
-        XCTAssertTrue(waitForMacMetadataTitle("Orange inspiration", timeout: 10))
+        XCTAssertTrue(app.windows["Orange inspiration"].waitForExistence(timeout: 10))
     }
     #endif
 
@@ -412,6 +413,21 @@ final class SnapwellUITests: XCTestCase {
             return (toggle.value as? String) == (enabled ? "1" : "0")
         }, object: nil)
         XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 10), .completed)
+    }
+
+    private func setShuffleEnabled(_ enabled: Bool) {
+        assertShuffleEnabled(!enabled)
+        #if os(iOS)
+        // SwiftUI exposes the full row as a switch with a nested switch for
+        // the actual track. The row's center can fall in the noninteractive gap.
+        let track = shuffleToggle.descendants(matching: .switch).firstMatch
+        XCTAssertTrue(track.waitForExistence(timeout: 10))
+        track.tap()
+        #else
+        app.activate()
+        shuffleToggle.click()
+        #endif
+        assertShuffleEnabled(enabled)
     }
 
     private func waitForMediaOrder(_ ids: [String]) {
@@ -526,6 +542,7 @@ final class SnapwellUITests: XCTestCase {
 
     private func openGridSettings() {
         #if os(macOS)
+        app.activate()
         app.typeKey(",", modifierFlags: .command)
         let general = app.buttons["General"]
         if general.waitForExistence(timeout: 3) { general.click() }
@@ -549,6 +566,9 @@ final class SnapwellUITests: XCTestCase {
         #endif
         slider.adjust(toNormalizedSliderPosition: CGFloat(count - minimum) / CGFloat(maximum - minimum))
         assertGridColumnsSelected(count)
+        #if os(macOS)
+        app.activate()
+        #endif
     }
 
     private func assertGridColumnsSelected(_ count: Int) {
@@ -564,6 +584,7 @@ final class SnapwellUITests: XCTestCase {
 
     private func closeGridSettings() {
         #if os(macOS)
+        app.activate()
         app.typeKey("w", modifierFlags: .command)
         #else
         app.buttons["Done"].tap()

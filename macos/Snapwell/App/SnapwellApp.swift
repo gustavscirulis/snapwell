@@ -77,6 +77,12 @@ struct SnapwellApp: App {
         .defaultSize(width: 1280, height: 800)
         .windowResizability(.contentMinSize)
         .defaultPosition(.center)
+        #if SNAPWELL_AUTOMATION
+        // Every isolated test launch needs a library window, regardless of
+        // which windows the preceding test left open or closed.
+        .restorationBehavior(.disabled)
+        .defaultLaunchBehavior(.presented)
+        #endif
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("Import Images...") {

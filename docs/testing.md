@@ -64,6 +64,10 @@ Provider fixtures require the UI launch argument `--snapwell-fixture`; hosted lo
 keep their injected provider clients so failure/retry tests exercise real service behavior.
 Automation preferences are reset at launch; production preferences use a different bundle domain. Automation controls and
 fixture generation are compiled out of Release.
+Mac automation launches disable window restoration and always present the library window,
+so closing Settings or the library in a preceding test cannot leave the next launch windowless.
+UI tests activate the automation app before Settings interactions; keep other desktop
+interactions paused while the Mac suite owns the native-test slot.
 
 Hosted unit tests also launch through this isolated configuration. Do not execute native
 tests against normal Debug builds or physical devices with production data. Real cloud
@@ -122,6 +126,8 @@ Coverage includes:
 - Device-local library shuffle persistence, seed lifecycle, stable ID ordering, insertion/
   deletion stability and chronological restoration. Native UI checks use dated media and
   an automation-only deterministic shuffle seed in All Media, Spaces, search and detail.
+  iOS tests tap the switch track inside the accessible toggle row. Mac detail-order
+  assertions use the visible window title; metadata remains deferred until scrolling.
 - Device-local grid preferences, Mac thumbnail-size migration, zoom bounds, persistence and
   width-based column reduction/restoration. Native UI coverage uses the populated grid fixture
   to adjust the Settings slider and compare media widths in the library, search and Spaces.
