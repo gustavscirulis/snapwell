@@ -62,28 +62,41 @@ struct SnapwellApp: App {
         }
     }
 
-    var body: some Scene {
-        WindowGroup("Snapwell") {
-            ContentView()
-                .environment(gridColumns)
-                .environment(libraryShuffle)
-                .preferredColorScheme(appearanceColorScheme)
-                .task {
-                    KeySyncService.syncFromiCloud()
-                    KeySyncService.syncToiCloud()
-                }
+    private var libraryContent: some View {
+        ContentView()
+            .environment(gridColumns)
+            .environment(libraryShuffle)
+            .preferredColorScheme(appearanceColorScheme)
+            .task {
+                KeySyncService.syncFromiCloud()
+                KeySyncService.syncToiCloud()
+            }
+    }
+
+    @SceneBuilder private var libraryWindow: some Scene {
+        #if SNAPWELL_AUTOMATION
+        WindowGroup("Snapwell", id: "automation-library") {
+            libraryContent
         }
+        .restorationBehavior(.disabled)
+        .defaultLaunchBehavior(.suppressed)
+        #else
+        WindowGroup("Snapwell") {
+            libraryContent
+        }
+        #endif
+    }
+
+    var body: some Scene {
+        libraryWindow
         .modelContainer(container)
         .defaultSize(width: 1280, height: 800)
         .windowResizability(.contentMinSize)
         .defaultPosition(.center)
-        #if SNAPWELL_AUTOMATION
-        // Every isolated test launch needs a library window, regardless of
-        // which windows the preceding test left open or closed.
-        .restorationBehavior(.disabled)
-        .defaultLaunchBehavior(.presented)
-        #endif
         .commands {
+            #if SNAPWELL_AUTOMATION
+            AutomationLibraryCommands()
+            #endif
             CommandGroup(replacing: .newItem) {
                 Button("Import Images...") {
                     NotificationCenter.default.post(name: .importFiles, object: nil)
@@ -197,6 +210,20 @@ struct SnapwellApp: App {
         .modelContainer(container)
     }
 }
+
+#if SNAPWELL_AUTOMATION
+private struct AutomationLibraryCommands: Commands {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some Commands {
+        CommandGroup(before: .newItem) {
+            Button("Open Test Library") {
+                openWindow(id: "automation-library")
+            }
+        }
+    }
+}
+#endif
 
 private struct SpacesMenuContent: View {
     @Query(sort: \Space.order) private var spaces: [Space]

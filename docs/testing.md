@@ -64,8 +64,12 @@ Provider fixtures require the UI launch argument `--snapwell-fixture`; hosted lo
 keep their injected provider clients so failure/retry tests exercise real service behavior.
 Automation preferences are reset at launch; production preferences use a different bundle domain. Automation controls and
 fixture generation are compiled out of Release.
-Mac automation launches disable window restoration and always present the library window,
-so closing Settings or the library in a preceding test cannot leave the next launch windowless.
+Mac automation launches disable window restoration and automatic window presentation.
+Each UI test opens the named library scene through the automation-only File > Open Test Library
+command before asserting that its fixture mounted. Test setup does not depend on saved windows
+or SwiftUI's automatic presentation across app processes.
+Mac tests use Xcode's configured target application rather than selecting by bundle ID;
+other worktrees may contain automation apps with the same identifier.
 UI tests activate the automation app before Settings interactions; keep other desktop
 interactions paused while the Mac suite owns the native-test slot.
 

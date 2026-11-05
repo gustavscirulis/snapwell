@@ -9,7 +9,13 @@ final class SnapwellUITests: XCTestCase {
 
     @MainActor override func setUp() async throws {
         continueAfterFailure = false
+        #if os(macOS)
+        // Other workspaces can have builds with the same automation bundle ID.
+        // Use the target application configured by this test run.
+        app = XCUIApplication()
+        #else
         app = XCUIApplication(bundleIdentifier: "co.snapwell.automation")
+        #endif
     }
 
     @MainActor override func tearDown() async throws {
@@ -37,6 +43,16 @@ final class SnapwellUITests: XCTestCase {
         if fixture == "shuffle" { app.launchArguments += ["--snapwell-shuffle-seed", "1"] }
         app.launch()
         app.activate()
+        #if os(macOS)
+        // Open a fresh scene explicitly instead of relying on automatic launch
+        // or saved windows from the preceding app process.
+        let fileMenu = app.menuBars.menuBarItems["File"]
+        XCTAssertTrue(fileMenu.waitForExistence(timeout: 10))
+        fileMenu.click()
+        let openLibrary = app.menuItems["Open Test Library"]
+        XCTAssertTrue(openLibrary.waitForExistence(timeout: 10), "The configured Automation build must provide its library command")
+        openLibrary.click()
+        #endif
         XCTAssertTrue(app.staticTexts["automation-count"].waitForExistence(timeout: 30), "Library must mount")
     }
 
