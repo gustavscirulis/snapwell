@@ -5,6 +5,7 @@ import SwiftData
 struct SnapwellApp: App {
     @AppStorage("appearanceMode") private var appearanceMode: String = AppearanceMode.dark.rawValue
     @State private var gridColumns: GridColumnPreferences
+    @State private var libraryShuffle: LibraryShufflePreferences
     let container: ModelContainer
     private static let multiSpaceStoreResetKey = "multiSpaceStoreReset_v1"
 
@@ -48,6 +49,7 @@ struct SnapwellApp: App {
         }
         #endif
         _gridColumns = State(initialValue: GridColumnPreferences(device: .mac))
+        _libraryShuffle = State(initialValue: LibraryShufflePreferences())
     }
 
     private static func deleteStoreFiles(at storeURL: URL) {
@@ -60,22 +62,42 @@ struct SnapwellApp: App {
         }
     }
 
-    var body: some Scene {
-        WindowGroup("Snapwell") {
-            ContentView()
-                .environment(gridColumns)
-                .preferredColorScheme(appearanceColorScheme)
-                .task {
-                    KeySyncService.syncFromiCloud()
-                    KeySyncService.syncToiCloud()
-                }
+    private var libraryContent: some View {
+        ContentView()
+            .environment(gridColumns)
+            .environment(libraryShuffle)
+            .preferredColorScheme(appearanceColorScheme)
+            .task {
+                KeySyncService.syncFromiCloud()
+                KeySyncService.syncToiCloud()
+            }
+    }
+
+    @SceneBuilder private var libraryWindow: some Scene {
+        #if SNAPWELL_AUTOMATION
+        WindowGroup("Snapwell", id: "automation-library") {
+            libraryContent
         }
+        .restorationBehavior(.disabled)
+        .defaultLaunchBehavior(.suppressed)
+        #else
+        WindowGroup("Snapwell") {
+            libraryContent
+        }
+        #endif
+    }
+
+    var body: some Scene {
+        libraryWindow
         .modelContainer(container)
         .defaultSize(width: 1280, height: 800)
         .windowResizability(.contentMinSize)
         .defaultPosition(.center)
         .commands {
             CommandGroup(replacing: .newItem) {
+                #if SNAPWELL_AUTOMATION
+                AutomationLibraryButton()
+                #endif
                 Button("Import Images...") {
                     NotificationCenter.default.post(name: .importFiles, object: nil)
                 }
@@ -182,11 +204,24 @@ struct SnapwellApp: App {
         Settings {
             SettingsView()
                 .environment(gridColumns)
+                .environment(libraryShuffle)
                 .preferredColorScheme(appearanceColorScheme)
         }
         .modelContainer(container)
     }
 }
+
+#if SNAPWELL_AUTOMATION
+private struct AutomationLibraryButton: View {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Button("Open Test Library") {
+            openWindow(id: "automation-library")
+        }
+    }
+}
+#endif
 
 private struct SpacesMenuContent: View {
     @Query(sort: \Space.order) private var spaces: [Space]

@@ -34,6 +34,7 @@ enum DetailChrome {
 
 struct MediaDetailModal: View {
     let items: [MediaItem]
+    var orderingGeneration: Int = 0
     let title: String
     @Binding var showOverlay: Bool
     @Binding var selectedItemId: String?
@@ -90,6 +91,7 @@ struct MediaDetailModal: View {
                         .overlay {
                             FullScreenImageOverlay(
                                 items: items,
+                                orderingGeneration: orderingGeneration,
                                 startIndex: startIndex,
                                 sourceRect: sourceRect,
                                 thumbnailImage: thumbnailImage,

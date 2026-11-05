@@ -26,6 +26,7 @@ SOURCES = [
     'Shared/AnalysisRecovery.swift',
     'Shared/ShareStagingStore.swift',
     'Shared/GridColumnPreferences.swift',
+    'Shared/LibraryShufflePreferences.swift',
 ]
 TESTS = [
     'macos/SnapwellTests/Helpers/TestTags.swift',
@@ -33,6 +34,7 @@ TESTS = [
     'Tests/Compatibility/PersistenceIntegrationTests.swift',
     'Tests/Compatibility/ShareStagingTests.swift',
     'Tests/Compatibility/GridColumnPreferencesTests.swift',
+    'Tests/Compatibility/LibraryShufflePreferencesTests.swift',
     'ios/SnapwellTests/ShareHandoffIntegrationTests.swift',
     'ios/SnapwellTests/LocalMigrationIntegrationTests.swift',
 ]

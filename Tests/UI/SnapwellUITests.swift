@@ -9,7 +9,13 @@ final class SnapwellUITests: XCTestCase {
 
     @MainActor override func setUp() async throws {
         continueAfterFailure = false
+        #if os(macOS)
+        // Other workspaces can have builds with the same automation bundle ID.
+        // Use the target application configured by this test run.
+        app = XCUIApplication()
+        #else
         app = XCUIApplication(bundleIdentifier: "co.snapwell.automation")
+        #endif
     }
 
     @MainActor override func tearDown() async throws {
@@ -34,7 +40,19 @@ final class SnapwellUITests: XCTestCase {
 
     private func launch(_ fixture: String) {
         app.launchArguments = ["--snapwell-test-id", UUID().uuidString, "--snapwell-fixture", fixture]
+        if fixture == "shuffle" { app.launchArguments += ["--snapwell-shuffle-seed", "1"] }
         app.launch()
+        app.activate()
+        #if os(macOS)
+        // Open a fresh scene explicitly instead of relying on automatic launch
+        // or saved windows from the preceding app process.
+        let fileMenu = app.menuBars.menuBarItems["File"]
+        XCTAssertTrue(fileMenu.waitForExistence(timeout: 10))
+        fileMenu.click()
+        let openLibrary = app.menuItems["Open Test Library"]
+        XCTAssertTrue(openLibrary.waitForExistence(timeout: 10), "The configured Automation build must provide its library command")
+        openLibrary.click()
+        #endif
         XCTAssertTrue(app.staticTexts["automation-count"].waitForExistence(timeout: 30), "Library must mount")
     }
 
@@ -279,6 +297,168 @@ final class SnapwellUITests: XCTestCase {
         captureGridScreenshot("Four-column search")
     }
 
+    private let chronologicalIDs = ["fixture-video", "fixture-green", "fixture-orange", "fixture-blue"]
+    private let shuffledIDs = ["fixture-orange", "fixture-video", "fixture-blue", "fixture-green"]
+
+    func testShuffleAppliesToLibrarySpacesAndDetailAndRestoresDateOrder() {
+        launch("shuffle")
+        waitForCount(4)
+        waitForMediaOrder(chronologicalIDs)
+        openGridSettings()
+        assertShuffleEnabled(false)
+        setShuffleEnabled(true)
+        assertShuffleEnabled(true)
+        captureGridScreenshot("Shuffle enabled in Settings")
+        closeGridSettings()
+        waitForMediaOrder(shuffledIDs)
+        captureGridScreenshot("Shuffled library")
+
+        #if os(macOS)
+        app.typeKey("2", modifierFlags: .command)
+        #else
+        selectTab("Spaces")
+        app.staticTexts["Inspiration"].tap()
+        #endif
+        waitForMediaOrder(shuffledIDs)
+        captureGridScreenshot("Shuffled Space")
+        let blue = media("fixture-blue")
+        #if os(macOS)
+        clickMacMedia(blue)
+        XCTAssertTrue(app.buttons["Back"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.windows["Blue architecture"].waitForExistence(timeout: 10))
+        app.typeKey(.rightArrow, modifierFlags: [])
+        XCTAssertTrue(app.windows["Green inspiration"].waitForExistence(timeout: 10))
+        app.buttons["Back"].click()
+        #else
+        blue.tap()
+        XCTAssertTrue(app.buttons["Close"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["Blue architecture"].waitForExistence(timeout: 10))
+        app.swipeLeft()
+        XCTAssertTrue(app.navigationBars["Green inspiration"].waitForExistence(timeout: 10))
+        app.buttons["Close"].tap()
+        #endif
+
+        #if os(macOS)
+        app.typeKey("1", modifierFlags: .command)
+        #else
+        selectTab("All")
+        #endif
+        waitForMediaOrder(shuffledIDs)
+        openGridSettings()
+        assertShuffleEnabled(true)
+        setShuffleEnabled(false)
+        assertShuffleEnabled(false)
+        closeGridSettings()
+        waitForMediaOrder(chronologicalIDs)
+        captureGridScreenshot("Newest-first library restored")
+
+        #if os(macOS)
+        app.typeKey("2", modifierFlags: .command)
+        #else
+        selectTab("Spaces")
+        #endif
+        waitForMediaOrder(chronologicalIDs)
+    }
+
+    func testShufflePreservesSearchOrder() {
+        launch("shuffle")
+        openGridSettings()
+        setShuffleEnabled(true)
+        closeGridSettings()
+        waitForMediaOrder(shuffledIDs)
+        #if os(macOS)
+        app.typeKey("f", modifierFlags: .command)
+        #else
+        if #available(iOS 26, *) {
+            selectTab("Search")
+            // The empty dedicated search view retains chronological order.
+            waitForMediaOrder(chronologicalIDs)
+        }
+        #endif
+        let search = app.searchFields.firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 10))
+        search.tap()
+        search.typeText("image")
+        waitForMediaOrder(["fixture-green", "fixture-orange", "fixture-blue"])
+        XCTAssertFalse(media("fixture-video").exists)
+        captureGridScreenshot("Search retains date order with shuffle enabled")
+        #if os(macOS)
+        search.typeKey("a", modifierFlags: .command)
+        search.typeText("video")
+        #else
+        if let clear = search.buttons.allElementsBoundByIndex.first { clear.tap() }
+        else { search.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 5)) }
+        search.typeText("video")
+        #endif
+        waitForMediaOrder(["fixture-video"])
+        XCTAssertFalse(media("fixture-orange").exists)
+    }
+
+    #if os(macOS)
+    func testShuffleChangeKeepsOpenDetailSelected() {
+        launch("shuffle")
+        openGridSettings()
+        setShuffleEnabled(true)
+        closeGridSettings()
+        waitForMediaOrder(shuffledIDs)
+        clickMacMedia(media("fixture-blue"))
+        XCTAssertTrue(app.buttons["Back"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.windows["Blue architecture"].waitForExistence(timeout: 10))
+        openGridSettings()
+        setShuffleEnabled(false)
+        closeGridSettings()
+        XCTAssertTrue(app.windows["Blue architecture"].waitForExistence(timeout: 10))
+        app.typeKey(.leftArrow, modifierFlags: [])
+        XCTAssertTrue(app.windows["Orange inspiration"].waitForExistence(timeout: 10))
+    }
+    #endif
+
+    private var shuffleToggle: XCUIElement {
+        #if os(macOS)
+        app.descendants(matching: .any).matching(identifier: "library-shuffle-toggle").firstMatch
+        #else
+        app.switches["library-shuffle-toggle"]
+        #endif
+    }
+
+    private func assertShuffleEnabled(_ enabled: Bool) {
+        let toggle = shuffleToggle
+        XCTAssertTrue(toggle.waitForExistence(timeout: 10))
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            if let value = toggle.value as? NSNumber { return value.boolValue == enabled }
+            return (toggle.value as? String) == (enabled ? "1" : "0")
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 10), .completed)
+    }
+
+    private func setShuffleEnabled(_ enabled: Bool) {
+        assertShuffleEnabled(!enabled)
+        #if os(iOS)
+        // SwiftUI exposes the full row as a switch with a nested switch for
+        // the actual track. The row's center can fall in the noninteractive gap.
+        let track = shuffleToggle.descendants(matching: .switch).firstMatch
+        XCTAssertTrue(track.waitForExistence(timeout: 10))
+        track.tap()
+        #else
+        app.activate()
+        shuffleToggle.click()
+        #endif
+        assertShuffleEnabled(enabled)
+    }
+
+    private func waitForMediaOrder(_ ids: [String]) {
+        for id in ids { XCTAssertTrue(media(id).waitForExistence(timeout: 10)) }
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate { [self] _, _ in
+            let frames = ids.map { (id: $0, frame: media($0).frame) }
+            guard frames.allSatisfy({ $0.frame.width > 0 && $0.frame.height > 0 }) else { return false }
+            let visibleOrder = frames.sorted { a, b in
+                abs(a.frame.minY - b.frame.minY) > 4 ? a.frame.minY < b.frame.minY : a.frame.minX < b.frame.minX
+            }.map(\.id)
+            return visibleOrder == ids
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 10), .completed, "Expected media order: \(ids)")
+    }
+
     func testGridColumnsApplyToSpaces() {
         let narrow = configureFourColumnGrid()
         #if os(macOS)
@@ -378,6 +558,7 @@ final class SnapwellUITests: XCTestCase {
 
     private func openGridSettings() {
         #if os(macOS)
+        app.activate()
         app.typeKey(",", modifierFlags: .command)
         let general = app.buttons["General"]
         if general.waitForExistence(timeout: 3) { general.click() }
@@ -401,6 +582,9 @@ final class SnapwellUITests: XCTestCase {
         #endif
         slider.adjust(toNormalizedSliderPosition: CGFloat(count - minimum) / CGFloat(maximum - minimum))
         assertGridColumnsSelected(count)
+        #if os(macOS)
+        app.activate()
+        #endif
     }
 
     private func assertGridColumnsSelected(_ count: Int) {
@@ -416,6 +600,7 @@ final class SnapwellUITests: XCTestCase {
 
     private func closeGridSettings() {
         #if os(macOS)
+        app.activate()
         app.typeKey("w", modifierFlags: .command)
         #else
         app.buttons["Done"].tap()

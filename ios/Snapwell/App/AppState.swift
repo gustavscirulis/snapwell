@@ -32,9 +32,11 @@ struct DetailGridTarget: Equatable {
 @MainActor
 final class AppState {
     let gridColumns: GridColumnPreferences
+    let libraryShuffle: LibraryShufflePreferences
 
-    init(gridColumns: GridColumnPreferences? = nil) {
+    init(gridColumns: GridColumnPreferences? = nil, libraryShuffle: LibraryShufflePreferences? = nil) {
         self.gridColumns = gridColumns ?? GridColumnPreferences(device: .current)
+        self.libraryShuffle = libraryShuffle ?? LibraryShufflePreferences()
     }
 
     var selectedTab: AppTab = .all

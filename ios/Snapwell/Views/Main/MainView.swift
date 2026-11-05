@@ -57,14 +57,27 @@ struct MainView: View {
         return searchResultItems
     }
 
+    private var libraryContentItems: [MediaItem] {
+        let base = allItems.filter { !$0.spaces.contains(where: { $0.hideFromAllMedia }) }
+        if #available(iOS 26, *) {
+            return appState.libraryShuffle.ordered(base)
+        }
+        let query = appState.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Before iOS 26, search is embedded in the All tab.
+        guard query.isEmpty else { return searchResultItems }
+        return appState.libraryShuffle.ordered(base)
+    }
+
     private var detailOverlayItems: [MediaItem] {
         guard let host = appState.detailHost else { return [] }
 
         switch host {
-        case .all, .search:
+        case .all:
+            return libraryContentItems
+        case .search:
             return searchContentItems
         case .space(let spaceId):
-            return allItems.filter { $0.belongs(to: spaceId) }
+            return appState.libraryShuffle.ordered(allItems.filter { $0.belongs(to: spaceId) })
         }
     }
 
@@ -244,6 +257,7 @@ struct MainView: View {
                 if appState.showOverlay, appState.selectedIndex != nil, !overlayItems.isEmpty {
                     MediaDetailModal(
                         items: overlayItems,
+                        orderingGeneration: appState.libraryShuffle.generation,
                         title: detailOverlayTitle,
                         showOverlay: $appState.showOverlay,
                         selectedItemId: $appState.selectedItemId,
@@ -322,7 +336,7 @@ struct MainView: View {
         if #available(iOS 26, *) {
             TabView(selection: $appState.selectedTab) {
                 Tab("All", systemImage: "square.grid.2x2", value: AppTab.all) {
-                    allItemsContent(gridWidth: gridWidth, items: searchItems)
+                    allItemsContent(gridWidth: gridWidth, items: libraryContentItems)
                 }
                 Tab("Spaces", systemImage: "folder", value: AppTab.spaces) {
                     spacesContent(gridWidth: gridWidth)
@@ -336,7 +350,7 @@ struct MainView: View {
             .toolbarColorScheme(.dark, for: .tabBar)
         } else {
             TabView(selection: $appState.selectedTab) {
-                allItemsContent(gridWidth: gridWidth, items: searchItems)
+                allItemsContent(gridWidth: gridWidth, items: libraryContentItems)
                     .tabItem { Label("All", systemImage: "square.grid.2x2") }
                     .tag(AppTab.all)
                 spacesContent(gridWidth: gridWidth)
@@ -379,7 +393,7 @@ struct MainView: View {
 
         SpacesTab(
             spaces: spaces,
-            allItems: allItems,
+            allItems: appState.libraryShuffle.ordered(allItems),
             selectedItemId: appState.selectedItemId,
             showOverlay: appState.showOverlay,
             setActiveSpaceId: { appState.activeSpaceId = $0 },

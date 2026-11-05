@@ -102,6 +102,9 @@
 		533B86F8A8B549F88D71480E /* GridColumnPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5875091A20D24EAD9201493B /* GridColumnPreferences.swift */; };
 		10F28BDD50DB4FC8B5375B4F /* GridColumnChooser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B358F3CE981491C9A9E6988 /* GridColumnChooser.swift */; };
 		729EE96DFD6A4FBD88F6A354 /* GridColumnPreferencesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCCE124AE66E44C1A8034405 /* GridColumnPreferencesTests.swift */; };
+		573F54369E0144379E17765B /* LibraryShufflePreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20A1E449B5FE4638902E15EE /* LibraryShufflePreferences.swift */; };
+		BAFE0DEE1C3F40D6BD2348C8 /* LibraryShuffleToggle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 881273AA5B2F4E6B8F63FD04 /* LibraryShuffleToggle.swift */; };
+		BE74209396FD4816A2277F8A /* LibraryShufflePreferencesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C155590E4034C86BC3F5C1B /* LibraryShufflePreferencesTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -235,6 +238,9 @@
 		5875091A20D24EAD9201493B /* GridColumnPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Shared/GridColumnPreferences.swift"; sourceTree = SOURCE_ROOT; };
 		3B358F3CE981491C9A9E6988 /* GridColumnChooser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Shared/GridColumnChooser.swift"; sourceTree = SOURCE_ROOT; };
 		CCCE124AE66E44C1A8034405 /* GridColumnPreferencesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Tests/Compatibility/GridColumnPreferencesTests.swift"; sourceTree = SOURCE_ROOT; };
+		20A1E449B5FE4638902E15EE /* LibraryShufflePreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Shared/LibraryShufflePreferences.swift"; sourceTree = SOURCE_ROOT; };
+		881273AA5B2F4E6B8F63FD04 /* LibraryShuffleToggle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Shared/LibraryShuffleToggle.swift"; sourceTree = SOURCE_ROOT; };
+		4C155590E4034C86BC3F5C1B /* LibraryShufflePreferencesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Tests/Compatibility/LibraryShufflePreferencesTests.swift"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -334,6 +340,9 @@
 		E100000001 = {
 			isa = PBXGroup;
 			children = (
+				4C155590E4034C86BC3F5C1B /* LibraryShufflePreferencesTests.swift */,
+				881273AA5B2F4E6B8F63FD04 /* LibraryShuffleToggle.swift */,
+				20A1E449B5FE4638902E15EE /* LibraryShufflePreferences.swift */,
 				CCCE124AE66E44C1A8034405 /* GridColumnPreferencesTests.swift */,
 				3B358F3CE981491C9A9E6988 /* GridColumnChooser.swift */,
 				5875091A20D24EAD9201493B /* GridColumnPreferences.swift */,
@@ -685,6 +694,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BE74209396FD4816A2277F8A /* LibraryShufflePreferencesTests.swift in Sources */,
 				729EE96DFD6A4FBD88F6A354 /* GridColumnPreferencesTests.swift in Sources */,
 				A90000000000000000000002 /* LocalMigrationIntegrationTests.swift in Sources */,
 				9D2C4594C2F90E87240AF564 /* ShareHandoffIntegrationTests.swift in Sources */,
@@ -729,6 +739,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BAFE0DEE1C3F40D6BD2348C8 /* LibraryShuffleToggle.swift in Sources */,
+				573F54369E0144379E17765B /* LibraryShufflePreferences.swift in Sources */,
 				10F28BDD50DB4FC8B5375B4F /* GridColumnChooser.swift in Sources */,
 				533B86F8A8B549F88D71480E /* GridColumnPreferences.swift in Sources */,
 				260DE9E1F4286E54A7A7B113 /* ShareStagingStore.swift in Sources */,
