@@ -72,7 +72,7 @@ private struct DetailScrollPosition: Equatable {
     let metadataTitleIsVisible: Bool
 }
 
-/// The source bitmap is sliced once per transition or window size, never during the spring.
+/// The source bitmap is sliced once per transition or window size, never during the flight.
 private struct PreparedHeroImageView: View {
     let image: NSImage
     let size: CGSize
@@ -147,7 +147,7 @@ struct DetailItemView: View {
     @State private var preparedHeroImage: NSImage?
     @State private var preparedHeroSourceID: ObjectIdentifier?
     @State private var preparedHeroTallness: CGFloat = 0
-    /// Full-res bitmap that finished loading mid-hero. Held until the spring lands — see
+    /// Full-res bitmap that finished loading mid-hero. Held until the flight lands — see
     /// `loadFullResImageFor`.
     @State private var pendingFullResImage: NSImage?
     @State private var isLoadingFullRes = false
@@ -432,7 +432,7 @@ struct DetailItemView: View {
                 lastWindowSize = layout.size
                 prepareHeroImage(for: layout.size)
             }
-            // Render the frozen source once before starting the spring.
+            // Render the frozen source once before starting the flight.
             try? await Task.sleep(for: .milliseconds(16))
             guard !Task.isCancelled, phase == .opening else { return }
             await openHero()
@@ -588,7 +588,7 @@ struct DetailItemView: View {
         let startingFrame = computeImageFrame(windowSize: lastWindowSize, item: currentItem)
         // Follow the media's scrolled position. Once it is entirely above the
         // viewport, begin just outside the top edge so a deep scroll does not
-        // turn the short spring into thousands of points of invisible travel.
+        // turn the short flight into thousands of points of invisible travel.
         let scrolledY = startingFrame.minY - max(0, scrollOffset)
         frozenHeroStartFrame = CGRect(
             x: startingFrame.minX + swipeOffset,
@@ -1015,7 +1015,7 @@ struct DetailItemView: View {
             return NSImage(contentsOf: MediaStorageService.shared.mediaURL(filename: filename))
         }.value
         if let loaded, !Task.isCancelled, items[currentIndex].id == item.id {
-            // Swapping a many-megapixel bitmap in while the hero spring is still running forces
+            // Swapping a many-megapixel bitmap in while the hero flight is still running forces
             // a re-raster mid-flight and visibly hitches it. Decode in parallel as before, but
             // hold the swap until the animation lands.
             if phase == .settled {

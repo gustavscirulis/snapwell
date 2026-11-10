@@ -7,13 +7,13 @@ import SwiftUI
 ///  - **standard** — UI transitions: tab switches, toasts, selection badges, carousel slides
 ///  - **hero**     — page-level: detail overlay expand/collapse
 ///
-/// All presets have reduced-motion variants that use short ease curves instead of springs.
+/// All presets have reduced-motion variants that use short ease curves.
 /// Views should read `@Environment(\.accessibilityReduceMotion)` and pass it to
 /// the `reduced:` overloads, or use the static lets when reduce-motion is handled elsewhere.
 enum SnapSpring {
     static let fast     = Animation.spring(response: 0.2, dampingFraction: 0.85)
     static let standard = Animation.spring(response: 0.3, dampingFraction: 0.8)
-    static let hero     = Animation.spring(response: 0.36, dampingFraction: 0.87)
+    static let hero     = Animation.timingCurve(0.44, 0.58, 0, 1, duration: 0.36)
     static let metadata = Animation.spring(response: 0.4, dampingFraction: 0.85)
 
     // MARK: - Reduce Motion Variants
