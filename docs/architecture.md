@@ -46,6 +46,12 @@ Bundle ID: `co.snapwell`.
 
 ## Architecture patterns
 
+**Fullscreen hero transitions**: both apps open and return to a visible grid target with a
+360 ms timing curve `(0.44, 0.58, 0, 1)`. A custom `HeroFlightView` interpolates one rectangle
+for image sizing, the top-aligned crop and position. Each flight keeps its prepared thumbnail
+bitmap fixed; full resolution is applied after opening completes. Existing short Reduce Motion
+curves and the shrink/fade fallback for an offscreen return target remain in place.
+
 **iOS AppState**: UI state lives in `AppState` (`@Observable @MainActor`), not scattered `@State` on views. Match this pattern for new state.
 
 **Analysis coordination**: AI analysis logic lives in `AnalysisCoordinator` (iOS) and `ImportService` (Mac), NOT in views.

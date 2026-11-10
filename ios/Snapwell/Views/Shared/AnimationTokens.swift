@@ -10,15 +10,15 @@ import UIKit
 enum SnapSpring {
     static let fast     = Animation.spring(response: 0.2, dampingFraction: 0.85)
     static let standard = Animation.spring(response: 0.3, dampingFraction: 0.8)
-    static let hero     = Animation.spring(response: 0.36, dampingFraction: 0.87)
+    static let hero     = Animation.timingCurve(0.44, 0.58, 0, 1, duration: 0.36)
     static let metadata = Animation.spring(response: 0.4, dampingFraction: 0.85)
 
     /// Brief ease-out used when Reduce Motion is enabled.
     private static let reduced = Animation.easeOut(duration: 0.2)
 
-    /// Returns a brief ease-out when Reduce Motion is on, otherwise the given spring.
-    static func resolved(_ spring: Animation) -> Animation {
-        UIAccessibility.isReduceMotionEnabled ? reduced : spring
+    /// Returns a brief ease-out when Reduce Motion is on, otherwise the given animation.
+    static func resolved(_ animation: Animation) -> Animation {
+        UIAccessibility.isReduceMotionEnabled ? reduced : animation
     }
 
     static var resolvedFast: Animation     { resolved(fast) }

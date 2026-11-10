@@ -6,7 +6,7 @@ import AVKit
  *
  * OPEN
  *    0ms   thumbnail hidden, backdrop 0 → 1.0
- *          hero image springs from sourceRect → finalFrame
+ *          hero image eases from sourceRect → finalFrame
  *
  * SETTLED (after hero completes)
  *          Image centered; details peek in when there is room
@@ -15,7 +15,7 @@ import AVKit
  *
  * CLOSE (hero back to grid)
  *    0ms   switch to hero image, backdrop 1.0 → 0
- *          hero springs back to a frozen visible grid target
+ *          hero eases back to a frozen visible grid target
  *  ~360ms  overlay removed
  *
  * CLOSE (when grid cell not visible)
@@ -61,6 +61,34 @@ enum DetailHeroCrop {
               let sliced = cgImage.cropping(to: CGRect(x: 0, y: 0, width: cgImage.width, height: height))
         else { return image }
         return UIImage(cgImage: sliced, scale: image.scale, orientation: image.imageOrientation)
+    }
+}
+
+/// Interpolates one rectangle for the bitmap, clipping box, and position.
+private struct HeroFlightView<Content: View>: View, @MainActor Animatable {
+    var frame: CGRect
+    @ViewBuilder let content: (CGSize) -> Content
+
+    var animatableData: AnimatablePair<AnimatablePair<CGFloat, CGFloat>, AnimatablePair<CGFloat, CGFloat>> {
+        get {
+            AnimatablePair(
+                AnimatablePair(frame.minX, frame.minY),
+                AnimatablePair(frame.width, frame.height)
+            )
+        }
+        set {
+            frame = CGRect(
+                x: newValue.first.first,
+                y: newValue.first.second,
+                width: newValue.second.first,
+                height: newValue.second.second
+            )
+        }
+    }
+
+    var body: some View {
+        content(frame.size)
+            .position(x: frame.midX, y: frame.midY)
     }
 }
 
@@ -592,26 +620,27 @@ struct FullScreenImageOverlay: View {
         let currentFrame = heroAtDestination ? largeFrame : smallFrame
         let cornerRadius: CGFloat = heroAtDestination ? 16 : 12
 
-        Group {
-            if let bitmap = preparedHeroBitmap ?? heroBitmap {
-                let scale = max(
-                    currentFrame.width / max(bitmap.size.width, 1),
-                    currentFrame.height / max(bitmap.size.height, 1)
-                )
-                Image(uiImage: bitmap)
-                    .resizable()
-                    .frame(width: bitmap.size.width * scale, height: bitmap.size.height * scale)
-                    .frame(width: currentFrame.width, height: currentFrame.height, alignment: .top)
-                    .clipped()
-            } else {
-                Rectangle()
-                    .fill(Color.snapDarkMuted)
-                    .frame(width: currentFrame.width, height: currentFrame.height)
+        HeroFlightView(frame: currentFrame) { size in
+            Group {
+                if let bitmap = preparedHeroBitmap ?? heroBitmap {
+                    let scale = max(
+                        size.width / max(bitmap.size.width, 1),
+                        size.height / max(bitmap.size.height, 1)
+                    )
+                    Image(uiImage: bitmap)
+                        .resizable()
+                        .frame(width: bitmap.size.width * scale, height: bitmap.size.height * scale)
+                        .frame(width: size.width, height: size.height, alignment: .top)
+                        .clipped()
+                } else {
+                    Rectangle()
+                        .fill(Color.snapDarkMuted)
+                        .frame(width: size.width, height: size.height)
+                }
             }
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+            .opacity(phase == .closingCentered && !heroAtDestination ? 0 : 1)
         }
-        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
-        .position(x: currentFrame.midX, y: currentFrame.midY)
-        .opacity(phase == .closingCentered && !heroAtDestination ? 0 : 1)
     }
 
     // MARK: - Settled Content View (Phase B)
