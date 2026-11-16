@@ -1,5 +1,166 @@
 import UIKit
+import CoreGraphics
 import Foundation
+#if SNAPWELL_FOUNDATION_MODELS_VISION
+import FoundationModels
+#endif
+
+enum AppleIntelligenceAvailability: Equatable, Sendable {
+    case ready
+    case unsupportedOS
+    case deviceNotEligible
+    case appleIntelligenceNotEnabled
+    case modelNotReady
+    case visionUnavailable
+    case unknown
+
+    var isReady: Bool { self == .ready }
+
+    var isEligibleForDefault: Bool {
+        switch self {
+        case .ready, .appleIntelligenceNotEnabled, .modelNotReady:
+            return true
+        case .unsupportedOS, .deviceNotEligible, .visionUnavailable, .unknown:
+            return false
+        }
+    }
+
+    var statusTitle: String {
+        switch self {
+        case .ready: return "Ready"
+        case .unsupportedOS: return "Requires iOS or iPadOS 27"
+        case .deviceNotEligible: return "This device isn’t eligible"
+        case .appleIntelligenceNotEnabled: return "Apple Intelligence is off"
+        case .modelNotReady: return "Model not ready"
+        case .visionUnavailable: return "Image understanding unavailable"
+        case .unknown: return "Temporarily unavailable"
+        }
+    }
+
+    var statusMessage: String {
+        switch self {
+        case .ready:
+            return "Images and sampled video frames are analyzed privately on this device."
+        case .unsupportedOS:
+            return "Update to iOS or iPadOS 27 or later, or choose another provider."
+        case .deviceNotEligible:
+            return "Choose another provider to analyze media on this device."
+        case .appleIntelligenceNotEnabled:
+            return "Turn on Apple Intelligence in Settings. Snapwell will start automatically when it becomes available."
+        case .modelNotReady:
+            return "Apple Intelligence may still be downloading. Snapwell will retry when the app becomes active."
+        case .visionUnavailable:
+            return "The installed system model can’t analyze images. Update the OS or choose another provider."
+        case .unknown:
+            return "Snapwell will retry when the app becomes active. You can also choose another provider."
+        }
+    }
+}
+
+struct AppleIntelligencePattern: Equatable, Sendable {
+    let name: String
+    let confidence: Double
+}
+
+struct AppleIntelligenceOutput: Equatable, Sendable {
+    let imageContext: String
+    let imageSummary: String
+    let patterns: [AppleIntelligencePattern]
+}
+
+protocol AppleIntelligenceAnalyzing: Sendable {
+    var availability: AppleIntelligenceAvailability { get }
+    func analyze(image: CGImage, instructions: String) async throws -> AppleIntelligenceOutput
+}
+
+struct SystemAppleIntelligenceAnalyzer: AppleIntelligenceAnalyzing {
+    static let shared = SystemAppleIntelligenceAnalyzer()
+
+    var availability: AppleIntelligenceAvailability {
+        #if SNAPWELL_FOUNDATION_MODELS_VISION
+        if #available(iOS 27.0, *) {
+            let model = SystemLanguageModel.default
+            switch model.availability {
+            case .available:
+                return model.capabilities.contains(.vision) ? .ready : .visionUnavailable
+            case .unavailable(.deviceNotEligible):
+                return .deviceNotEligible
+            case .unavailable(.appleIntelligenceNotEnabled):
+                return .appleIntelligenceNotEnabled
+            case .unavailable(.modelNotReady):
+                return .modelNotReady
+            case .unavailable:
+                return .unknown
+            }
+        }
+        #endif
+        return .unsupportedOS
+    }
+
+    func analyze(image: CGImage, instructions: String) async throws -> AppleIntelligenceOutput {
+        #if SNAPWELL_FOUNDATION_MODELS_VISION
+        if #available(iOS 27.0, *) {
+            guard availability == .ready else {
+                throw AIAnalysisService.AnalysisError.appleIntelligenceUnavailable(availability)
+            }
+
+            let model = SystemLanguageModel.default
+            let session = LanguageModelSession(
+                model: model,
+                instructions: Instructions(instructions)
+            )
+            do {
+                let response = try await session.respond(
+                    generating: AppleIntelligenceGeneratedAnalysis.self,
+                    options: GenerationOptions(samplingMode: .greedy)
+                ) {
+                    "Analyze this image according to the instructions."
+                    Attachment(image)
+                }
+                return AppleIntelligenceOutput(
+                    imageContext: response.content.imageContext,
+                    imageSummary: response.content.imageSummary,
+                    patterns: response.content.patterns.map {
+                        AppleIntelligencePattern(name: $0.name, confidence: $0.confidence)
+                    }
+                )
+            } catch {
+                let currentAvailability = availability
+                if currentAvailability != .ready {
+                    throw AIAnalysisService.AnalysisError.appleIntelligenceUnavailable(currentAvailability)
+                }
+                throw error
+            }
+        }
+        #endif
+        throw AIAnalysisService.AnalysisError.appleIntelligenceUnavailable(.unsupportedOS)
+    }
+}
+
+#if SNAPWELL_FOUNDATION_MODELS_VISION
+@available(iOS 27.0, *)
+@Generable
+private struct AppleIntelligenceGeneratedPattern {
+    @Guide(description: "A distinctive, searchable pattern name in one or two title-cased words")
+    var name: String
+
+    @Guide(description: "Confidence that the pattern is visibly present", .range(0.0...1.0))
+    var confidence: Double
+}
+
+@available(iOS 27.0, *)
+@Generable
+private struct AppleIntelligenceGeneratedAnalysis {
+    @Guide(description: "A detailed searchable description of the entire visible image")
+    var imageContext: String
+
+    @Guide(description: "A one or two word summary")
+    var imageSummary: String
+
+    @Guide(description: "Up to six distinctive visible patterns ordered by confidence", .maximumCount(6))
+    var patterns: [AppleIntelligenceGeneratedPattern]
+}
+#endif
 
 enum AIProvider: String, CaseIterable, Codable, Sendable {
     case openai
@@ -7,6 +168,7 @@ enum AIProvider: String, CaseIterable, Codable, Sendable {
     case gemini
     case openrouter
     case ollama
+    case appleIntelligence = "apple_intelligence"
 
     var displayName: String {
         switch self {
@@ -15,14 +177,27 @@ enum AIProvider: String, CaseIterable, Codable, Sendable {
         case .gemini: return "Google Gemini"
         case .openrouter: return "OpenRouter"
         case .ollama: return "Ollama"
+        case .appleIntelligence: return "Apple Intelligence"
         }
     }
 
     var keychainService: String { rawValue }
 
-    var requiresAPIKey: Bool { self != .ollama }
+    var requiresAPIKey: Bool { self != .ollama && self != .appleIntelligence }
 
-    var canAnalyzeOnCurrentPlatform: Bool { self != .ollama }
+    var canAnalyzeOnCurrentPlatform: Bool {
+        switch self {
+        case .ollama:
+            return false
+        case .appleIntelligence:
+            if #available(iOS 27.0, *) { return true }
+            return false
+        default:
+            return true
+        }
+    }
+
+    var isLocalProvider: Bool { !requiresAPIKey }
 
     static var credentialProviders: [AIProvider] {
         allCases.filter(\.requiresAPIKey)
@@ -39,7 +214,35 @@ enum AIProvider: String, CaseIterable, Codable, Sendable {
         case .gemini: return "gemini-3.5-flash"
         case .openrouter: return "google/gemini-3.5-flash"
         case .ollama: return "gemma3:4b"
+        case .appleIntelligence: return "system"
         }
+    }
+
+    static func preferredInitialProvider(
+        appleIntelligenceAvailability: AppleIntelligenceAvailability
+    ) -> AIProvider {
+        appleIntelligenceAvailability.isEligibleForDefault ? .appleIntelligence : .openai
+    }
+
+    @discardableResult
+    static func initializeDefaultIfNeeded(
+        defaults: UserDefaults = .standard,
+        appleIntelligenceAvailability: AppleIntelligenceAvailability = SystemAppleIntelligenceAnalyzer.shared.availability
+    ) -> AIProvider {
+        let initializationKey = "aiProviderDefaultInitialization_v1"
+        if let rawValue = defaults.string(forKey: KeySyncService.providerDefaultsKey),
+           let existing = AIProvider(rawValue: rawValue) {
+            defaults.set(true, forKey: initializationKey)
+            return existing
+        }
+
+        let selected = preferredInitialProvider(
+            appleIntelligenceAvailability: appleIntelligenceAvailability
+        )
+        defaults.set(selected.rawValue, forKey: KeySyncService.providerDefaultsKey)
+        defaults.set(selected.defaultModel, forKey: KeySyncService.modelDefaultsKey(for: selected))
+        defaults.set(true, forKey: initializationKey)
+        return selected
     }
 }
 
@@ -47,13 +250,16 @@ final class AIAnalysisService: Sendable {
     static let shared = AIAnalysisService()
 
     private let session: URLSession
+    private let appleIntelligenceAnalyzer: any AppleIntelligenceAnalyzing
     private let retryDelay: @Sendable (Int) async throws -> Void
 
     init(session: URLSession = .shared,
+         appleIntelligenceAnalyzer: any AppleIntelligenceAnalyzing = SystemAppleIntelligenceAnalyzer.shared,
          retryDelay: @escaping @Sendable (Int) async throws -> Void = { attempt in
              try await Task.sleep(for: .seconds(Double(attempt) * 2.0))
          }) {
         self.session = session
+        self.appleIntelligenceAnalyzer = appleIntelligenceAnalyzer
         self.retryDelay = retryDelay
     }
 
@@ -114,10 +320,31 @@ final class AIAnalysisService: Sendable {
 
     private let maxRetries = 2
 
+    var appleIntelligenceAvailability: AppleIntelligenceAvailability {
+        appleIntelligenceAnalyzer.availability
+    }
+
     func analyze(image: UIImage, provider: AIProvider, model: String, apiKey: String, guidance: String? = nil, spaceContext: String? = nil) async throws -> AnalysisResult {
         #if SNAPWELL_AUTOMATION
         if AutomationEnvironment.usesFixtureProviders { return AutomationFixtures.analysis(provider: provider.rawValue, model: model) }
         #endif
+        let prompt = buildPrompt(guidance: guidance, spaceContext: spaceContext)
+
+        if provider == .appleIntelligence {
+            guard let cgImage = image.cgImage else {
+                throw AnalysisError.imageConversionFailed
+            }
+            let output = try await appleIntelligenceAnalyzer.analyze(
+                image: cgImage,
+                instructions: prompt
+            )
+            return makeAnalysisResult(
+                output,
+                provider: provider.rawValue,
+                model: provider.defaultModel
+            )
+        }
+
         guard let base64 = imageToBase64(image) else {
             throw AnalysisError.imageConversionFailed
         }
@@ -126,8 +353,6 @@ final class AIAnalysisService: Sendable {
            await ModelDiscoveryService.shared.structuredOutputSupport(for: model, provider: provider) == false {
             throw AnalysisError.unsupportedStructuredOutputs(model: model)
         }
-
-        let prompt = buildPrompt(guidance: guidance, spaceContext: spaceContext)
 
         return try await analyzeEncodedImage(
             base64Image: base64, provider: provider, model: model, apiKey: apiKey, prompt: prompt
@@ -350,7 +575,29 @@ final class AIAnalysisService: Sendable {
             )
         case .ollama:
             preconditionFailure("Ollama analysis is available only on Mac")
+        case .appleIntelligence:
+            preconditionFailure("Apple Intelligence requests use the on-device analyzer")
         }
+    }
+
+    func makeAnalysisResult(
+        _ output: AppleIntelligenceOutput,
+        provider: String = AIProvider.appleIntelligence.rawValue,
+        model: String = AIProvider.appleIntelligence.defaultModel
+    ) -> AnalysisResult {
+        let patterns = output.patterns
+            .filter { $0.confidence >= 0.7 }
+            .sorted { $0.confidence > $1.confidence }
+            .prefix(6)
+            .map { PatternTag(name: $0.name, confidence: $0.confidence) }
+
+        return AnalysisResult(
+            imageContext: output.imageContext,
+            imageSummary: output.imageSummary,
+            patterns: Array(patterns),
+            provider: provider,
+            model: model
+        )
     }
 
     static var analysisJSONSchema: [String: Any] {
@@ -572,6 +819,7 @@ final class AIAnalysisService: Sendable {
         case parseFailed
         case invalidAnalysisFormat(provider: String, model: String)
         case unsupportedStructuredOutputs(model: String)
+        case appleIntelligenceUnavailable(AppleIntelligenceAvailability)
 
         var errorDescription: String? {
             switch self {
@@ -603,6 +851,8 @@ final class AIAnalysisService: Sendable {
                 return "\(providerName) returned an analysis that Snapwell couldn’t read for \(model). Try again or choose a different model."
             case .unsupportedStructuredOutputs:
                 return "This OpenRouter model can’t return the structured analysis Snapwell requires. Choose a different model in Settings."
+            case .appleIntelligenceUnavailable(let availability):
+                return "\(availability.statusTitle). \(availability.statusMessage)"
             }
         }
     }

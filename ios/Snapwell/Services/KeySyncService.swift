@@ -46,6 +46,9 @@ final class KeySyncService: ObservableObject {
             return true
         }
 
+        // Only create a first-run default after the synced settings file has had
+        // the opportunity to win. This avoids publishing a transient local choice.
+        AIProvider.initializeDefaultIfNeeded()
         reloadLocalState(source: .local)
         return false
     }
@@ -83,6 +86,7 @@ final class KeySyncService: ObservableObject {
     /// Retained as a compatibility entry point for launches without a resolved library URL.
     func checkForSettingsKeys() {
         migrateLegacySettingsIfNeeded()
+        AIProvider.initializeDefaultIfNeeded()
         reloadLocalState(source: .local)
     }
 
@@ -90,6 +94,9 @@ final class KeySyncService: ObservableObject {
 
     func selectProvider(_ provider: AIProvider, rootURL: URL?) {
         UserDefaults.standard.set(provider.rawValue, forKey: Self.providerDefaultsKey)
+        if UserDefaults.standard.object(forKey: Self.modelDefaultsKey(for: provider)) == nil {
+            UserDefaults.standard.set(provider.defaultModel, forKey: Self.modelDefaultsKey(for: provider))
+        }
         persistLocalEdit(rootURL: rootURL)
     }
 
@@ -127,6 +134,7 @@ final class KeySyncService: ObservableObject {
     }
 
     func modelSelection(for provider: AIProvider) -> String {
+        if provider == .appleIntelligence { return provider.defaultModel }
         let stored = UserDefaults.standard.string(forKey: Self.modelDefaultsKey(for: provider))?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard let stored, !stored.isEmpty else { return Self.autoModelValue }
@@ -186,10 +194,6 @@ final class KeySyncService: ObservableObject {
             }
         }
 
-        if defaults.object(forKey: Self.providerDefaultsKey) == nil {
-            defaults.set(AIProvider.openai.rawValue, forKey: Self.providerDefaultsKey)
-        }
-
         removeLegacySettings(from: defaults)
         defaults.set(true, forKey: Self.legacyMigrationKey)
     }
@@ -205,7 +209,8 @@ final class KeySyncService: ObservableObject {
 
     private var selectedProvider: AIProvider {
         let rawValue = UserDefaults.standard.string(forKey: Self.providerDefaultsKey)
-        return rawValue.flatMap(AIProvider.init(rawValue:)) ?? .openai
+        return rawValue.flatMap(AIProvider.init(rawValue:))
+            ?? AIProvider.initializeDefaultIfNeeded()
     }
 
     private func loadAllKeysFromKeychain() -> [String: String] {
@@ -224,8 +229,9 @@ final class KeySyncService: ObservableObject {
         decryptedKeys = keys
         activeProvider = provider.rawValue
         activeModel = modelSelection(for: provider)
-        isUnlocked = provider.canAnalyzeOnCurrentPlatform && keys[provider.rawValue]?.isEmpty == false
-        isConfigured = provider == .ollama || isUnlocked
+        isUnlocked = provider.canAnalyzeOnCurrentPlatform
+            && (!provider.requiresAPIKey || keys[provider.rawValue]?.isEmpty == false)
+        isConfigured = provider.isLocalProvider || isUnlocked
         keySource = isConfigured || !keys.isEmpty ? source : .none
         logger.info("Using \(source.rawValue, privacy: .public) settings — provider: \(provider.rawValue, privacy: .private)")
     }
@@ -249,7 +255,9 @@ final class KeySyncService: ObservableObject {
             defaults.set(provider.rawValue, forKey: Self.providerDefaultsKey)
             let model = payload.model.trimmingCharacters(in: .whitespacesAndNewlines)
             defaults.set(
-                model.isEmpty ? Self.autoModelValue : model,
+                provider == .appleIntelligence
+                    ? provider.defaultModel
+                    : (model.isEmpty ? Self.autoModelValue : model),
                 forKey: Self.modelDefaultsKey(for: provider)
             )
         } else {

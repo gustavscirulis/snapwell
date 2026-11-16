@@ -5,6 +5,7 @@ struct AISettingsView: View {
     @EnvironmentObject private var fileSystem: FileSystemManager
     @EnvironmentObject private var keySyncService: KeySyncService
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var apiKeyInput = ""
     @State private var hasKey = false
@@ -14,6 +15,7 @@ struct AISettingsView: View {
     @State private var discoveredModels: [DiscoveredModel] = []
     @State private var isLoadingModels = false
     @State private var showsRemoveConfirmation = false
+    @State private var appleIntelligenceAvailability: AppleIntelligenceAvailability = .unknown
 
     private var provider: AIProvider {
         keySyncService.activeProvider.flatMap(AIProvider.init(rawValue:)) ?? .openai
@@ -30,7 +32,8 @@ struct AISettingsView: View {
     }
 
     private var providerOptions: [AIProvider] {
-        AIProvider.allCases.filter { $0.canAnalyzeOnCurrentPlatform || $0 == provider }
+        ([.appleIntelligence] + AIProvider.allCases.filter { $0 != .appleIntelligence })
+            .filter { $0.canAnalyzeOnCurrentPlatform || $0 == provider }
     }
 
     private var modelBinding: Binding<String> {
@@ -49,6 +52,7 @@ struct AISettingsView: View {
         case .gemini: "AIza..."
         case .openrouter: "sk-or-..."
         case .ollama: ""
+        case .appleIntelligence: ""
         }
     }
 
@@ -72,6 +76,8 @@ struct AISettingsView: View {
                 } footer: {
                     if provider == .ollama {
                         Text("Ollama was selected on your Mac. Choose a cloud provider here if you want this device to analyze new items immediately.")
+                    } else if provider == .appleIntelligence {
+                        Text("Apple Intelligence analyzes media on-device without an API key.")
                     } else {
                         Text("Snapwell sends media directly to the provider you choose. Your API key is stored securely in Keychain.")
                     }
@@ -86,6 +92,8 @@ struct AISettingsView: View {
                     } footer: {
                         Text("Ollama runs on your Mac. Items you save on this device will be analyzed after they sync to Snapwell on your Mac.")
                     }
+                } else if provider == .appleIntelligence {
+                    appleIntelligenceSection
                 } else {
                     Section("API Key") {
                         if hasKey {
@@ -136,7 +144,8 @@ struct AISettingsView: View {
             }
         }
         .task(id: provider) {
-            guard provider != .ollama else {
+            refreshAppleIntelligenceAvailability()
+            guard provider != .ollama && provider != .appleIntelligence else {
                 hasKey = false
                 discoveredModels = []
                 discoveryError = nil
@@ -149,6 +158,11 @@ struct AISettingsView: View {
             saveError = nil
             await loadModels(for: provider)
         }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                refreshAppleIntelligenceAvailability()
+            }
+        }
         .confirmationDialog(
             "Remove \(provider.displayName) API Key?",
             isPresented: $showsRemoveConfirmation,
@@ -160,6 +174,27 @@ struct AISettingsView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("AI analysis with this provider will stop until you save another key.")
+        }
+    }
+
+    @ViewBuilder
+    private var appleIntelligenceSection: some View {
+        Section {
+            LabeledContent("Status") {
+                Label(
+                    appleIntelligenceAvailability.statusTitle,
+                    systemImage: appleIntelligenceAvailability == .ready
+                        ? "checkmark.circle.fill"
+                        : "exclamationmark.triangle.fill"
+                )
+                .foregroundStyle(appleIntelligenceAvailability == .ready ? .green : .orange)
+            }
+        } header: {
+            Text("On-device Analysis")
+        } footer: {
+            if appleIntelligenceAvailability != .ready {
+                Text(appleIntelligenceAvailability.statusMessage)
+            }
         }
     }
 
@@ -279,6 +314,7 @@ struct AISettingsView: View {
 
     @MainActor
     private func loadModels(for requestedProvider: AIProvider) async {
+        guard requestedProvider != .appleIntelligence else { return }
         guard keySyncService.hasAPIKey(for: requestedProvider) else {
             discoveredModels = []
             discoveryError = nil
@@ -320,9 +356,15 @@ struct AISettingsView: View {
             "OpenRouter keys typically start with “sk-or-”."
         case .ollama:
             nil
+        case .appleIntelligence:
+            nil
         default:
             nil
         }
+    }
+
+    private func refreshAppleIntelligenceAvailability() {
+        appleIntelligenceAvailability = AIAnalysisService.shared.appleIntelligenceAvailability
     }
 }
 

@@ -64,7 +64,8 @@ struct CloudProviderHTTPTests {
             let image = try #require(parts.last?["inlineData"] as? [String: Any])
             #expect(image["mimeType"] as? String == "image/jpeg")
             #expect(image["data"] as? String == "aW1hZ2U=")
-        case .ollama: Issue.record("Cloud test must not reach Ollama")
+        case .ollama, .appleIntelligence:
+            Issue.record("Cloud test must not reach local providers")
         }
     }
 

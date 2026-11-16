@@ -79,6 +79,8 @@ final class ModelDiscoveryService: @unchecked Sendable {
             models = try await fetchOpenRouterModels(apiKey: apiKey)
         case .ollama:
             models = try await ollamaClient.fetchVisionModels()
+        case .appleIntelligence:
+            models = [DiscoveredModel(id: provider.defaultModel, displayName: "On-device system model")]
         }
 
         setCached(models, for: provider)
@@ -93,7 +95,8 @@ final class ModelDiscoveryService: @unchecked Sendable {
         .anthropic: ["claude-sonnet-5", "claude-opus-5", "claude-opus-4-8", "claude-haiku-4-5", "claude-sonnet-4-6"],
         .gemini: ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.1-flash", "gemini-3-pro", "gemini-2.5-flash", "gemini-2.0-flash"],
         .openrouter: ["google/gemini-3.5-flash", "google/gemini-3.6-flash", "openai/gpt-5.6-luna", "anthropic/claude-sonnet-5"],
-        .ollama: ["gemma3:4b", "gemma3:latest", "gemma3:12b", "gemma3:27b", "gemma3"]
+        .ollama: ["gemma3:4b", "gemma3:latest", "gemma3:12b", "gemma3:27b", "gemma3"],
+        .appleIntelligence: ["system"]
     ]
 
     /// First model matching the earliest preferred prefix. Within a family the shortest ID

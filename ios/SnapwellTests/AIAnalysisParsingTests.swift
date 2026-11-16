@@ -1,6 +1,20 @@
 import Testing
 import Foundation
+import CoreGraphics
+import UIKit
 @testable import Snapwell
+
+private struct StubAppleIntelligenceAnalyzer: AppleIntelligenceAnalyzing {
+    let availability: AppleIntelligenceAvailability
+    let output: AppleIntelligenceOutput
+
+    func analyze(image _: CGImage, instructions _: String) async throws -> AppleIntelligenceOutput {
+        guard availability == .ready else {
+            throw AIAnalysisService.AnalysisError.appleIntelligenceUnavailable(availability)
+        }
+        return output
+    }
+}
 
 private actor AnalysisRetryCounter {
     private var attempts = 0
@@ -126,7 +140,7 @@ struct AIAnalysisParsingTests {
     }
 
     @Test("Provider is correctly set in result",
-          arguments: ["openai", "anthropic", "gemini", "openrouter", "ollama"])
+          arguments: ["openai", "anthropic", "gemini", "openrouter", "ollama", "apple_intelligence"])
     func parseResponseSetsProvider(_ provider: String) throws {
         let json = """
         {
@@ -226,9 +240,9 @@ struct AIAnalysisParsingTests {
         #expect(!provider.defaultModel.isEmpty)
     }
 
-    @Test("Provider count is 5")
+    @Test("Provider count is 6")
     func providerCount() {
-        #expect(AIProvider.allCases.count == 5)
+        #expect(AIProvider.allCases.count == 6)
     }
 
     @Test("Ollama is configured locally but unavailable for iOS analysis")
@@ -238,6 +252,85 @@ struct AIAnalysisParsingTests {
         #expect(!AIProvider.credentialProviders.contains(.ollama))
         #expect(!AIProvider.cloudProviders.contains(.ollama))
         #expect(AIProvider.ollama.defaultModel == "gemma3:4b")
+    }
+
+    @Test("Apple Intelligence is a credential-free system provider")
+    func appleIntelligenceMetadata() {
+        #expect(AIProvider.appleIntelligence.requiresAPIKey == false)
+        #expect(!AIProvider.credentialProviders.contains(.appleIntelligence))
+        #expect(AIProvider.appleIntelligence.defaultModel == "system")
+    }
+
+    @Test("Eligible Apple Intelligence states become the first-run default",
+          arguments: [AppleIntelligenceAvailability.ready, .appleIntelligenceNotEnabled, .modelNotReady])
+    func appleIntelligenceDefault(_ availability: AppleIntelligenceAvailability) {
+        #expect(AIProvider.preferredInitialProvider(appleIntelligenceAvailability: availability) == .appleIntelligence)
+    }
+
+    @Test("Unsupported Apple Intelligence states retain the cloud first-run fallback",
+          arguments: [AppleIntelligenceAvailability.unsupportedOS, .deviceNotEligible, .visionUnavailable, .unknown])
+    func cloudDefault(_ availability: AppleIntelligenceAvailability) {
+        #expect(AIProvider.preferredInitialProvider(appleIntelligenceAvailability: availability) == .openai)
+    }
+
+    @Test("Apple Intelligence structured output maps into existing analysis metadata")
+    func appleIntelligenceOutputMapping() {
+        let output = AppleIntelligenceOutput(
+            imageContext: "A settings screen with a segmented control",
+            imageSummary: "Settings Screen",
+            patterns: [
+                AppleIntelligencePattern(name: "Low", confidence: 0.5),
+                AppleIntelligencePattern(name: "Segmented Control", confidence: 0.92),
+                AppleIntelligencePattern(name: "Sidebar", confidence: 0.84)
+            ]
+        )
+
+        let result = service.makeAnalysisResult(output)
+
+        #expect(result.provider == "apple_intelligence")
+        #expect(result.model == "system")
+        #expect(result.patterns.map(\.name) == ["Segmented Control", "Sidebar"])
+    }
+
+    @Test("Apple Intelligence analysis bypasses credentials and cloud transport")
+    func appleIntelligenceAnalysis() async throws {
+        let output = AppleIntelligenceOutput(
+            imageContext: "A locally analyzed image",
+            imageSummary: "Local Image",
+            patterns: [AppleIntelligencePattern(name: "On Device", confidence: 0.91)]
+        )
+        let analyzer = StubAppleIntelligenceAnalyzer(availability: .ready, output: output)
+        let localService = AIAnalysisService(appleIntelligenceAnalyzer: analyzer)
+        let image = UIImage(cgImage: try testCGImage())
+
+        let result = try await localService.analyze(
+            image: image,
+            provider: .appleIntelligence,
+            model: "ignored",
+            apiKey: ""
+        )
+
+        #expect(result.imageSummary == "Local Image")
+        #expect(result.provider == "apple_intelligence")
+        #expect(result.model == "system")
+    }
+
+    private func testCGImage() throws -> CGImage {
+        let pixels: [UInt8] = [255, 149, 0, 255]
+        let provider = try #require(CGDataProvider(data: Data(pixels) as CFData))
+        return try #require(CGImage(
+            width: 1,
+            height: 1,
+            bitsPerComponent: 8,
+            bitsPerPixel: 32,
+            bytesPerRow: 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue),
+            provider: provider,
+            decode: nil,
+            shouldInterpolate: false,
+            intent: .defaultIntent
+        ))
     }
 
     // MARK: - providerErrorMessage

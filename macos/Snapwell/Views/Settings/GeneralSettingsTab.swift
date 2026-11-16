@@ -29,6 +29,7 @@ enum AppearanceMode: String, CaseIterable {
 }
 
 struct GeneralSettingsTab: View {
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(GridColumnPreferences.self) private var gridColumns
     @Environment(LibraryShufflePreferences.self) private var libraryShuffle
     @AppStorage("appearanceMode") private var appearanceMode: String = AppearanceMode.dark.rawValue
@@ -47,6 +48,7 @@ struct GeneralSettingsTab: View {
     @State private var discoveryError: String?
     @State private var discoveredModels: [DiscoveredModel] = []
     @State private var isLoadingModels = false
+    @State private var appleIntelligenceAvailability: AppleIntelligenceAvailability = .unknown
 
     private var provider: AIProvider {
         AIProvider(rawValue: selectedProvider) ?? .openai
@@ -59,7 +61,13 @@ struct GeneralSettingsTab: View {
         case .gemini: return "AIza..."
         case .openrouter: return "sk-or-..."
         case .ollama: return ""
+        case .appleIntelligence: return ""
         }
+    }
+
+    private var providerOptions: [AIProvider] {
+        ([.appleIntelligence] + AIProvider.allCases.filter { $0 != .appleIntelligence })
+            .filter { $0.canAnalyzeOnCurrentPlatform || $0 == provider }
     }
 
     var body: some View {
@@ -79,13 +87,15 @@ struct GeneralSettingsTab: View {
 
             Section("AI Analysis") {
                 Picker("Provider", selection: $selectedProvider) {
-                    ForEach(AIProvider.allCases, id: \.rawValue) { p in
+                    ForEach(providerOptions, id: \.rawValue) { p in
                         Text(p.displayName).tag(p.rawValue)
                     }
                 }
 
                 if provider == .ollama {
                     ollamaSettings
+                } else if provider == .appleIntelligence {
+                    appleIntelligenceSettings
                 } else {
                     if hasKey {
                         LabeledContent("API Key") {
@@ -136,6 +146,7 @@ struct GeneralSettingsTab: View {
         }
         .formStyle(.grouped)
         .onAppear {
+            refreshAppleIntelligenceAvailability()
             checkForKey()
             Task { await loadModels() }
         }
@@ -143,6 +154,7 @@ struct GeneralSettingsTab: View {
             checkForKey()
             discoveredModels = []
             discoveryError = nil
+            refreshAppleIntelligenceAvailability()
             Task { await loadModels() }
             configurationChanged()
         }
@@ -151,6 +163,33 @@ struct GeneralSettingsTab: View {
         .onChange(of: geminiModel) { configurationChanged() }
         .onChange(of: openrouterModel) { configurationChanged() }
         .onChange(of: ollamaModel) { configurationChanged() }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                refreshAppleIntelligenceAvailability()
+            }
+        }
+    }
+
+    // MARK: - Apple Intelligence
+
+    @ViewBuilder
+    private var appleIntelligenceSettings: some View {
+        LabeledContent("Status") {
+            Label(
+                appleIntelligenceAvailability.statusTitle,
+                systemImage: appleIntelligenceAvailability == .ready
+                    ? "checkmark.circle.fill"
+                    : "exclamationmark.triangle.fill"
+            )
+            .foregroundStyle(appleIntelligenceAvailability == .ready ? .green : .orange)
+        }
+
+        if appleIntelligenceAvailability != .ready {
+            Text(appleIntelligenceAvailability.statusMessage)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     // MARK: - Ollama
@@ -256,6 +295,7 @@ struct GeneralSettingsTab: View {
         case .gemini: return $geminiModel
         case .openrouter: return $openrouterModel
         case .ollama: return $ollamaModel
+        case .appleIntelligence: return .constant(AIProvider.appleIntelligence.defaultModel)
         }
     }
 
@@ -292,6 +332,7 @@ struct GeneralSettingsTab: View {
 
     private func loadModels() async {
         let requestedProvider = provider
+        guard requestedProvider != .appleIntelligence else { return }
         guard requestedProvider == .ollama || hasKey else { return }
         isLoadingModels = true
         discoveryError = nil
@@ -330,6 +371,8 @@ struct GeneralSettingsTab: View {
             return "OpenRouter keys typically start with \"sk-or-\""
         case .ollama:
             return nil
+        case .appleIntelligence:
+            return nil
         default:
             return nil
         }
@@ -338,5 +381,9 @@ struct GeneralSettingsTab: View {
     private func configurationChanged() {
         KeySyncService.syncToiCloud()
         NotificationCenter.default.post(name: .apiKeySaved, object: nil)
+    }
+
+    private func refreshAppleIntelligenceAvailability() {
+        appleIntelligenceAvailability = AIAnalysisService.shared.appleIntelligenceAvailability
     }
 }

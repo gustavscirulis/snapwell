@@ -63,6 +63,23 @@ struct KeySyncServiceTests {
         #expect(decoded.keys == original.keys)
     }
 
+    @Test("Apple Intelligence uses the existing payload schema without credentials")
+    func appleIntelligencePayloadRoundtrip() throws {
+        let original = KeySyncPayload(
+            provider: "apple_intelligence",
+            model: "system",
+            keys: [:],
+            updatedAt: Date(timeIntervalSince1970: 1700000000)
+        )
+
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(KeySyncPayload.self, from: data)
+
+        #expect(decoded.provider == "apple_intelligence")
+        #expect(decoded.model == "system")
+        #expect(decoded.keys.isEmpty)
+    }
+
     @Test("KeySyncPayload with empty keys dict")
     func emptyKeys() throws {
         let payload = KeySyncPayload(
@@ -161,6 +178,7 @@ struct KeySyncServiceTests {
         defaults.removeObject(forKey: "settings_defaults_v2")
         defaults.removeObject(forKey: "inAppAISettingsMigration_v1")
         defaults.removeObject(forKey: "keySyncLastImportedAt")
+        defaults.removeObject(forKey: "aiProviderDefaultInitialization_v1")
         defaults.removeObject(forKey: KeySyncService.providerDefaultsKey)
         for provider in AIProvider.allCases {
             defaults.removeObject(forKey: KeySyncService.modelDefaultsKey(for: provider))
@@ -171,6 +189,58 @@ struct KeySyncServiceTests {
         for provider in AIProvider.credentialProviders {
             try? KeychainService.delete(service: provider.rawValue)
         }
+    }
+
+    @Test("First-run initialization selects Apple Intelligence when eligible")
+    func firstRunAppleIntelligenceDefault() throws {
+        let suiteName = "AppleIntelligenceDefault-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let provider = AIProvider.initializeDefaultIfNeeded(
+            defaults: defaults,
+            appleIntelligenceAvailability: .modelNotReady
+        )
+
+        #expect(provider == .appleIntelligence)
+        #expect(defaults.string(forKey: KeySyncService.providerDefaultsKey) == "apple_intelligence")
+        #expect(defaults.string(forKey: KeySyncService.modelDefaultsKey(for: .appleIntelligence)) == "system")
+        #expect(defaults.bool(forKey: "aiProviderDefaultInitialization_v1"))
+    }
+
+    @Test("First-run initialization preserves an existing provider")
+    func firstRunPreservesExistingProvider() throws {
+        let suiteName = "AppleIntelligenceExisting-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set(AIProvider.anthropic.rawValue, forKey: KeySyncService.providerDefaultsKey)
+
+        let provider = AIProvider.initializeDefaultIfNeeded(
+            defaults: defaults,
+            appleIntelligenceAvailability: .ready
+        )
+
+        #expect(provider == .anthropic)
+        #expect(defaults.string(forKey: KeySyncService.providerDefaultsKey) == "anthropic")
+        #expect(defaults.bool(forKey: "aiProviderDefaultInitialization_v1"))
+    }
+
+    @Test("An unsupported device preserves a synced Apple Intelligence selection")
+    func unsupportedDevicePreservesAppleIntelligence() throws {
+        let suiteName = "AppleIntelligenceSynced-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set(AIProvider.appleIntelligence.rawValue, forKey: KeySyncService.providerDefaultsKey)
+        defaults.set("system", forKey: KeySyncService.modelDefaultsKey(for: .appleIntelligence))
+
+        let provider = AIProvider.initializeDefaultIfNeeded(
+            defaults: defaults,
+            appleIntelligenceAvailability: .unsupportedOS
+        )
+
+        #expect(provider == .appleIntelligence)
+        #expect(defaults.string(forKey: KeySyncService.providerDefaultsKey) == "apple_intelligence")
+        #expect(defaults.bool(forKey: "aiProviderDefaultInitialization_v1"))
     }
 
     @Test("Legacy non-empty key unlocks service")
@@ -400,6 +470,26 @@ struct KeySyncServiceTests {
         #expect(service.isUnlocked == false)
         #expect(service.activeAPIKey() == nil)
         #expect(AIProvider.ollama.canAnalyzeOnCurrentPlatform == false)
+    }
+
+    @Test("Apple Intelligence is configured without an API key")
+    @MainActor func appleIntelligenceIsConfiguredWithoutKey() async {
+        let defaults = UserDefaults.standard
+        cleanupDefaults(defaults)
+        cleanupKeychain()
+        defer { cleanupDefaults(defaults); cleanupKeychain() }
+
+        defaults.set(AIProvider.appleIntelligence.rawValue, forKey: KeySyncService.providerDefaultsKey)
+        defaults.set("system", forKey: KeySyncService.modelDefaultsKey(for: .appleIntelligence))
+
+        let service = KeySyncService.shared
+        service.checkForSettingsKeys()
+
+        #expect(service.activeProvider == "apple_intelligence")
+        #expect(service.activeModel == "system")
+        #expect(service.isConfigured)
+        #expect(service.isUnlocked == AIProvider.appleIntelligence.canAnalyzeOnCurrentPlatform)
+        #expect(service.activeAPIKey() == nil)
     }
 
     @Test("Foreground refresh imports an Ollama payload that arrives after launch")

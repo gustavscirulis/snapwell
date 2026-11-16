@@ -56,6 +56,10 @@ curves and the shrink/fade fallback for an offscreen return target remain in pla
 
 **Analysis coordination**: AI analysis logic lives in `AnalysisCoordinator` (iOS) and `ImportService` (Mac), NOT in views.
 
+**Apple Intelligence analysis**: `AIProvider.appleIntelligence` persists as `apple_intelligence` with the fixed model identifier `system`. `SystemAppleIntelligenceAnalyzer` is an injectable boundary around Foundation Models availability and vision prompting. On SDK 27 it passes `CGImage` attachments to `LanguageModelSession` and maps a generated structured response into the existing `AnalysisResult`; older SDKs compile the unavailable adapter while deployment targets remain iOS 17 and macOS 15. The adapter bypasses Base64 encoding, API keys, model discovery, HTTP, and network retries.
+
+Provider initialization is versioned with `aiProviderDefaultInitialization_v1`. Resolve synced settings before calling `AIProvider.initializeDefaultIfNeeded`; an existing recognized provider always wins. A new configuration chooses Apple Intelligence when the OS 27 device is eligible even if Apple Intelligence is disabled or its model is downloading, and otherwise chooses OpenAI. Synced Apple Intelligence selections remain selected on unsupported devices. Coordinators leave work unanalyzed while readiness is unavailable, refresh readiness when the app becomes active, and never fall back to a cloud provider.
+
 **Sidecar writes**: ALL sidecar JSON mutations go through `SidecarWriteService` (iOS) or `MetadataSidecarService` (Mac). NEVER write sidecar JSON directly in views.
 
 **Supported media types**: Use `SupportedMedia` enum (Mac) for file extensions and UTTypes. Don't define inline extension sets.
@@ -92,6 +96,9 @@ and merged spaces only; unrelated files, pending imports and trash remain local.
 `AnalysisRecovery` clears stale persisted analysis flags at load while preserving IDs owned by
 the iOS coordinator. Provider services accept isolated HTTP sessions and retry delays; production
 uses the normal URL session/backoff, and task cancellation propagates on both platforms.
+Apple Intelligence tests inject analyzer fixtures instead of invoking the system model. Its output
+uses the same confidence filtering, sidecar writes, search indexing, per-space guidance, and
+sampled video-frame merge paths as remote providers.
 
 ## Search and thumbnail loading
 

@@ -21,7 +21,7 @@ Built by [@gustavscirulis](https://github.com/gustavscirulis).
 ## Features
 
 - **On-device storage** — All images, metadata, and preferences stay on your devices and your iCloud — not our servers
-- **AI-powered analysis** — Categorize and tag using OpenAI, Claude, Google Gemini, OpenRouter, or Ollama running locally on your Mac
+- **AI-powered analysis** — Categorize and tag on-device with Apple Intelligence, or use OpenAI, Claude, Google Gemini, OpenRouter, or Ollama running locally on your Mac
 - **Custom analysis prompts** — Configure AI instructions per space for tailored categorization
 - **Spaces** — Organize images into collections with drag-and-drop and per-space export
 - **Search by content** — Find images based on what AI detected in them, not filenames
@@ -33,7 +33,7 @@ Built by [@gustavscirulis](https://github.com/gustavscirulis).
 
 No subscription. No account. Open source.
 
-Your library lives on your devices and your iCloud — not our servers. Snapwell has zero analytics, zero telemetry, and zero tracking. Cloud analysis goes directly from your device to the provider you choose, while Ollama analysis stays on your Mac. See [PRIVACY.md](PRIVACY.md) for details.
+Your library lives on your devices and your iCloud — not our servers. Snapwell has zero analytics, zero telemetry, and zero tracking. Apple Intelligence and Ollama analysis stay on-device; cloud analysis goes directly from your device to the provider you choose. See [PRIVACY.md](PRIVACY.md) for details.
 
 ## Installation
 
@@ -41,7 +41,9 @@ Download from the [App Store](https://apps.apple.com/us/app/snapwell/id676254135
 
 ### Requirements
 
-AI analysis requires either an API key for OpenAI, Anthropic (Claude), Google Gemini, or OpenRouter, or Ollama 0.6+ running on your Mac with an installed vision model such as `gemma3:4b`. Ollama analysis is Mac-only; items saved on iOS are analyzed after they sync to the Mac. The app works without AI too — you just won't get automatic tagging and search.
+On eligible devices running macOS, iOS, or iPadOS 27 or later, Snapwell uses Apple Intelligence for on-device image analysis by default. Apple Intelligence must be enabled and its system model must support image understanding; if it is still downloading, Snapwell leaves media unanalyzed and retries when the app becomes active. Existing provider choices are never replaced.
+
+You can instead use an API key for OpenAI, Anthropic (Claude), Google Gemini, or OpenRouter, or Ollama 0.6+ on Mac with an installed vision model such as `gemma3:4b`. Ollama is Mac-only; items saved on iOS remain unanalyzed until they sync to a Mac configured for Ollama. Snapwell never switches from an unavailable local provider to a cloud provider automatically. The app works without AI too — you just won't get automatic tagging and search.
 
 ## File storage
 
@@ -97,4 +99,4 @@ This project is licensed under the GNU General Public License v3.0 — see [LICE
 
 - Built entirely with [Claude Code](https://claude.ai/code) by Anthropic
 - App icon by [Midjourney](https://www.midjourney.com/)
-- AI analysis powered by [OpenAI](https://openai.com/), [Anthropic](https://anthropic.com/), [Google Gemini](https://deepmind.google/technologies/gemini/), [OpenRouter](https://openrouter.ai/), and [Ollama](https://ollama.com/)
+- AI analysis powered by Apple Intelligence, [OpenAI](https://openai.com/), [Anthropic](https://anthropic.com/), [Google Gemini](https://deepmind.google/technologies/gemini/), [OpenRouter](https://openrouter.ai/), and [Ollama](https://ollama.com/)

@@ -24,6 +24,7 @@ settings:
     ALWAYS_SEARCH_USER_PATHS: NO
     SWIFT_VERSION: "6.0"
     MACOSX_DEPLOYMENT_TARGET: "15.0"
+    "SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=macosx27.*]": "$(inherited) SNAPWELL_FOUNDATION_MODELS_VISION"
     DEVELOPMENT_TEAM: "HJ4HYUU2Y6"
     CODE_SIGN_IDENTITY: "Apple Development"
     CODE_SIGN_STYLE: Automatic
@@ -148,6 +149,8 @@ targets:
       - target: Snapwell
     settings:
       base:
+        PRODUCT_NAME: SnapwellUITests
+        PRODUCT_MODULE_NAME: SnapwellUITests
         GENERATE_INFOPLIST_FILE: YES
         PRODUCT_BUNDLE_IDENTIFIER: co.snapwell.automation.uitests
         TEST_TARGET_NAME: Snapwell

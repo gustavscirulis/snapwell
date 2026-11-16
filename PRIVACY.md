@@ -1,6 +1,6 @@
 # Snapwell Privacy Policy
 
-**Last updated:** August 28, 2026
+**Last updated:** November 16, 2026
 
 Snapwell is a local-first media library app. Your privacy is fundamental to how Snapwell is built.
 
@@ -14,6 +14,8 @@ All your media files, metadata, and thumbnails are stored on your devices and yo
 
 ## AI Analysis (Optional)
 
+On eligible devices running macOS, iOS, or iPadOS 27 or later, Snapwell can analyze images and sampled video frames with Apple Intelligence. The media is passed directly to Apple's on-device system model through the Foundation Models framework and is not sent to Snapwell or a third-party AI provider. Apple Intelligence is selected by default only for a new configuration on a compatible device. You can change providers at any time.
+
 If you choose a cloud AI provider, Snapwell sends your images directly to that provider using your own API key:
 
 - **OpenAI** (api.openai.com)
@@ -25,7 +27,7 @@ Images and sampled video frames are sent directly from your device to the provid
 
 On Mac, you can instead choose Ollama. Snapwell then sends images and sampled video frames only to Ollama running at `localhost` on that Mac. Items saved on iOS remain unanalyzed until they sync to the Mac. Ollama models are installed and managed separately by you.
 
-You can disable cloud analysis by removing your API key, or disable local analysis by choosing another provider or stopping Ollama.
+When a selected on-device provider is unavailable, Snapwell leaves the media unanalyzed and retries later. It never sends that media to a cloud provider automatically. You can disable cloud analysis by removing your API key, or disable local analysis by choosing another provider, turning off Apple Intelligence, or stopping Ollama.
 
 ## Data Collection
 
