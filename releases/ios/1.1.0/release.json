@@ -1,5 +1,6 @@
 {
   "build": 16,
+  "build_id": "d2393a20-a32c-4fe5-955a-895a36e076af",
   "changes": [
     {
       "id": "apple-intelligence-analysis",
@@ -15,7 +16,12 @@
     }
   ],
   "locale": "en-US",
+  "notes_sha256": "d7d85d8a50ef1e536a7d3b9d2383c8bc3f1657f736d5a4e8f652dd35c186590c",
   "platform": "ios",
-  "status": "prepared",
-  "version": "1.1.0"
+  "source_commit": "44802b2af5431372cb1e07dbbec8a05397b9661d",
+  "status": "submitted",
+  "submission_id": "40976aba-6271-4d13-bbdf-34dcc5977887",
+  "submitted_at": "2026-11-16T19:55:01.588326+00:00",
+  "version": "1.1.0",
+  "version_id": "c6509a0c-e266-4e0e-bcc0-7327da2db651"
 }
