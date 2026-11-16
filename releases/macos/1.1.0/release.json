@@ -1,0 +1,27 @@
+{
+  "build": 17,
+  "build_id": "cb9127b6-ca84-45b7-9f6a-b6a1b0d71b17",
+  "changes": [
+    {
+      "id": "apple-intelligence-analysis",
+      "text": "Analyze images and sampled video frames on-device with Apple Intelligence on eligible OS 27 devices. New configurations select it automatically when supported, while existing and iCloud-synced provider choices stay unchanged."
+    },
+    {
+      "id": "fullscreen-hero-motion",
+      "text": "Open and close fullscreen media with a smooth eased transition, keeping the image and its crop synchronized on iOS."
+    },
+    {
+      "id": "library-shuffle",
+      "text": "Shuffle media in All Media and Spaces from Settings, or turn shuffle off to return to newest first."
+    }
+  ],
+  "locale": "en-US",
+  "notes_sha256": "f83459ba1ad697efc4c6f6333995a333c282accd6eb690fc371f964dc5fa52be",
+  "platform": "macos",
+  "source_commit": "970ee936ec973270ae55bfe9561848428d0c0f75",
+  "status": "submitted",
+  "submission_id": "b17c5a91-81ca-40cd-9314-878e44e31171",
+  "submitted_at": "2026-11-16T19:46:28.084790+00:00",
+  "version": "1.1.0",
+  "version_id": "9d28b4ce-65a1-4ee2-8889-2c001adaacbd"
+}
