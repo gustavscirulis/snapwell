@@ -214,20 +214,33 @@ final class AnalysisCoordinator {
             print("[Analysis] Skipped — \(provider.displayName) analysis runs on Mac")
             return nil
         }
-        guard keySyncService.isUnlocked else {
-            print("[Analysis] Skipped — keySyncService not unlocked")
-            return nil
-        }
-        guard let apiKey = keySyncService.activeAPIKey() else {
-            print("[Analysis] Skipped — no API key for provider \(providerString)")
-            return nil
+        let apiKey: String
+        if provider == .appleIntelligence {
+            let availability = AIAnalysisService.shared.appleIntelligenceAvailability
+            guard availability == .ready else {
+                print("[Analysis] Skipped — Apple Intelligence: \(availability.statusTitle)")
+                return nil
+            }
+            apiKey = ""
+        } else {
+            guard keySyncService.isUnlocked else {
+                print("[Analysis] Skipped — keySyncService not unlocked")
+                return nil
+            }
+            guard let activeKey = keySyncService.activeAPIKey() else {
+                print("[Analysis] Skipped — no API key for provider \(providerString)")
+                return nil
+            }
+            apiKey = activeKey
         }
         guard let rootURL = fileSystem.rootURL else {
             print("[Analysis] Skipped — no rootURL")
             return nil
         }
 
-        let storedModel = keySyncService.activeModel ?? ModelDiscoveryService.autoModelValue
+        let storedModel = provider == .appleIntelligence
+            ? provider.defaultModel
+            : keySyncService.activeModel ?? ModelDiscoveryService.autoModelValue
         return AnalysisConfiguration(
             rootURL: rootURL,
             provider: provider,
@@ -281,6 +294,23 @@ final class AnalysisCoordinator {
                     return
                 }
 
+                if let analysisError = error as? AIAnalysisService.AnalysisError,
+                   case .appleIntelligenceUnavailable = analysisError {
+                    let alert = Self.alertState(
+                        for: error,
+                        mediaType: item.mediaType,
+                        provider: configuration.provider
+                    )
+                    workQueue.finishActive(enqueueRerun: false)
+                    item.isAnalyzing = false
+                    item.analysisError = nil
+                    analysisAlert = alert
+                    releasePendingWork()
+                    modelContext.saveOrLog()
+                    print("[Analysis] Paused Apple Intelligence queue: \(alert.message)")
+                    break
+                }
+
                 let alert = Self.alertState(
                     for: error,
                     mediaType: item.mediaType,
@@ -315,7 +345,9 @@ final class AnalysisCoordinator {
         let configuration = job.configuration
         let (guidance, spaceContext) = SpaceGuidanceResolver.resolve(for: item)
         var rejectedRecommendedModels: Set<String> = []
-        var resolvedModel = configuration.usesRecommendedModel
+        var resolvedModel = configuration.provider == .appleIntelligence
+            ? configuration.provider.defaultModel
+            : configuration.usesRecommendedModel
             ? await ModelDiscoveryService.shared.resolveAutoModel(for: configuration.provider)
             : configuration.storedModel
 

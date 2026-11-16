@@ -8,6 +8,63 @@ enum KeySyncService {
     private static let fileName = ".apikeys.encrypted"
     private static let lastImportedAtKey = "keySyncLastImportedAt"
 
+    /// Returns true when startup can safely create a local default immediately.
+    /// A downloaded synced choice is imported first; an evicted choice is left
+    /// for the async resolver so it cannot be overwritten by startup.
+    static func resolveImmediatelyAvailableInitialSettings() -> Bool {
+        guard !AutomationEnvironment.isEnabled else { return true }
+        guard MediaStorageService.shared.isUsingiCloud else { return true }
+
+        let url = MediaStorageService.shared.baseURL.appendingPathComponent(fileName)
+        switch ICloudFile.downloadState(of: url, isUsingiCloud: true) {
+        case .notPresent:
+            return true
+        case .downloaded:
+            syncFromiCloud()
+            return true
+        case .downloading:
+            try? FileManager.default.startDownloadingUbiquitousItem(at: url)
+            return false
+        }
+    }
+
+    /// Resolve an existing iCloud selection before creating a device-local default.
+    /// An evicted settings file is downloaded and given the same brief foreground
+    /// retry window used by iOS.
+    static func resolveInitialSettingsFromiCloud() async -> Bool {
+        guard !AutomationEnvironment.isEnabled else { return true }
+        guard MediaStorageService.shared.isUsingiCloud else { return true }
+
+        let url = MediaStorageService.shared.baseURL.appendingPathComponent(fileName)
+        switch ICloudFile.downloadState(of: url, isUsingiCloud: true) {
+        case .notPresent:
+            return true
+        case .downloaded:
+            syncFromiCloud()
+            return true
+        case .downloading:
+            try? FileManager.default.startDownloadingUbiquitousItem(at: url)
+        }
+
+        for delay in [
+            Duration.milliseconds(350), .seconds(1), .seconds(2),
+            .seconds(4), .seconds(8), .seconds(15)
+        ] {
+            do {
+                try await Task.sleep(for: delay)
+            } catch {
+                return false
+            }
+            guard !Task.isCancelled else { return false }
+            if ICloudFile.downloadState(of: url, isUsingiCloud: true) == .downloaded {
+                syncFromiCloud()
+                return true
+            }
+            try? FileManager.default.startDownloadingUbiquitousItem(at: url)
+        }
+        return false
+    }
+
     // MARK: - Write local keys to iCloud
 
     static func syncToiCloud() {
@@ -23,7 +80,7 @@ enum KeySyncService {
             }
         }
 
-        let currentProvider = UserDefaults.standard.string(forKey: "aiProvider") ?? AIProvider.openai.rawValue
+        let currentProvider = AIProvider.initializeDefaultIfNeeded().rawValue
         let modelKey = "\(currentProvider)Model"
         let currentModel = UserDefaults.standard.string(forKey: modelKey) ?? "auto"
 
@@ -54,7 +111,10 @@ enum KeySyncService {
         guard MediaStorageService.shared.isUsingiCloud else { return }
 
         let url = MediaStorageService.shared.baseURL.appendingPathComponent(fileName)
-        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        guard ICloudFile.downloadState(of: url, isUsingiCloud: true) == .downloaded else {
+            try? FileManager.default.startDownloadingUbiquitousItem(at: url)
+            return
+        }
 
         do {
             let encrypted = try Data(contentsOf: url)
@@ -66,7 +126,8 @@ enum KeySyncService {
             let lastImported = UserDefaults.standard.double(forKey: lastImportedAtKey)
             let payloadTimestamp = payload.updatedAt.timeIntervalSince1970
 
-            guard payloadTimestamp > lastImported else {
+            let hasLocalSelection = UserDefaults.standard.string(forKey: "aiProvider") != nil
+            guard !hasLocalSelection || payloadTimestamp > lastImported else {
                 logger.info("iCloud file not newer than last import, skipping")
                 return
             }
@@ -91,9 +152,16 @@ enum KeySyncService {
                 }
             }
 
-            UserDefaults.standard.set(payload.provider, forKey: "aiProvider")
-            let modelKey = "\(payload.provider)Model"
-            UserDefaults.standard.set(payload.model, forKey: modelKey)
+            guard let provider = AIProvider(rawValue: payload.provider) else {
+                logger.warning("Ignoring iCloud payload with unknown provider: \(payload.provider, privacy: .public)")
+                return
+            }
+            UserDefaults.standard.set(provider.rawValue, forKey: "aiProvider")
+            let modelKey = "\(provider.rawValue)Model"
+            UserDefaults.standard.set(
+                provider == .appleIntelligence ? provider.defaultModel : payload.model,
+                forKey: modelKey
+            )
 
             UserDefaults.standard.set(payloadTimestamp, forKey: lastImportedAtKey)
 

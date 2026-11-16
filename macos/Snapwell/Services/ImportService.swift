@@ -201,12 +201,23 @@ final class ImportService {
             return true
         }
 
+        if provider == .appleIntelligence {
+            let availability = analysisService.appleIntelligenceAvailability
+            guard availability == .ready else {
+                print("[Analysis] Apple Intelligence unavailable: \(availability.statusTitle)")
+                return true
+            }
+        }
+
         let storedModel = modelOverride
             ?? UserDefaults.standard.string(forKey: "\(provider.rawValue)Model")
             ?? ModelDiscoveryService.autoModelValue
-        let isAutoResolved = storedModel == ModelDiscoveryService.autoModelValue
+        let isAutoResolved = provider != .appleIntelligence
+            && storedModel == ModelDiscoveryService.autoModelValue
         let model: String
-        if isAutoResolved {
+        if provider == .appleIntelligence {
+            model = provider.defaultModel
+        } else if isAutoResolved {
             model = await ModelDiscoveryService.shared.resolveAutoModel(for: provider)
         } else {
             model = storedModel
@@ -249,8 +260,14 @@ final class ImportService {
         } catch {
             print("[Analysis] Failed for \(item.id): \(error)")
             item.isAnalyzing = false
-            item.analysisError = error.localizedDescription
-            analysisAlertError = error.localizedDescription
+            if let analysisError = error as? AIAnalysisService.AnalysisError,
+               case .appleIntelligenceUnavailable = analysisError {
+                item.analysisError = nil
+                analysisAlertError = nil
+            } else {
+                item.analysisError = error.localizedDescription
+                analysisAlertError = error.localizedDescription
+            }
             context.saveOrLog()
             return false
         }

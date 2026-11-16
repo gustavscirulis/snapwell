@@ -16,6 +16,10 @@ struct SnapwellApp: App {
     init() {
         NSWindow.allowsAutomaticWindowTabbing = false
 
+        if KeySyncService.resolveImmediatelyAvailableInitialSettings() {
+            AIProvider.initializeDefaultIfNeeded()
+        }
+
         #if SNAPWELL_AUTOMATION
         do {
             try AutomationFixtures.prepare()
@@ -68,7 +72,10 @@ struct SnapwellApp: App {
             .environment(libraryShuffle)
             .preferredColorScheme(appearanceColorScheme)
             .task {
-                KeySyncService.syncFromiCloud()
+                // Import an existing cross-device choice before creating and
+                // publishing the no-configuration default.
+                guard await KeySyncService.resolveInitialSettingsFromiCloud() else { return }
+                AIProvider.initializeDefaultIfNeeded()
                 KeySyncService.syncToiCloud()
             }
     }
