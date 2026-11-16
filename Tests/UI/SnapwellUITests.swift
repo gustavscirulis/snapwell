@@ -82,7 +82,11 @@ final class SnapwellUITests: XCTestCase {
     func testEmptyLibraryCanImportImage() {
         launch("empty")
         waitForCount(0)
+        #if os(macOS)
+        app.buttons["automation-import"].click()
+        #else
         app.buttons["automation-import"].tap()
+        #endif
         waitForCount(1)
         waitForAnalysis(1)
         XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'media-'")).firstMatch.waitForExistence(timeout: 10))
@@ -91,7 +95,11 @@ final class SnapwellUITests: XCTestCase {
     func testEmptyLibraryCanImportVideo() {
         launch("empty")
         waitForCount(0)
+        #if os(macOS)
+        app.buttons["automation-import-video"].click()
+        #else
         app.buttons["automation-import-video"].tap()
+        #endif
         waitForCount(1)
         waitForAnalysis(1)
         XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'media-'")).firstMatch.waitForExistence(timeout: 10))
@@ -109,7 +117,11 @@ final class SnapwellUITests: XCTestCase {
         let close = app.buttons["Close"]
         #endif
         XCTAssertTrue(close.waitForExistence(timeout: 10))
+        #if os(macOS)
+        close.click()
+        #else
         close.tap()
+        #endif
         XCTAssertTrue(thumbnail.waitForExistence(timeout: 10))
         #if os(macOS)
         let dismissed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: close)
