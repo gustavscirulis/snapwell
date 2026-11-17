@@ -7,7 +7,7 @@ The Mac app is the reference implementation; both apps share media and JSON side
 
 - [Architecture and platform conventions](docs/architecture.md): storage, iCloud, state ownership, project generation and native interaction patterns.
 - [Testing](docs/testing.md): validation commands, automation builds, fixtures and evidence.
-- [Releases](docs/releases.md): changelog, build numbers, notes, upload and App Review. A request to release delegates notes, submission and automatic publication after approval; follow the release runbook without asking the user to repeat these steps.
+- [Releases](docs/releases.md): changelog, build numbers, notes, upload, App Review and public-content updates. A request to release delegates notes, submission, relevant site/help-center updates and automatic publication after approval; follow the release runbook without asking the user to repeat these steps.
 - [Public repository hygiene](docs/workflows/public-repository.md): privacy hooks, commit identity, private validation artifacts, durable release evidence and safe cleanup.
 - [Agent workflow](docs/workflows/agent-loop.md): task handoffs and focused reviews.
 - [Change history](CHANGELOG.md): user-visible changes waiting to ship.
@@ -61,3 +61,12 @@ evidence for version-only bumps. If signing is sandbox-blocked, use the single l
 upload handoff; keep secrets on the Mac. Follow
 [public repository hygiene](docs/workflows/public-repository.md); do not claim unattended
 signing is configured until a credentialed release runner has passed a real verification.
+
+Every release also reviews the actual user-visible changes since the preceding release on
+that platform. Prepare and validate any relevant `site/` and Help Center updates before
+submission, include tracked site changes in the release PR, and publish applicable Help
+Center changes with `fin` during the App Store submission phase. Keep landing-page changes
+minimal unless a release materially changes positioning or setup. Re-fetch changed articles
+and verify the site after its normal merge/deployment. Platform-specific releases update only
+applicable content; explicitly record when reliability-only or visual-polish work needs no
+public-content change.
