@@ -41,8 +41,9 @@ background, across the whole library.
 ## Positioning
 
 The mechanism a neighboring product cannot truthfully copy: **automatic,
-whole-library AI analysis running in the background on-device-adjacent terms —
-your own API key, your own storage, no account, no server, open source.**
+whole-library AI analysis running in the background with on-device options —
+Apple Intelligence or Ollama — plus your own storage, no account, no server,
+and open source code.**
 Competitors are either cloud services that own your library (Eagle, Are.na,
 Pinterest, Milanote) or manual-tagging tools. Snapwell does the tagging work
 without taking custody of the collection.
@@ -55,14 +56,18 @@ without taking custody of the collection.
   ("that login screen with the gradient card").
 - The library is cross-device: collected on iPhone, worked with on Mac, synced
   over the user's own iCloud.
-- Users bring their own AI provider key (OpenAI, Anthropic, Google Gemini, or
-  OpenRouter). This is a real setup step, not a hidden detail.
+- On eligible devices running OS 27 or later, new configurations use Apple
+  Intelligence on-device without an API key. Users can instead bring a key for
+  OpenAI, Anthropic, Google Gemini, or OpenRouter, or use Ollama on Mac.
 
 ## Capabilities and Constraints
 
 - Import images and videos: drag, paste, web images, iOS Share Extension,
   mobile import queue watched by the Mac app.
-- Automatic AI analysis per item, with per-Space custom guidance prompts.
+- Automatic AI analysis per item with Apple Intelligence, a selected cloud
+  provider, or Ollama on Mac, plus per-Space custom guidance prompts.
+- Device-local grid controls choose 1–4 columns on iPhone, 1–8 on iPad, and
+  2–8 on Mac; library shuffle randomizes All Media and Space browsing.
 - Content-based search across AI-detected descriptions.
 - Spaces: collections with drag-and-drop and per-space export.
 - iCloud sync between Mac and iOS; storage is a plain folder in
@@ -118,8 +123,8 @@ without taking custody of the collection.
    real tags, real search — is more persuasive than any illustration of it.
 2. **Show the mechanism, don't assert it.** "AI tags everything" is a claim;
    the tag chips appearing on a real screenshot is proof.
-3. **Custody is the differentiator.** Local files, own API key, open source —
-   stated as fact, never as fear-marketing.
+3. **Custody is the differentiator.** Local files, on-device analysis or an
+   own-provider key, open source — stated as fact, never as fear-marketing.
 4. **Craft is the pitch.** The audience is designers; the surface's own
    execution is read as evidence about the app.
 5. **Nothing invented.** No fake social proof, no invented numbers. The page

@@ -37,7 +37,7 @@ export default function PrivacyPage() {
         </Link>
 
         <h1 className="t-h2">Privacy Policy</h1>
-        <p className="mt-4 text-sm text-muted">Last updated — August 28, 2026</p>
+        <p className="mt-4 text-sm text-muted">Last updated — November 17, 2026</p>
 
         <div className="mt-12 space-y-10 text-[15px] leading-relaxed text-muted [&_h2]:mb-3 [&_h2]:text-lg [&_h2]:font-medium [&_h2]:text-foreground [&_a]:text-foreground [&_a]:underline [&_a]:underline-offset-2 hover:[&_a]:text-accent [&_strong]:font-medium [&_strong]:text-foreground/80 [&_ul]:list-disc [&_ul]:space-y-1.5 [&_ul]:pl-5">
           <section>
@@ -69,13 +69,23 @@ export default function PrivacyPage() {
           <section>
             <h2>AI analysis</h2>
             <p>
+              On eligible devices running macOS, iOS, or iPadOS 27 or later,
+              Apple Intelligence can analyze images and sampled video frames
+              with Apple&rsquo;s on-device system model. New configurations select
+              it automatically when the model supports image understanding;
+              existing provider choices are not replaced.
+            </p>
+            <p className="mt-3">
               With a cloud AI provider, requests go{" "}
               <strong>directly from your device to that provider</strong> using
               your API key — they never pass through Snapwell infrastructure.
-              On Mac, you can instead use Ollama. In that mode, images and
-              sampled video frames are sent only to Ollama running locally on
-              your Mac. Items saved on iOS are analyzed after they sync to the
-              Mac.
+              On Mac, you can instead use Ollama, which receives media only at{" "}
+              <strong>localhost</strong> on that Mac.
+            </p>
+            <p className="mt-3">
+              If Apple Intelligence or Ollama is unavailable, Snapwell leaves
+              the item unanalyzed and retries later. It never sends media to a
+              cloud provider automatically.
             </p>
           </section>
 

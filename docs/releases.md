@@ -23,6 +23,28 @@ all authorized steps and report Apple's exact state. Uploaded/VALID is not submi
 submitted is not approved or released. Resume a partially completed release before creating
 another version or uploading another build. Read the saved receipt and Apple state first.
 
+## Update the public site and Help Center
+
+Every release reviews the actual user-visible changes since the preceding release for that
+platform, rather than copying the release notes verbatim. Prepare and validate relevant public
+content before submission:
+
+1. Update tracked content under `site/` in the release PR when a change affects product
+   positioning, setup, supported platforms, privacy or an important marketed capability.
+   Keep the landing page unchanged for routine reliability and visual-polish releases.
+2. Review the live Snapwell Help Center with `fin`. Update existing articles or create a
+   focused article when users need setup, usage, recovery or compatibility guidance.
+3. Snapshot affected articles under `.context/` before changing them. During the App Store
+   submission phase, publish applicable Help Center changes with `fin`; do not wait for Apple
+   to mark the version distributed.
+4. Re-fetch every changed article to verify its body, collection, links, published state and
+   absence of unpublished changes. After the release PR's normal merge/deployment, verify the
+   relevant site pages.
+
+For a platform-specific release, change only content that applies to that platform. When the
+release contains only reliability work or visual polish with no useful public documentation,
+record that no site or Help Center change is needed in the release handoff.
+
 For the preferred single-command local Terminal handoff, see
 [release automation](workflows/release-automation.md). Keep signing secrets on the Mac;
 local API credentials alone do not give an agent sandbox access to Apple's native services.
