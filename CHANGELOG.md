@@ -7,6 +7,8 @@ User-visible changes are recorded as they are implemented. Release manifests und
 
 ### macOS
 
+- [space-icons] Choose SF Symbol icons from a curated grid for Spaces in the sidebar, with automatic title-based AI suggestions and reliable local fallbacks.
+
 - [fullscreen-metadata-reveal] Reveal fullscreen metadata in reading order once scrolling brings its title into view, with a readable stagger that plays once per session and respects Reduce Motion.
 
 - [remote-analysis-sync] Pick up missing or newer analysis from iCloud and refresh search results.

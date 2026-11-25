@@ -13,6 +13,7 @@ struct ContentView: View {
     @State private var videoPreview = VideoPreviewManager()
     @State private var importService = ImportService()
     @State private var searchService = SearchIndexService()
+    @State private var spaceIconCoordinator = SpaceIconSuggestionCoordinator()
 
     @State private var syncWatcher = SyncWatcher()
     @State private var isDragTargeted = false
@@ -100,7 +101,8 @@ struct ContentView: View {
                 onRenameSpace: renameSpace,
                 onReorderSpaces: reorderSpaces,
                 onChangeSpaceMembership: updateSpaceMembership,
-                onToggleHideFromAllMedia: toggleHideFromAllMedia
+                onToggleHideFromAllMedia: toggleHideFromAllMedia,
+                onSetSpaceSymbol: setSpaceSymbol
             )
         } detail: {
             ZStack {
@@ -316,6 +318,7 @@ struct ContentView: View {
 
             // Sync items that arrived via iCloud while app was closed
             await syncWatcher.initialSync(context: modelContext)
+            backfillSpaceIcons()
             DataCleanupService.cleanOrphanedRecords(context: modelContext)
             DataCleanupService.cleanOrphanedSidecars()
             searchService.buildIndex(items: allItems)
@@ -348,6 +351,7 @@ struct ContentView: View {
             for await _ in NotificationCenter.default.notifications(named: NSApplication.didBecomeActiveNotification) {
                 KeySyncService.syncFromiCloud()
                 await syncWatcher.resyncFromDisk()
+                backfillSpaceIcons()
                 await importService.analyzeUnanalyzedItems(from: allItems, context: modelContext)
             }
         }
@@ -922,6 +926,8 @@ struct ContentView: View {
         space.customPrompt = info.customPrompt
         space.useCustomPrompt = info.useCustomPrompt
         space.hideFromAllMedia = info.hideFromAllMedia
+        space.symbolName = info.symbolName
+        space.isSymbolManuallySelected = info.isSymbolManuallySelected
         modelContext.insert(space)
 
         let memberItems = allItems.filter { info.itemIds.contains($0.id) }
@@ -937,6 +943,7 @@ struct ContentView: View {
 
     private func reDeleteSpace(_ info: DeletedSpaceInfo) {
         guard let space = spaces.first(where: { $0.id == info.id }) else { return }
+        spaceIconCoordinator.cancel(spaceID: info.id)
 
         let freshSnapshot = DeletedSpaceInfo(
             id: space.id,
@@ -946,6 +953,8 @@ struct ContentView: View {
             customPrompt: space.customPrompt,
             useCustomPrompt: space.useCustomPrompt,
             hideFromAllMedia: space.hideFromAllMedia,
+            symbolName: space.symbolName,
+            isSymbolManuallySelected: space.isSymbolManuallySelected,
             itemIds: space.items.map(\.id)
         )
         appState.pushUndoBatch(.spaceDeletion(freshSnapshot))
@@ -983,6 +992,7 @@ struct ContentView: View {
 
     private func deleteSpace(_ id: String) {
         guard let space = spaces.first(where: { $0.id == id }) else { return }
+        spaceIconCoordinator.cancel(spaceID: id)
 
         let snapshot = DeletedSpaceInfo(
             id: space.id,
@@ -992,6 +1002,8 @@ struct ContentView: View {
             customPrompt: space.customPrompt,
             useCustomPrompt: space.useCustomPrompt,
             hideFromAllMedia: space.hideFromAllMedia,
+            symbolName: space.symbolName,
+            isSymbolManuallySelected: space.isSymbolManuallySelected,
             itemIds: space.items.map(\.id)
         )
         appState.pushUndoBatch(.spaceDeletion(snapshot))
@@ -1025,13 +1037,57 @@ struct ContentView: View {
     }
 
     private func renameSpace(_ id: String, _ newName: String) {
-        if let space = spaces.first(where: { $0.id == id }) {
-            syncWatcher.beginLocalChange()
-            space.name = newName
-            modelContext.saveOrLog()
-            MetadataSidecarService.shared.writeSpaces(Array(spaces))
-            syncWatcher.endLocalChange()
+        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              let space = spaces.first(where: { $0.id == id }) else { return }
+        let titleChanged = space.name != trimmed
+        syncWatcher.beginLocalChange()
+        space.name = trimmed
+        modelContext.saveOrLog()
+        MetadataSidecarService.shared.writeSpaces(from: modelContext)
+        syncWatcher.endLocalChange()
+        if titleChanged, !space.isSymbolManuallySelected {
+            requestSpaceIcon(for: space)
         }
+    }
+
+    private func setSpaceSymbol(_ id: String, _ symbolName: String) {
+        guard SpaceIconSuggestionCoordinator.isAvailable(symbolName),
+              let space = spaces.first(where: { $0.id == id }) else { return }
+        spaceIconCoordinator.cancel(spaceID: id)
+        persistSpaceSymbol(symbolName, isManual: true, for: space)
+    }
+
+    private func backfillSpaceIcons() {
+        let descriptor = FetchDescriptor<Space>(sortBy: [SortDescriptor(\.order)])
+        let missing = ((try? modelContext.fetch(descriptor)) ?? []).filter { $0.symbolName == nil }
+        guard !missing.isEmpty else { return }
+        requestSpaceIcons(for: missing)
+    }
+
+    private func requestSpaceIcon(for space: Space) {
+        requestSpaceIcons(for: [space])
+    }
+
+    private func requestSpaceIcons(for requestedSpaces: [Space]) {
+        let candidates = requestedSpaces.map { SpaceIconCandidate(id: $0.id, title: $0.name) }
+        spaceIconCoordinator.suggest(candidates) { candidate, symbolName in
+            let candidateID = candidate.id
+            let descriptor = FetchDescriptor<Space>(predicate: #Predicate { $0.id == candidateID })
+            guard let current = try? modelContext.fetch(descriptor).first,
+                  current.name == candidate.title,
+                  !current.isSymbolManuallySelected else { return }
+            persistSpaceSymbol(symbolName, isManual: false, for: current)
+        }
+    }
+
+    private func persistSpaceSymbol(_ symbolName: String?, isManual: Bool, for space: Space) {
+        syncWatcher.beginLocalChange()
+        space.symbolName = symbolName
+        space.isSymbolManuallySelected = isManual
+        modelContext.saveOrLog()
+        MetadataSidecarService.shared.writeSpaces(from: modelContext)
+        syncWatcher.endLocalChange()
     }
 
     private func reorderSpaces(from fromIndex: Int, to toIndex: Int) {

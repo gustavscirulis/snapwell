@@ -10,18 +10,20 @@ struct SpaceSidebarView: View {
     let onReorderSpaces: (Int, Int) -> Void
     let onChangeSpaceMembership: (Set<String>, SpaceMembershipAction) -> Void
     let onToggleHideFromAllMedia: (String) -> Void
+    let onSetSpaceSymbol: (String, String) -> Void
 
     @State private var editingSpaceId: String?
     @State private var editName: String = ""
     @State private var spaceToDelete: Space?
     @State private var dropTargetId: String?
+    @State private var iconPickerSpace: Space?
     @FocusState private var isEditingFocused: Bool
 
     var body: some View {
         List(selection: $selection) {
-            Text("All")
+            Label("All", systemImage: "photo.on.rectangle.angled")
                 .tag(SidebarItem.all)
-                .listItemTint(.primary)
+                .listItemTint(Color.accentColor)
                 .dropDestination(for: String.self) { strings, _ in
                     handleDropStrings(strings, action: .clearAll)
                 } isTargeted: { targeted in
@@ -41,6 +43,15 @@ struct SpaceSidebarView: View {
             }
         }
         .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 300)
+        .popover(item: $iconPickerSpace, arrowEdge: .trailing) { space in
+            SpaceIconPicker(
+                space: space,
+                onSelect: { symbolName in
+                    onSetSpaceSymbol(space.id, symbolName)
+                    iconPickerSpace = nil
+                }
+            )
+        }
         .safeAreaInset(edge: .bottom) {
             Button(action: onCreateSpace) {
                 Label("New Space", systemImage: "plus")
@@ -84,16 +95,37 @@ struct SpaceSidebarView: View {
     @ViewBuilder
     private func spaceRow(_ space: Space) -> some View {
         if editingSpaceId == space.id {
-            TextField("Name", text: $editName, onCommit: {
-                onRenameSpace(space.id, editName)
-                editingSpaceId = nil
-            })
-            .focused($isEditingFocused)
-            .onExitCommand { editingSpaceId = nil }
-            .onAppear { isEditingFocused = true }
+            HStack(spacing: 8) {
+                Image(systemName: space.symbolName ?? SpaceSymbolCatalog.fallbackName)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 16)
+                    .accessibilityHidden(true)
+                TextField("Name", text: $editName)
+                    .focused($isEditingFocused)
+                    .onSubmit {
+                        onRenameSpace(space.id, editName)
+                        editingSpaceId = nil
+                    }
+                    .onExitCommand { editingSpaceId = nil }
+                    .onAppear { isEditingFocused = true }
+            }
         } else {
-            Text(space.name)
+            Label {
+                Text(space.name)
+            } icon: {
+                Image(systemName: space.symbolName ?? SpaceSymbolCatalog.fallbackName)
+                    .accessibilityHidden(true)
+            }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(space.name)
+                .accessibilityValue(space.symbolName ?? SpaceSymbolCatalog.fallbackName)
+                .accessibilityIdentifier("space-row-\(space.id)")
                 .contextMenu {
+                    Button {
+                        iconPickerSpace = space
+                    } label: {
+                        Label("Change Icon…", systemImage: "square.grid.2x2")
+                    }
                     Button {
                         editName = space.name
                         editingSpaceId = space.id

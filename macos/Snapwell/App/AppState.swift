@@ -233,7 +233,33 @@ struct DeletedSpaceInfo {
     let customPrompt: String?
     let useCustomPrompt: Bool
     let hideFromAllMedia: Bool
+    let symbolName: String?
+    let isSymbolManuallySelected: Bool
     let itemIds: [String]
+
+    init(
+        id: String,
+        name: String,
+        order: Int,
+        createdAt: Date,
+        customPrompt: String?,
+        useCustomPrompt: Bool,
+        hideFromAllMedia: Bool,
+        symbolName: String? = nil,
+        isSymbolManuallySelected: Bool = false,
+        itemIds: [String]
+    ) {
+        self.id = id
+        self.name = name
+        self.order = order
+        self.createdAt = createdAt
+        self.customPrompt = customPrompt
+        self.useCustomPrompt = useCustomPrompt
+        self.hideFromAllMedia = hideFromAllMedia
+        self.symbolName = symbolName
+        self.isSymbolManuallySelected = isSymbolManuallySelected
+        self.itemIds = itemIds
+    }
 }
 
 enum UndoBatch {

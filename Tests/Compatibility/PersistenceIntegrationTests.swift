@@ -18,6 +18,8 @@ struct PersistenceIntegrationTests {
             space.customPrompt = "Find navigation"
             space.useCustomPrompt = true
             space.hideFromAllMedia = true
+            space.symbolName = "briefcase"
+            space.isSymbolManuallySelected = true
             let analysis = AnalysisResult(imageContext: "A toolbar", imageSummary: "Toolbar", patterns: [PatternTag(name: "Button", confidence: 0.95)], provider: "openai", model: "test-model")
             context.insert(item)
             context.insert(space)
@@ -46,6 +48,8 @@ struct PersistenceIntegrationTests {
             #expect(space.name == "Work" && space.order == 2)
             #expect(space.useCustomPrompt && space.hideFromAllMedia)
             #expect(space.customPrompt == "Find navigation")
+            #expect(space.symbolName == "briefcase")
+            #expect(space.isSymbolManuallySelected)
             #expect(space.items.map(\.id) == ["saved"])
         }
     }

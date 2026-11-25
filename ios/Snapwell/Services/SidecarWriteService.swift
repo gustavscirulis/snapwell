@@ -132,7 +132,9 @@ enum SidecarWriteService {
         let value = SidecarSpace(
             id: space.id, name: space.name, order: space.order, createdAt: space.createdAt,
             customPrompt: space.customPrompt, useCustomPrompt: space.useCustomPrompt,
-            hideFromAllMedia: space.hideFromAllMedia
+            hideFromAllMedia: space.hideFromAllMedia,
+            symbolName: space.symbolName,
+            isSymbolManuallySelected: space.isSymbolManuallySelected
         )
         enqueueSpace(PendingSpaceEdit(id: space.id, value: value), rootURL: rootURL)
     }
@@ -266,7 +268,13 @@ enum SidecarWriteService {
                     return false
                 }
                 var merged = previous ?? [:]
-                for (key, value) in fields { merged[key] = value }
+                for (key, fieldValue) in fields {
+                    if value.symbolName == nil,
+                       (key == "symbolName" || key == "isSymbolManuallySelected") {
+                        continue
+                    }
+                    merged[key] = fieldValue
+                }
                 if value.customPrompt == nil { merged.removeValue(forKey: "customPrompt") }
                 spaces.append(merged)
             }

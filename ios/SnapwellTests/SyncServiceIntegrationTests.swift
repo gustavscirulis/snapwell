@@ -230,7 +230,7 @@ struct SyncServiceIntegrationTests {
 
         let spacesFile = SidecarSpacesFile(
             spaces: [
-                SidecarSpace(id: "sp-a", name: "Screenshots", order: 0, createdAt: Date(), customPrompt: nil, useCustomPrompt: false),
+                SidecarSpace(id: "sp-a", name: "Screenshots", order: 0, createdAt: Date(), customPrompt: nil, useCustomPrompt: false, symbolName: "photo", isSymbolManuallySelected: true),
                 SidecarSpace(id: "sp-b", name: "Inspiration", order: 1, createdAt: Date(), customPrompt: nil, useCustomPrompt: false)
             ],
             allSpaceGuidance: nil,
@@ -400,7 +400,7 @@ struct SyncServiceIntegrationTests {
     @MainActor func syncImportsSpacesFromJSON() async throws {
         let spacesFile = SidecarSpacesFile(
             spaces: [
-                SidecarSpace(id: "sp-a", name: "Screenshots", order: 0, createdAt: Date(), customPrompt: nil, useCustomPrompt: false),
+                SidecarSpace(id: "sp-a", name: "Screenshots", order: 0, createdAt: Date(), customPrompt: nil, useCustomPrompt: false, symbolName: "photo", isSymbolManuallySelected: true),
                 SidecarSpace(id: "sp-b", name: "Designs", order: 1, createdAt: Date(), customPrompt: "Focus on layout", useCustomPrompt: true)
             ],
             allSpaceGuidance: nil,
@@ -414,6 +414,8 @@ struct SyncServiceIntegrationTests {
         let spaces = try context.fetch(FetchDescriptor<Space>(sortBy: [SortDescriptor(\.order)]))
         #expect(spaces.count == 2)
         #expect(spaces[0].name == "Screenshots")
+        #expect(spaces[0].symbolName == "photo")
+        #expect(spaces[0].isSymbolManuallySelected)
         #expect(spaces[1].name == "Designs")
         #expect(spaces[1].customPrompt == "Focus on layout")
         #expect(spaces[1].useCustomPrompt == true)
@@ -440,6 +442,34 @@ struct SyncServiceIntegrationTests {
         let spaces = try context.fetch(FetchDescriptor<Space>())
         #expect(spaces.count == 1)
         #expect(spaces.first?.id == "sp-keep")
+    }
+
+    @Test("Legacy space records do not erase an existing icon")
+    @MainActor func legacySpacePreservesExistingIcon() async throws {
+        let space = Space(id: "sp-legacy-icon", name: "Before", order: 0)
+        space.symbolName = "star"
+        space.isSymbolManuallySelected = true
+        context.insert(space)
+        context.saveOrLog()
+
+        let spacesFile = SidecarSpacesFile(
+            spaces: [
+                SidecarSpace(
+                    id: space.id, name: "After", order: 0, createdAt: Date(),
+                    customPrompt: nil, useCustomPrompt: false
+                )
+            ],
+            allSpaceGuidance: nil,
+            useAllSpaceGuidance: false
+        )
+        try IntegrationTestSupport.writeSpacesJSON(spacesFile, to: tempRoot)
+
+        let service = SyncService()
+        await service.sync(rootURL: tempRoot, context: context)
+
+        #expect(space.name == "After")
+        #expect(space.symbolName == "star")
+        #expect(space.isSymbolManuallySelected)
     }
 
     @Test("Imports all-space guidance from spaces.json to UserDefaults")

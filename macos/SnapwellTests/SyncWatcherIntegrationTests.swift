@@ -402,7 +402,7 @@ struct SyncWatcherIntegrationTests {
     @MainActor func syncSpacesCreatesFromJSON() async throws {
         let spacesFile = SidecarSpacesFile(
             spaces: [
-                SidecarSpace(id: "sp-a", name: "Screenshots", order: 0, createdAt: Date(), customPrompt: nil, useCustomPrompt: false),
+                SidecarSpace(id: "sp-a", name: "Screenshots", order: 0, createdAt: Date(), customPrompt: nil, useCustomPrompt: false, symbolName: "photo", isSymbolManuallySelected: true),
                 SidecarSpace(id: "sp-b", name: "Designs", order: 1, createdAt: Date(), customPrompt: "Focus on layout", useCustomPrompt: true)
             ],
             allSpaceGuidance: nil, useAllSpaceGuidance: false
@@ -415,6 +415,8 @@ struct SyncWatcherIntegrationTests {
         let spaces = try context.fetch(FetchDescriptor<Space>(sortBy: [SortDescriptor(\.order)]))
         #expect(spaces.count == 2)
         #expect(spaces[0].name == "Screenshots")
+        #expect(spaces[0].symbolName == "photo")
+        #expect(spaces[0].isSymbolManuallySelected)
         #expect(spaces[1].customPrompt == "Focus on layout")
     }
 
@@ -436,6 +438,34 @@ struct SyncWatcherIntegrationTests {
         #expect(spaces.count == 2)
         #expect(spaces[0].hideFromAllMedia == true)
         #expect(spaces[1].hideFromAllMedia == false)
+    }
+
+    @Test("Legacy space records do not erase an existing icon")
+    @MainActor func syncSpacesPreservesExistingIconFromLegacyRecord() async throws {
+        let space = Space(id: "sp-legacy-icon", name: "Before", order: 0)
+        space.symbolName = "star"
+        space.isSymbolManuallySelected = true
+        context.insert(space)
+        context.saveOrLog()
+
+        let spacesFile = SidecarSpacesFile(
+            spaces: [
+                SidecarSpace(
+                    id: space.id, name: "After", order: 0, createdAt: Date(),
+                    customPrompt: nil, useCustomPrompt: false
+                )
+            ],
+            allSpaceGuidance: nil,
+            useAllSpaceGuidance: false
+        )
+        try IntegrationTestSupport.writeSpacesJSON(spacesFile, to: tempRoot)
+
+        let watcher = makeWatcher()
+        await watcher.initialSync(context: context)
+
+        #expect(space.name == "After")
+        #expect(space.symbolName == "star")
+        #expect(space.isSymbolManuallySelected)
     }
 
     @Test("syncSpaces deletes spaces not in spaces.json")
