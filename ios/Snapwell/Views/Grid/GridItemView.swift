@@ -75,16 +75,16 @@ struct GridItemView: View {
                     .transition(.opacity)
             } else if loadFailed {
                 Rectangle()
-                    .fill(Color.snapDarkMuted)
+                    .fill(Color.snapMuted)
                     .frame(width: width, height: height)
                     .overlay {
                         VStack(spacing: 8) {
                             Image(systemName: "icloud.and.arrow.down")
                                 .font(.body)
-                                .foregroundStyle(.white.opacity(0.3))
+                                .foregroundStyle(Color.snapMutedForeground)
                             Text("Tap to retry")
                                 .font(.caption2)
-                                .foregroundStyle(.white.opacity(0.3))
+                                .foregroundStyle(Color.snapMutedForeground)
                         }
                     }
                     .onTapGesture {
@@ -93,7 +93,7 @@ struct GridItemView: View {
                     }
             } else {
                 Rectangle()
-                    .fill(Color.snapDarkMuted)
+                    .fill(Color.snapMuted)
                     .frame(width: width, height: height)
             }
 

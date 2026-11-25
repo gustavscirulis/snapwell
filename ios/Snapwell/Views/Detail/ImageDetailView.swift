@@ -144,7 +144,6 @@ struct MediaDetailModal: View {
                                 .disabled(currentItem == nil)
                             }
                         }
-                        .toolbarColorScheme(.dark, for: .navigationBar)
                         .alert("Delete this item?", isPresented: $showDeleteConfirmation) {
                             Button("Delete", role: .destructive) {
                                 deleteRequestID += 1

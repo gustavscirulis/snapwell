@@ -136,6 +136,14 @@ preference, bounded to 2–8. On Mac, saved one-column preferences are raised to
 reduction can still use one column. Preferences stay in local UserDefaults and do not sync
 with media or AI settings.
 
+## Appearance preferences
+
+Snapwell follows the device's current light or dark appearance by default on Mac and iOS.
+Settings can override that behavior with an explicit Light or Dark choice. The preference is
+device-local, uses the `appearanceMode` defaults key, and keeps `auto` as the persisted value
+for System mode so existing Mac settings remain compatible. Appearance is not synced through
+iCloud or `KeySyncService`; the iOS share extension continues to follow its host appearance.
+
 ## Library shuffle
 
 The Appearance section in Settings offers a device-local “Shuffle library” toggle, off by

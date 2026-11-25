@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A11E00000000000000000001 /* AppearanceMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00000000000000000003 /* AppearanceMode.swift */; };
+		A11E00000000000000000002 /* AppearanceModeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00000000000000000004 /* AppearanceModeTests.swift */; };
 		D500000001 /* ICloudFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = E500000001 /* ICloudFile.swift */; };
 		D500000002 /* ContainerScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = E500000002 /* ContainerScanner.swift */; };
 		D500000003 /* DownloadRequester.swift in Sources */ = {isa = PBXBuildFile; fileRef = E500000003 /* DownloadRequester.swift */; };
@@ -141,6 +143,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A11E00000000000000000003 /* AppearanceMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Shared/AppearanceMode.swift"; sourceTree = SOURCE_ROOT; };
+		A11E00000000000000000004 /* AppearanceModeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../Tests/Compatibility/AppearanceModeTests.swift"; sourceTree = SOURCE_ROOT; };
 		E500000001 /* ICloudFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ICloudFile.swift; sourceTree = "<group>"; };
 		E500000002 /* ContainerScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContainerScanner.swift; sourceTree = "<group>"; };
 		E500000003 /* DownloadRequester.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadRequester.swift; sourceTree = "<group>"; };
@@ -343,6 +347,8 @@
 		E100000001 = {
 			isa = PBXGroup;
 			children = (
+				A11E00000000000000000004 /* AppearanceModeTests.swift */,
+				A11E00000000000000000003 /* AppearanceMode.swift */,
 				4C155590E4034C86BC3F5C1B /* LibraryShufflePreferencesTests.swift */,
 				881273AA5B2F4E6B8F63FD04 /* LibraryShuffleToggle.swift */,
 				20A1E449B5FE4638902E15EE /* LibraryShufflePreferences.swift */,
@@ -697,6 +703,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A11E00000000000000000002 /* AppearanceModeTests.swift in Sources */,
 				BE74209396FD4816A2277F8A /* LibraryShufflePreferencesTests.swift in Sources */,
 				729EE96DFD6A4FBD88F6A354 /* GridColumnPreferencesTests.swift in Sources */,
 				A90000000000000000000002 /* LocalMigrationIntegrationTests.swift in Sources */,
@@ -743,6 +750,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A11E00000000000000000001 /* AppearanceMode.swift in Sources */,
 				BAFE0DEE1C3F40D6BD2348C8 /* LibraryShuffleToggle.swift in Sources */,
 				573F54369E0144379E17765B /* LibraryShufflePreferences.swift in Sources */,
 				10F28BDD50DB4FC8B5375B4F /* GridColumnChooser.swift in Sources */,

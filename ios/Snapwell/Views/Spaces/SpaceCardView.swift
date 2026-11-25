@@ -13,7 +13,7 @@ struct SpaceCardView: View {
             // Thumbnail preview
             ZStack {
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.snapDarkMuted)
+                    .fill(Color.snapMuted)
 
                 if thumbnails.count >= 4 {
                     miniGrid
@@ -28,7 +28,7 @@ struct SpaceCardView: View {
                 } else {
                     Image(systemName: "folder")
                         .font(.system(size: 28, weight: .light))
-                        .foregroundStyle(.white.opacity(0.3))
+                        .foregroundStyle(Color.snapMutedForeground)
                 }
             }
             .aspectRatio(1, contentMode: .fit)
@@ -37,14 +37,14 @@ struct SpaceCardView: View {
             HStack(spacing: 4) {
                 Text(space.name)
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.snapForeground)
                     .lineLimit(1)
 
                 Spacer(minLength: 2)
 
                 Text("\(space.items.count)")
                     .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(Color.snapMutedForeground)
             }
         }
         .task {

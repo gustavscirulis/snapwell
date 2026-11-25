@@ -6,6 +6,7 @@ struct AISettingsView: View {
     @EnvironmentObject private var keySyncService: KeySyncService
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
+    @AppStorage(AppearanceMode.storageKey) private var appearanceMode = AppearanceMode.system.rawValue
 
     @State private var apiKeyInput = ""
     @State private var hasKey = false
@@ -19,6 +20,13 @@ struct AISettingsView: View {
 
     private var provider: AIProvider {
         keySyncService.activeProvider.flatMap(AIProvider.init(rawValue:)) ?? .openai
+    }
+
+    private var appearanceSelection: Binding<String> {
+        Binding(
+            get: { (AppearanceMode(rawValue: appearanceMode) ?? .system).rawValue },
+            set: { appearanceMode = $0 }
+        )
     }
 
     private var providerBinding: Binding<String> {
@@ -60,6 +68,16 @@ struct AISettingsView: View {
         NavigationStack {
             Form {
                 Section("Appearance") {
+                    Picker("Mode", selection: appearanceSelection) {
+                        ForEach(AppearanceMode.allCases, id: \.rawValue) { mode in
+                            Text(mode.label)
+                                .tag(mode.rawValue)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .accessibilityIdentifier("appearance-mode-picker")
+                    .accessibilityValue((AppearanceMode(rawValue: appearanceMode) ?? .system).label)
+
                     GridColumnChooser(preferences: appState.gridColumns)
                     LibraryShuffleToggle(preferences: appState.libraryShuffle)
                 }
@@ -175,26 +193,37 @@ struct AISettingsView: View {
         } message: {
             Text("AI analysis with this provider will stop until you save another key.")
         }
+        // Presented sheets do not reliably inherit a changed root override until
+        // they are presented again, so keep Settings in sync while it is open.
+        .preferredColorScheme(AppearanceMode.colorScheme(for: appearanceMode))
     }
 
     @ViewBuilder
     private var appleIntelligenceSection: some View {
-        Section {
-            LabeledContent("Status") {
-                Label(
-                    appleIntelligenceAvailability.statusTitle,
-                    systemImage: appleIntelligenceAvailability == .ready
-                        ? "checkmark.circle.fill"
-                        : "exclamationmark.triangle.fill"
-                )
-                .foregroundStyle(appleIntelligenceAvailability == .ready ? .green : .orange)
+        if appleIntelligenceAvailability == .ready {
+            Section("On-device Analysis") {
+                appleIntelligenceStatusRow
             }
-        } header: {
-            Text("On-device Analysis")
-        } footer: {
-            if appleIntelligenceAvailability != .ready {
+        } else {
+            Section {
+                appleIntelligenceStatusRow
+            } header: {
+                Text("On-device Analysis")
+            } footer: {
                 Text(appleIntelligenceAvailability.statusMessage)
             }
+        }
+    }
+
+    private var appleIntelligenceStatusRow: some View {
+        LabeledContent("Status") {
+            Label(
+                appleIntelligenceAvailability.statusTitle,
+                systemImage: appleIntelligenceAvailability == .ready
+                    ? "checkmark.circle.fill"
+                    : "exclamationmark.triangle.fill"
+            )
+            .foregroundStyle(appleIntelligenceAvailability == .ready ? .green : .orange)
         }
     }
 

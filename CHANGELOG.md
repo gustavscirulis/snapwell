@@ -25,6 +25,7 @@ User-visible changes are recorded as they are implemented. Release manifests und
 
 ### Both
 
+- [system-aware-appearance] Follow each device's light or dark appearance by default, with device-local System, Light and Dark choices in Settings.
 - [apple-intelligence-analysis] Analyze images and sampled video frames on-device with Apple Intelligence on eligible OS 27 devices. New configurations select it automatically when supported, while existing and iCloud-synced provider choices stay unchanged.
 - [fullscreen-hero-motion] Open and close fullscreen media with a smooth eased transition, keeping the image and its crop synchronized on iOS.
 - [library-shuffle] Shuffle media in All Media and Spaces from Settings, or turn shuffle off to return to newest first.

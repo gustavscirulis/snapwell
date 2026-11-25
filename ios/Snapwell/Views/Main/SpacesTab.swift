@@ -28,7 +28,7 @@ struct SpacesTab<AddMenu: View>: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.snapDarkBackground
+                Color.snapBackground
                     .ignoresSafeArea()
 
                 if spaces.isEmpty {
@@ -85,7 +85,6 @@ struct SpacesTab<AddMenu: View>: View {
                     }.accessibilityIdentifier("create-space")
                 }
             }
-            .toolbarColorScheme(.dark, for: .navigationBar)
             .alert("Delete Space?", isPresented: Binding(
                 get: { spaceToDelete != nil },
                 set: { if !$0 { spaceToDelete = nil } }

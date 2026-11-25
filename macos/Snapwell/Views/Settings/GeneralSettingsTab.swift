@@ -1,38 +1,10 @@
 import SwiftUI
 
-enum AppearanceMode: String, CaseIterable {
-    case dark, light, auto
-
-    var label: String {
-        switch self {
-        case .dark: "Dark"
-        case .light: "Light"
-        case .auto: "Auto"
-        }
-    }
-
-    var icon: String {
-        switch self {
-        case .dark: "moon.fill"
-        case .light: "sun.max.fill"
-        case .auto: "circle.lefthalf.filled"
-        }
-    }
-
-    var colorScheme: ColorScheme? {
-        switch self {
-        case .dark: .dark
-        case .light: .light
-        case .auto: nil
-        }
-    }
-}
-
 struct GeneralSettingsTab: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(GridColumnPreferences.self) private var gridColumns
     @Environment(LibraryShufflePreferences.self) private var libraryShuffle
-    @AppStorage("appearanceMode") private var appearanceMode: String = AppearanceMode.dark.rawValue
+    @AppStorage(AppearanceMode.storageKey) private var appearanceMode = AppearanceMode.system.rawValue
     @AppStorage("aiProvider") private var selectedProvider: String = AIProvider.openai.rawValue
     @AppStorage("openaiModel") private var openaiModel: String = ModelDiscoveryService.autoModelValue
     @AppStorage("anthropicModel") private var anthropicModel: String = ModelDiscoveryService.autoModelValue
@@ -54,6 +26,13 @@ struct GeneralSettingsTab: View {
         AIProvider(rawValue: selectedProvider) ?? .openai
     }
 
+    private var appearanceSelection: Binding<String> {
+        Binding(
+            get: { (AppearanceMode(rawValue: appearanceMode) ?? .system).rawValue },
+            set: { appearanceMode = $0 }
+        )
+    }
+
     private var keyPlaceholder: String {
         switch provider {
         case .openai: return "sk-..."
@@ -73,13 +52,15 @@ struct GeneralSettingsTab: View {
     var body: some View {
         Form {
             Section("Appearance") {
-                Picker("Mode", selection: $appearanceMode) {
+                Picker("Mode", selection: appearanceSelection) {
                     ForEach(AppearanceMode.allCases, id: \.rawValue) { mode in
-                        Label(mode.label, systemImage: mode.icon)
+                        Text(mode.label)
+                            .accessibilityIdentifier("appearance-mode-\(mode.rawValue)")
                             .tag(mode.rawValue)
                     }
                 }
                 .pickerStyle(.inline)
+                .accessibilityIdentifier("appearance-mode-picker")
 
                 GridColumnChooser(preferences: gridColumns)
                 LibraryShuffleToggle(preferences: libraryShuffle)

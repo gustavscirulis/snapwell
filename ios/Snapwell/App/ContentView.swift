@@ -14,10 +14,10 @@ struct ContentView: View {
                 MainView()
             } else {
                 ZStack {
-                    Color.snapDarkBackground
+                    Color.snapBackground
                         .ignoresSafeArea()
                     ProgressView()
-                        .tint(.white)
+                        .tint(.snapForeground)
                 }
             }
         }
