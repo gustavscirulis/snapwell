@@ -79,6 +79,19 @@ final class SnapwellUITests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [expected], timeout: 30), .completed, "Expected \(identifier) to equal \(text)")
     }
 
+    private func waitForLabel(_ label: String, element: XCUIElement) {
+        let predicate = NSPredicate(format: "label == %@", label)
+        let expected = XCTNSPredicateExpectation(predicate: predicate, object: element)
+        XCTAssertEqual(XCTWaiter.wait(for: [expected], timeout: 15), .completed, "Expected label to become \(label)")
+    }
+
+    #if os(macOS)
+    private func rightClickCenter(of element: XCUIElement) {
+        XCTAssertTrue(element.waitForExistence(timeout: 10))
+        element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).rightClick()
+    }
+    #endif
+
     func testEmptyLibraryCanImportImage() {
         launch("empty")
         waitForCount(0)
@@ -266,6 +279,70 @@ final class SnapwellUITests: XCTestCase {
         launch("library")
         createAutomationSpace()
     }
+
+    #if os(macOS)
+    func testSpaceIconCanBeSuggestedAndManuallyChanged() {
+        launch("library")
+        app.typeKey("n", modifierFlags: .command)
+        let field = app.textFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 10))
+        field.click()
+        field.typeKey("a", modifierFlags: .command)
+        field.typeText("Travel")
+        field.typeText("\r")
+
+        let travel = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label == %@", "Travel"))
+            .firstMatch
+        XCTAssertTrue(travel.waitForExistence(timeout: 10))
+
+        rightClickCenter(of: travel)
+        clickVisibleMenuItem("Change Icon…")
+        let currentIcon = app.descendants(matching: .any)
+            .matching(identifier: "current-space-icon")
+            .firstMatch
+        XCTAssertTrue(currentIcon.waitForExistence(timeout: 10))
+        waitForLabel("Current icon: airplane", element: currentIcon)
+        let star = app.buttons["space-icon-star"]
+        XCTAssertTrue(star.waitForExistence(timeout: 10))
+        star.click()
+
+        rightClickCenter(of: travel)
+        clickVisibleMenuItem("Change Icon…")
+        XCTAssertTrue(currentIcon.waitForExistence(timeout: 10))
+        waitForLabel("Current icon: star", element: currentIcon)
+        let search = app.textFields["space-icon-search"]
+        XCTAssertTrue(search.waitForExistence(timeout: 10))
+        search.click()
+        search.typeText("bolt")
+        let useExact = app.buttons["use-exact-space-icon"]
+        XCTAssertTrue(useExact.waitForExistence(timeout: 10))
+        useExact.click()
+
+        rightClickCenter(of: travel)
+        clickVisibleMenuItem("Change Icon…")
+        XCTAssertTrue(currentIcon.waitForExistence(timeout: 10))
+        waitForLabel("Current icon: bolt", element: currentIcon)
+        app.typeKey(.escape, modifierFlags: [])
+
+        rightClickCenter(of: travel)
+        clickVisibleMenuItem("Rename")
+        let rename = app.textFields.firstMatch
+        XCTAssertTrue(rename.waitForExistence(timeout: 10))
+        rename.click()
+        rename.typeKey("a", modifierFlags: .command)
+        rename.typeText("Work")
+        rename.typeText("\r")
+        let work = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label == %@", "Work"))
+            .firstMatch
+        XCTAssertTrue(work.waitForExistence(timeout: 10))
+        rightClickCenter(of: work)
+        clickVisibleMenuItem("Change Icon…")
+        XCTAssertTrue(currentIcon.waitForExistence(timeout: 10))
+        waitForLabel("Current icon: bolt", element: currentIcon)
+    }
+    #endif
 
     private func configureFourColumnGrid() -> CGFloat {
         launch("grid")

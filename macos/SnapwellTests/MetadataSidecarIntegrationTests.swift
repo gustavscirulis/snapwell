@@ -109,6 +109,8 @@ struct MetadataSidecarIntegrationTests {
         let space = Space(id: "sp-spaces-rt", name: "Test Space", order: 0)
         space.customPrompt = "Custom guidance"
         space.useCustomPrompt = true
+        space.symbolName = "sparkles"
+        space.isSymbolManuallySelected = true
         context.insert(space)
         context.saveOrLog()
 
@@ -121,6 +123,8 @@ struct MetadataSidecarIntegrationTests {
         #expect(file.spaces.count == 1)
         #expect(file.spaces.first?.name == "Test Space")
         #expect(file.spaces.first?.customPrompt == "Custom guidance")
+        #expect(file.spaces.first?.symbolName == "sparkles")
+        #expect(file.spaces.first?.isSymbolManuallySelected == true)
         #expect(file.allSpaceGuidance == "All space guidance text")
         #expect(file.useAllSpaceGuidance == true)
     }

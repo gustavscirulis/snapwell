@@ -36,6 +36,8 @@ struct SharedSidecarTests {
         #expect(file.spaces.first?.id == "inspiration")
         #expect(file.spaces.first?.hideFromAllMedia == true)
         #expect(file.spaces.first?.useCustomPrompt == true)
+        #expect(file.spaces.first?.symbolName == "sparkles")
+        #expect(file.spaces.first?.isSymbolManuallySelected == true)
         #expect(file.useAllSpaceGuidance)
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601

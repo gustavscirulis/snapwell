@@ -62,6 +62,14 @@ Provider initialization is versioned with `aiProviderDefaultInitialization_v1`. 
 
 **Sidecar writes**: ALL sidecar JSON mutations go through `SidecarWriteService` (iOS) or `MetadataSidecarService` (Mac). NEVER write sidecar JSON directly in views.
 
+**Space icons**: `Space.symbolName` and `isSymbolManuallySelected` are persisted in
+`spaces.json` and round-trip on both platforms. macOS renders and edits the symbol in the
+sidebar; iOS preserves the fields without exposing icon UI. After initial sync, macOS batches
+Spaces without symbols through `SpaceIconSuggestionCoordinator`, which uses the configured AI
+provider and validates results against the curated macOS 15/iOS 17 catalog. Missing, unavailable
+or invalid AI results use deterministic title matching and then `folder`. Committed renames only
+refresh AI-managed icons; manual choices cancel pending suggestions and remain sticky.
+
 **Supported media types**: Use `SupportedMedia` enum (Mac) for file extensions and UTTypes. Don't define inline extension sets.
 
 **SwiftData saves**: Use `modelContext.saveOrLog()` (not `try? modelContext.save()`). The `saveOrLog()` extension logs errors and asserts in DEBUG to prevent silent data loss.

@@ -6,7 +6,9 @@
     "createdAt": "2026-01-01T12:00:00Z",
     "customPrompt": "Describe the color and composition.",
     "useCustomPrompt": true,
-    "hideFromAllMedia": true
+    "hideFromAllMedia": true,
+    "symbolName": "sparkles",
+    "isSymbolManuallySelected": true
   }],
   "allSpaceGuidance": "Describe visual ideas.",
   "useAllSpaceGuidance": true

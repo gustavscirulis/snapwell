@@ -129,9 +129,12 @@ struct SidecarSpace: Codable, Sendable {
     let customPrompt: String?
     let useCustomPrompt: Bool
     let hideFromAllMedia: Bool
+    let symbolName: String?
+    let isSymbolManuallySelected: Bool
 
     init(id: String, name: String, order: Int, createdAt: Date,
-         customPrompt: String?, useCustomPrompt: Bool, hideFromAllMedia: Bool = false) {
+         customPrompt: String?, useCustomPrompt: Bool, hideFromAllMedia: Bool = false,
+         symbolName: String? = nil, isSymbolManuallySelected: Bool = false) {
         self.id = id
         self.name = name
         self.order = order
@@ -139,6 +142,8 @@ struct SidecarSpace: Codable, Sendable {
         self.customPrompt = customPrompt
         self.useCustomPrompt = useCustomPrompt
         self.hideFromAllMedia = hideFromAllMedia
+        self.symbolName = symbolName
+        self.isSymbolManuallySelected = isSymbolManuallySelected
     }
 
     init(from decoder: Decoder) throws {
@@ -150,6 +155,8 @@ struct SidecarSpace: Codable, Sendable {
         customPrompt     = try c.decodeIfPresent(String.self, forKey: .customPrompt)
         useCustomPrompt  = try c.decodeIfPresent(Bool.self, forKey: .useCustomPrompt) ?? false
         hideFromAllMedia = try c.decodeIfPresent(Bool.self, forKey: .hideFromAllMedia) ?? false
+        symbolName = try c.decodeIfPresent(String.self, forKey: .symbolName)
+        isSymbolManuallySelected = try c.decodeIfPresent(Bool.self, forKey: .isSymbolManuallySelected) ?? false
     }
 }
 
@@ -358,6 +365,10 @@ final class SyncService {
                 space.customPrompt = sidecar.customPrompt
                 space.useCustomPrompt = sidecar.useCustomPrompt
                 space.hideFromAllMedia = sidecar.hideFromAllMedia
+                if let symbolName = sidecar.symbolName {
+                    space.symbolName = symbolName
+                    space.isSymbolManuallySelected = sidecar.isSymbolManuallySelected
+                }
                 existingById.removeValue(forKey: sidecar.id)
             } else {
                 let space = Space(
@@ -369,6 +380,8 @@ final class SyncService {
                 space.customPrompt = sidecar.customPrompt
                 space.useCustomPrompt = sidecar.useCustomPrompt
                 space.hideFromAllMedia = sidecar.hideFromAllMedia
+                space.symbolName = sidecar.symbolName
+                space.isSymbolManuallySelected = sidecar.isSymbolManuallySelected
                 context.insert(space)
             }
         }

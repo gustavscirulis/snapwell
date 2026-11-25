@@ -1,6 +1,7 @@
 import Testing
 import SwiftData
 import Foundation
+import UIKit
 @testable import Snapwell
 
 /// Integration tests for iOS SidecarWriteService merge-in-place logic.
@@ -186,6 +187,8 @@ struct SidecarWriteServiceIntegrationTests {
         let placeholder = ICloudFile.placeholderURL(for: url)
         try Data().write(to: placeholder)
         let local = Space(id: "local-\(UUID().uuidString)", name: "Local", order: 1)
+        local.symbolName = "folder"
+        local.isSymbolManuallySelected = true
         context.insert(local)
         SidecarWriteService.upsertSpace(local, rootURL: tempRoot)
         #expect(!FileManager.default.fileExists(atPath: url.path))
@@ -210,11 +213,49 @@ struct SidecarWriteServiceIntegrationTests {
         decoder.dateDecodingStrategy = .iso8601
         let merged = try decoder.decode(SidecarSpacesFile.self, from: Data(contentsOf: url))
         #expect(Set(merged.spaces.map(\.id)) == Set(["remote", local.id]))
+        #expect(merged.spaces.first(where: { $0.id == local.id })?.symbolName == "folder")
+        #expect(merged.spaces.first(where: { $0.id == local.id })?.isSymbolManuallySelected == true)
         #expect(merged.allSpaceGuidance == "Keep")
         let mergedRaw = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
         #expect(mergedRaw["futureSetting"] as? String == "untouched")
         let mergedSpaces = try #require(mergedRaw["spaces"] as? [[String: Any]])
         #expect(mergedSpaces.first { $0["id"] as? String == "remote" }?["futureSpaceField"] as? String == "also untouched")
+    }
+
+    @Test("Pending space edit without an icon preserves the downloaded remote icon")
+    @MainActor func placeholderSpaceMergePreservesRemoteIcon() throws {
+        let url = tempRoot.appendingPathComponent("spaces.json")
+        let placeholder = ICloudFile.placeholderURL(for: url)
+        try Data().write(to: placeholder)
+
+        let id = "shared-\(UUID().uuidString)"
+        let local = Space(id: id, name: "Locally Renamed", order: 0)
+        context.insert(local)
+        SidecarWriteService.upsertSpace(local, rootURL: tempRoot)
+        #expect(local.symbolName == nil)
+
+        try FileManager.default.removeItem(at: placeholder)
+        let remote = SidecarSpace(
+            id: id, name: "Remote Name", order: 0, createdAt: Date(),
+            customPrompt: nil, useCustomPrompt: false,
+            symbolName: "star", isSymbolManuallySelected: true
+        )
+        let file = SidecarSpacesFile(
+            spaces: [remote], allSpaceGuidance: nil, useAllSpaceGuidance: false
+        )
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        try encoder.encode(file).write(to: url)
+
+        SidecarWriteService.flushPending(rootURL: tempRoot)
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let merged = try decoder.decode(SidecarSpacesFile.self, from: Data(contentsOf: url))
+        let result = try #require(merged.spaces.first(where: { $0.id == id }))
+        #expect(result.name == "Locally Renamed")
+        #expect(result.symbolName == "star")
+        #expect(result.isSymbolManuallySelected)
     }
 
     // MARK: - Roundtrip

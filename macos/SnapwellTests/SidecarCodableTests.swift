@@ -216,6 +216,26 @@ struct SidecarCodableTests {
         #expect(decoded.hideFromAllMedia == true)
     }
 
+    @Test("SidecarSpace symbol fields are backward compatible and roundtrip")
+    func symbolFieldsRoundtrip() throws {
+        let legacy = """
+        {"id":"s1","name":"Old","order":0,"createdAt":"2024-01-01T00:00:00Z","useCustomPrompt":false}
+        """
+        let legacyDecoded = try Self.decoder.decode(SidecarSpace.self, from: Data(legacy.utf8))
+        #expect(legacyDecoded.symbolName == nil)
+        #expect(!legacyDecoded.isSymbolManuallySelected)
+
+        let original = SidecarSpace(
+            id: "s2", name: "Ideas", order: 1,
+            createdAt: Date(timeIntervalSince1970: 1700000000),
+            customPrompt: nil, useCustomPrompt: false,
+            symbolName: "lightbulb", isSymbolManuallySelected: true
+        )
+        let decoded = try Self.decoder.decode(SidecarSpace.self, from: Self.encoder.encode(original))
+        #expect(decoded.symbolName == "lightbulb")
+        #expect(decoded.isSymbolManuallySelected)
+    }
+
     @Test("ISO 8601 dates survive encode/decode")
     func iso8601DatesPreserved() throws {
         let date = Date(timeIntervalSince1970: 1700000000)

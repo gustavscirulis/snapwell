@@ -67,6 +67,36 @@ final class OllamaClient: Sendable {
         return content
     }
 
+    func generateStructured(
+        model: String,
+        systemPrompt: String,
+        userPrompt: String,
+        schema: [String: Any]
+    ) async throws -> String {
+        var request = URLRequest(url: endpoint("api/chat"))
+        request.httpMethod = "POST"
+        request.timeoutInterval = 45
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "model": model,
+            "messages": [
+                ["role": "system", "content": systemPrompt],
+                ["role": "user", "content": userPrompt]
+            ],
+            "stream": false,
+            "format": schema,
+            "options": ["temperature": 0]
+        ])
+
+        let data = try await perform(request)
+        guard let response = try? JSONDecoder().decode(ChatResponse.self, from: data) else {
+            throw OllamaError.invalidResponse
+        }
+        let content = response.message.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !content.isEmpty else { throw OllamaError.invalidResponse }
+        return content
+    }
+
     private func capabilities(for model: String) async throws -> Set<String> {
         var request = URLRequest(url: endpoint("api/show"))
         request.httpMethod = "POST"
