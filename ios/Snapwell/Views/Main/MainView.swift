@@ -347,7 +347,6 @@ struct MainView: View {
             }
             .tabBarMinimizeBehavior(.onScrollDown)
             .tabViewSearchActivation(.searchTabSelection)
-            .toolbarColorScheme(.dark, for: .tabBar)
         } else {
             TabView(selection: $appState.selectedTab) {
                 allItemsContent(gridWidth: gridWidth, items: libraryContentItems)
@@ -357,7 +356,6 @@ struct MainView: View {
                     .tabItem { Label("Spaces", systemImage: "folder") }
                     .tag(AppTab.spaces)
             }
-            .toolbarColorScheme(.dark, for: .tabBar)
         }
     }
 
@@ -418,7 +416,7 @@ struct MainView: View {
 
         NavigationStack {
             ZStack {
-                Color.snapDarkBackground
+                Color.snapBackground
                     .ignoresSafeArea()
 
                 if items.isEmpty && !appState.searchText.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -450,7 +448,6 @@ struct MainView: View {
             }
             .navigationTitle(scopedSpaceName ?? "Snapwell")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarColorScheme(.dark, for: .navigationBar)
             .searchable(
                 text: $appState.searchText,
                 prompt: "Search..."

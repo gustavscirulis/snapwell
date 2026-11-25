@@ -386,6 +386,30 @@ final class SnapwellUITests: XCTestCase {
         captureGridScreenshot("Four-column search")
     }
 
+    func testAppearanceModesApplyAndPersistInSettings() {
+        launch("library")
+        waitForCount(2)
+        openGridSettings()
+        assertAppearanceSelected("auto")
+
+        chooseAppearance("light")
+        captureGridScreenshot("Light appearance Settings")
+        closeGridSettings()
+        captureGridScreenshot("Light appearance library")
+
+        openGridSettings()
+        assertAppearanceSelected("light")
+        chooseAppearance("dark")
+        captureGridScreenshot("Dark appearance Settings")
+        closeGridSettings()
+        captureGridScreenshot("Dark appearance library")
+
+        openGridSettings()
+        assertAppearanceSelected("dark")
+        chooseAppearance("auto")
+        closeGridSettings()
+    }
+
     private let chronologicalIDs = ["fixture-video", "fixture-green", "fixture-orange", "fixture-blue"]
     private let shuffledIDs = ["fixture-orange", "fixture-video", "fixture-blue", "fixture-green"]
 
@@ -657,6 +681,58 @@ final class SnapwellUITests: XCTestCase {
         settings.tap()
         #endif
         XCTAssertTrue(app.sliders["grid-columns-slider"].waitForExistence(timeout: 10))
+    }
+
+    private func appearanceOption(_ rawValue: String) -> XCUIElement {
+        app.descendants(matching: .any)["appearance-mode-\(rawValue)"]
+    }
+
+    private func chooseAppearance(_ rawValue: String) {
+        #if os(macOS)
+        let option = appearanceOption(rawValue)
+        XCTAssertTrue(option.waitForExistence(timeout: 10))
+        app.activate()
+        option.click()
+        #else
+        let picker = app.descendants(matching: .any)["appearance-mode-picker"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 10))
+        picker.tap()
+        let label = appearanceLabel(rawValue)
+        let option = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label == %@", label))
+            .firstMatch
+        XCTAssertTrue(option.waitForExistence(timeout: 10))
+        option.tap()
+        #endif
+        assertAppearanceSelected(rawValue)
+    }
+
+    private func assertAppearanceSelected(_ rawValue: String) {
+        #if os(macOS)
+        let option = appearanceOption(rawValue)
+        XCTAssertTrue(option.waitForExistence(timeout: 10))
+        let selected = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in option.isSelected },
+            object: nil
+        )
+        #else
+        let picker = app.descendants(matching: .any)["appearance-mode-picker"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 10))
+        let label = appearanceLabel(rawValue)
+        let selected = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in picker.value as? String == label },
+            object: nil
+        )
+        #endif
+        XCTAssertEqual(XCTWaiter.wait(for: [selected], timeout: 10), .completed)
+    }
+
+    private func appearanceLabel(_ rawValue: String) -> String {
+        switch rawValue {
+        case "light": "Light"
+        case "dark": "Dark"
+        default: "System"
+        }
     }
 
     private func chooseGridColumns(_ count: Int) {

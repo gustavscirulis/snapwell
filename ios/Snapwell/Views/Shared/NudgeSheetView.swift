@@ -19,6 +19,7 @@ struct NudgeSheetView: View {
     var onOpenAISettings: () -> Void = {}
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -26,6 +27,10 @@ struct NudgeSheetView: View {
 
     private var bodyOpacity: Double {
         contrast == .increased ? max(metrics.bodyOpacity, 0.85) : metrics.bodyOpacity
+    }
+
+    private var artworkShadowOpacity: Double {
+        colorScheme == .dark ? metrics.shadowOpacity : min(metrics.shadowOpacity, 0.18)
     }
 
     var body: some View {
@@ -36,11 +41,11 @@ struct NudgeSheetView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(title)
                         .font(.title2.weight(.semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.snapForeground)
 
                     Text(message)
                         .font(.body)
-                        .foregroundStyle(.white.opacity(bodyOpacity))
+                        .foregroundStyle(Color.snapForeground.opacity(bodyOpacity))
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
@@ -56,7 +61,7 @@ struct NudgeSheetView: View {
         .scrollBounceBehavior(.basedOnSize)
         .presentationDetents(detents)
         .presentationDragIndicator(.visible)
-        .presentationBackground(Color.snapDarkCard)
+        .presentationBackground(Color.snapCard)
     }
 
     /// Proportional rather than fixed heights, so both buttons stay above the
@@ -88,12 +93,12 @@ struct NudgeSheetView: View {
                 .clipShape(RoundedRectangle(cornerRadius: metrics.imageCornerRadius))
                 .overlay(
                     RoundedRectangle(cornerRadius: metrics.imageCornerRadius)
-                        .stroke(Color.snapDarkBorder, lineWidth: 1)
+                        .stroke(Color.snapBorder, lineWidth: 1)
                 )
                 // Lifts the screenshot off the sheet — both are dark, so the
                 // hairline alone doesn't separate them.
                 .shadow(
-                    color: .black.opacity(metrics.shadowOpacity),
+                    color: .black.opacity(artworkShadowOpacity),
                     radius: metrics.shadowRadius,
                     y: metrics.shadowY
                 )
@@ -102,7 +107,7 @@ struct NudgeSheetView: View {
             Image(systemName: "sparkles")
                 .font(.system(size: 40, weight: .light))
                 .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.snapForeground)
                 .accessibilityHidden(true)
         }
     }
@@ -137,8 +142,8 @@ struct NudgeSheetView: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            .tint(.white)
-            .foregroundStyle(.black)
+            .tint(Color.snapForeground)
+            .foregroundStyle(Color.snapBackground)
 
         case .apiKey:
             Button {
@@ -150,8 +155,8 @@ struct NudgeSheetView: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            .tint(.white)
-            .foregroundStyle(.black)
+            .tint(Color.snapForeground)
+            .foregroundStyle(Color.snapBackground)
         }
     }
 }
@@ -162,7 +167,7 @@ private struct NudgeSecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.body.weight(.medium))
-            .foregroundStyle(.white.opacity(configuration.isPressed ? 0.4 : 0.6))
+            .foregroundStyle(Color.snapForeground.opacity(configuration.isPressed ? 0.55 : 0.75))
             .frame(maxWidth: .infinity, minHeight: 44)
             .contentShape(Rectangle())
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
@@ -171,14 +176,14 @@ private struct NudgeSecondaryButtonStyle: ButtonStyle {
 }
 
 #Preview("Mac app") {
-    Color.snapDarkBackground
+    Color.snapBackground
         .sheet(isPresented: .constant(true)) {
             NudgeSheetView(nudge: .macApp)
         }
 }
 
 #Preview("API key") {
-    Color.snapDarkBackground
+    Color.snapBackground
         .sheet(isPresented: .constant(true)) {
             NudgeSheetView(nudge: .apiKey)
         }

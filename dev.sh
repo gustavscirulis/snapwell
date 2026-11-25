@@ -120,9 +120,29 @@ run_ios() {
     # Try connected iPhone first, fall back to simulator
     printf "${DIM}Looking for connected iPhone...${RESET}\n"
     local device_line device_output discovery_failed=false
-    if device_output=$(xcrun devicectl list devices 2>&1); then
-        device_line=$(printf '%s\n' "$device_output" | grep -i 'iphone' | grep -Ei 'connected|available' | head -1 || true)
+    if device_output=$(xcrun devicectl list devices --json-output - 2>/dev/null); then
+        # devicectl includes simulators. Its versioned JSON is the supported
+        # scripting interface; the displayed table can change between Xcodes.
+        device_line=$(printf '%s\n' "$device_output" | python3 -c '
+import json
+import sys
+
+for device in json.load(sys.stdin).get("result", {}).get("devices", []):
+    properties = device.get("properties", {})
+    hardware = properties.get("hardware", {})
+    connection = properties.get("connection", {})
+    state = properties.get("state", {})
+    if (hardware.get("deviceType") == "iPhone"
+            and hardware.get("reality") != "simulated"
+            and connection.get("state") in ("connected", "available")):
+        identifier = hardware.get("udid") or device.get("identifier")
+        if identifier:
+            name = state.get("name") or "iPhone"
+            print(f"{name}   {identifier}")
+            break
+' || true)
     else
+        device_output=$(xcrun devicectl list devices 2>&1 || true)
         device_line=""
         discovery_failed=true
         printf "${YELLOW}iPhone discovery failed: %s${RESET}\n" "$(printf '%s\n' "$device_output" | tail -1)"
@@ -134,7 +154,8 @@ run_ios() {
         if [[ "$discovery_failed" == true ]]; then
             printf "${YELLOW}Trying Simulator instead...${RESET}\n"
         else
-            printf "${YELLOW}No connected iPhone found — using Simulator${RESET}\n"
+            printf "${YELLOW}No connected iPhone is visible to Xcode — using Simulator${RESET}\n"
+            printf "${DIM}Unlock and connect/trust the phone, then wait for it to appear in Xcode's Device Hub before retrying.${RESET}\n"
         fi
         run_ios_simulator
     fi
@@ -183,13 +204,11 @@ run_ios_device() {
     printf "\n${GREEN}✓ Build succeeded${RESET}\n"
 
     printf "${DIM}Installing on %s...${RESET}\n" "$device_name"
+    local bundle_id
+    bundle_id=$(/usr/bin/plutil -extract CFBundleIdentifier raw -o - "$app_path/Info.plist")
     local install_output
     install_output=$(xcrun devicectl device install app --device "$device_id" "$app_path" 2>&1)
     echo "$install_output"
-
-    local bundle_id
-    bundle_id=$(echo "$install_output" | grep 'bundleID:' | awk '{print $3}' || true)
-    bundle_id="${bundle_id:-co.snapwell.app}"
 
     printf "${DIM}Launching...${RESET}\n"
     xcrun devicectl device process launch --device "$device_id" "$bundle_id" 2>&1
@@ -198,28 +217,72 @@ run_ios_device() {
 }
 
 run_ios_simulator() {
-    local sim_name="iPhone 17 Pro"
-    local sim_id sim_output
-    if ! sim_output=$(xcrun simctl list devices available 2>&1); then
-        printf "${RED}Simulator discovery failed: %s${RESET}\n" "$(printf '%s\n' "$sim_output" | tail -1)"
+    local sim_name sim_id device_output simulator_record
+    if ! device_output=$(xcrun devicectl list devices --json-output - 2>/dev/null); then
+        device_output=$(xcrun devicectl list devices 2>&1 || true)
+        printf "${RED}Device Hub discovery failed: %s${RESET}\n" "$(printf '%s\n' "$device_output" | tail -1)"
         return 1
     fi
-    sim_id=$(printf '%s\n' "$sim_output" | grep "$sim_name" | head -1 | grep -oE '[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}' || true)
+
+    simulator_record=$(printf '%s\n' "$device_output" | python3 -c '
+import json
+import sys
+
+devices = json.load(sys.stdin).get("result", {}).get("devices", [])
+simulators = []
+for device in devices:
+    properties = device.get("properties", {})
+    hardware = properties.get("hardware", {})
+    connection = properties.get("connection", {})
+    state = properties.get("state", {})
+    if hardware.get("deviceType") != "iPhone" or hardware.get("reality") != "simulated":
+        continue
+    identifier = hardware.get("udid") or device.get("identifier")
+    if not identifier:
+        continue
+    simulators.append((
+        state.get("bootState") == "booted",
+        connection.get("state") == "connected",
+        state.get("name") or hardware.get("marketingName") or "iPhone Simulator",
+        identifier,
+    ))
+
+if simulators:
+    booted = next((item for item in simulators if item[0] and item[1]), None)
+    selected = booted or simulators[0]
+    print(f"{selected[3]}\t{selected[2]}")
+' || true)
+
+    IFS=$'\t' read -r sim_id sim_name <<< "$simulator_record"
 
     if [[ -z "$sim_id" ]]; then
-        printf "${RED}Error: No '$sim_name' simulator found.${RESET}\n"
-        exit 1
+        printf "${RED}Error: Device Hub has no available iPhone simulator.${RESET}\n"
+        return 1
     fi
 
-    printf "${GREEN}Using simulator: %s${RESET} ${DIM}(%s)${RESET}\n" "$sim_name" "$sim_id"
+    printf "${GREEN}Using Device Hub simulator: %s${RESET} ${DIM}(%s)${RESET}\n" "$sim_name" "$sim_id"
 
     cd "$SCRIPT_DIR/ios"
 
     printf "${DIM}Booting simulator...${RESET}\n"
     xcrun simctl boot "$sim_id" 2>/dev/null || true
-    if ! open -a Simulator; then
-        printf "${RED}Simulator app is unavailable in this Xcode installation.${RESET}\n"
-        return 1
+
+    local developer_dir simulator_ui="" candidate
+    developer_dir=$(xcode-select -p)
+    for candidate in \
+        "$developer_dir/Applications/Simulator.app" \
+        "$(dirname "$developer_dir")/Applications/DeviceHub.app"; do
+        if [[ -d "$candidate" ]]; then
+            simulator_ui="$candidate"
+            break
+        fi
+    done
+    if [[ -n "$simulator_ui" ]]; then
+        if ! open "$simulator_ui"; then
+            printf "${YELLOW}Could not open %s; continuing with the booted simulator.${RESET}\n" "$simulator_ui"
+        fi
+    else
+        printf "${YELLOW}No Simulator or Device Hub UI was found; continuing headlessly.${RESET}\n"
     fi
 
     printf "${DIM}Building...${RESET}\n"
@@ -246,10 +309,12 @@ run_ios_simulator() {
     printf "\n${GREEN}✓ Build succeeded${RESET}\n"
 
     printf "${DIM}Installing on simulator...${RESET}\n"
-    xcrun simctl install "$sim_id" "$app_path"
+    local bundle_id
+    bundle_id=$(/usr/bin/plutil -extract CFBundleIdentifier raw -o - "$app_path/Info.plist")
+    xcrun devicectl device install app --device "$sim_id" "$app_path"
 
     printf "${DIM}Launching...${RESET}\n"
-    xcrun simctl launch "$sim_id" "co.snapwell.app"
+    xcrun devicectl device process launch --device "$sim_id" "$bundle_id"
 
     printf "${GREEN}✓ Snapwell is running on %s simulator${RESET}\n" "$sim_name"
 }

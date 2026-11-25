@@ -27,7 +27,7 @@ struct SpaceDetailView<AddMenu: View>: View {
             let gridWidth = geo.size.width - 24
 
             ZStack {
-                Color.snapDarkBackground
+                Color.snapBackground
                     .ignoresSafeArea()
 
                 if spaceItems.isEmpty {
@@ -60,7 +60,6 @@ struct SpaceDetailView<AddMenu: View>: View {
                 addImagesMenu
             }
         }
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .onAppear { setActiveSpaceId(spaceId) }
         .onDisappear { setActiveSpaceId(nil) }
     }

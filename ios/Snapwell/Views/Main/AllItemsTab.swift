@@ -29,12 +29,12 @@ struct AllItemsTab<AddMenu: View>: View {
     private var content: some View {
         NavigationStack {
             ZStack {
-                Color.snapDarkBackground
+                Color.snapBackground
                     .ignoresSafeArea()
 
                 if isLoading {
                     ProgressView()
-                        .tint(.white.opacity(0.6))
+                        .tint(.snapMutedForeground)
                 } else if let error {
                     ErrorStateView(message: error) {
                         await onLoadContent()
@@ -80,7 +80,6 @@ struct AllItemsTab<AddMenu: View>: View {
                     addImagesMenu
                 }
             }
-            .toolbarColorScheme(.dark, for: .navigationBar)
         }
     }
 }

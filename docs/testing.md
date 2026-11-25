@@ -21,10 +21,12 @@ existing custom hooksPath is preserved with integration instructions. Both agent
 same commands; no Claude-only hook masks exit status.
 
 Pre-commit runs the headless tooling and core suites, using `--reuse-passing --staged`.
-Native and UI tests run locally before opening a PR, rather than again on every commit. A full
-validation run also records reusable headless results, so committing the tested files does
-not rerun those checks. Native results still need to pass before opening the PR. Successful native runs also verify
-actual xcresult counts and save private input-bound evidence for release reuse.
+Native and UI tests run locally when the change's scope or risk makes them relevant, rather
+than automatically on every edit, handoff or commit. Prefer the narrowest useful selection;
+copy, icon, spacing and other visual-only changes normally need inspection or a direct preview,
+not a click-through suite. A full validation run records reusable headless results, so committing
+tested files does not rerun those checks. Successful native runs also verify actual xcresult
+counts and save private input-bound evidence for release reuse.
 
 Headless results include content fingerprints of their source, test, fixture, configuration
 and runner inputs plus the Swift/Python toolchain and host OS version. Documentation-only
@@ -46,12 +48,12 @@ requires tooling verification, not another run of unchanged native suites.
 
 ## Before creating a PR
 
-Follow the verification gate in `CLAUDE.md`, including for draft PRs. Agents run checks
-themselves where possible. If native execution is blocked, explain the blocker and ask
-the user to run `./dev.sh test --platform changed --suite all` in a normal Terminal. Wait
-for the results and inspect the logs before creating the PR. Required checks must pass
-against the latest relevant code; builds, skips and unavailable services are not passes.
-Documentation/site-only changes retain the native-test exemption described above.
+Follow the risk-based verification guidance in `CLAUDE.md`, including for draft PRs. Agents
+run only checks that provide meaningful evidence for the actual change. Use full affected-
+platform suites for broad or cross-cutting work, release validation, explicit requests, or
+when focused checks are insufficient. If a required native check is blocked, explain the
+blocker and hand off that same focused command. Required checks must pass against the latest
+relevant code; builds, skips and unavailable services are not passes.
 
 ## Isolation
 
@@ -188,10 +190,10 @@ or artifact uploads. Pre-commit runs the headless tooling/core checks and scans 
 snapshot; pre-push scans outgoing history. See
 [public repository hygiene](workflows/public-repository.md).
 
-Before opening a native PR, run `./dev.sh test --platform changed --suite all` locally and
-inspect the results as described above. This full native/UI gate is separate from the
-headless pre-commit checks. Native runs save verified evidence for unchanged inputs;
-release commands reuse it or run the required local suites when it is missing. Partial
+Before opening a native PR, choose checks based on the change's risk as described above;
+`./dev.sh test --platform changed --suite all` is reserved for changes that warrant a full
+native/UI gate. Native runs save verified evidence for unchanged inputs. Release commands
+reuse complete evidence or run the required full local suites when it is missing. Partial
 test selections never produce complete-suite release evidence.
 
 Importing evidence from a historical successful Quality run remains optional while its

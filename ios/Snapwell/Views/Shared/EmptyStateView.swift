@@ -28,7 +28,7 @@ struct EmptyStateView: View {
                             let index = col * 4 + row
                             let h = skeletonHeights[index % skeletonHeights.count]
                             RoundedRectangle(cornerRadius: 12)
-                                .fill(Color.snapDarkMuted.opacity(0.5))
+                                .fill(Color.snapMuted.opacity(0.5))
                                 .frame(width: columnWidth, height: h)
                         }
                     }
@@ -37,36 +37,44 @@ struct EmptyStateView: View {
             .padding(.horizontal, padding)
             .opacity(0.5)
 
-            // Centered onboarding card — positioned at the center of the visible area
-            VStack(spacing: 20) {
-                Image(systemName: "photo.on.rectangle.angled")
-                    .font(.system(size: 48, weight: .light))
-                    .foregroundStyle(.white.opacity(0.4))
+            EmptyStateContent(
+                icon: "photo.on.rectangle.angled",
+                title: "Add images or videos",
+                subtitle: "Tap + to import from Photos,\nor share from any app"
+            )
+            .frame(maxWidth: geometry.size.width - 48)
+            .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
+        }
+    }
+}
 
-                VStack(spacing: 8) {
-                    Text("Add images or videos")
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .multilineTextAlignment(.center)
+private struct EmptyStateContent: View {
+    let icon: String
+    let title: String
+    let subtitle: String?
 
-                    Text("Tap + to import from Photos,\nor share from any app")
+    var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: icon)
+                .font(.system(size: 48, weight: .light))
+                .foregroundStyle(Color.snapMutedForeground)
+
+            VStack(spacing: 8) {
+                Text(title)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(Color.snapForeground)
+                    .multilineTextAlignment(.center)
+
+                if let subtitle {
+                    Text(subtitle)
                         .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.5))
+                        .foregroundStyle(Color.snapMutedForeground)
                         .multilineTextAlignment(.center)
                 }
             }
-            .padding(32)
-            .frame(maxWidth: geometry.size.width - 48)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.snapDarkCard)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(Color.snapDarkBorder, lineWidth: 1)
-                    )
-            )
-            .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
         }
+        .padding(.horizontal, 32)
+        .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
     }
 }
@@ -76,11 +84,11 @@ struct SearchEmptyStateView: View {
         VStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 32, weight: .light))
-                .foregroundStyle(.white.opacity(0.3))
+                .foregroundStyle(Color.snapMutedForeground)
 
             Text("No results found")
                 .font(.headline)
-                .foregroundStyle(.white.opacity(0.7))
+                .foregroundStyle(Color.snapForeground)
         }
         .accessibilityElement(children: .combine)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -93,20 +101,11 @@ struct PlaceholderView: View {
     var subtitle: String? = nil
 
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 32, weight: .light))
-                .foregroundStyle(.white.opacity(0.3))
-            Text(title)
-                .font(.headline)
-                .foregroundStyle(.white.opacity(0.7))
-            if let subtitle {
-                Text(subtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.4))
-            }
+        GeometryReader { geometry in
+            EmptyStateContent(icon: icon, title: title, subtitle: subtitle)
+                .frame(maxWidth: geometry.size.width - 48)
+                .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
         }
-        .accessibilityElement(children: .combine)
     }
 }
 
@@ -118,25 +117,25 @@ struct ErrorStateView: View {
         VStack(spacing: 16) {
             Image(systemName: "exclamationmark.triangle")
                 .font(.system(size: 40, weight: .light))
-                .foregroundStyle(.white.opacity(0.3))
+                .foregroundStyle(Color.snapMutedForeground)
 
             Text("Something went wrong")
                 .font(.headline)
-                .foregroundStyle(.white.opacity(0.7))
+                .foregroundStyle(Color.snapForeground)
 
             Text(message)
                 .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.4))
+                .foregroundStyle(Color.snapMutedForeground)
                 .multilineTextAlignment(.center)
 
             Button("Try Again") {
                 Task { await retry() }
             }
             .font(.subheadline.weight(.medium))
-            .foregroundStyle(.white)
+            .foregroundStyle(Color.snapForeground)
             .padding(.horizontal, 20)
             .padding(.vertical, 8)
-            .background(.white.opacity(0.12))
+            .background(Color.snapMuted)
             .clipShape(RoundedRectangle(cornerRadius: 8))
         }
         .padding()

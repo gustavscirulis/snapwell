@@ -3,6 +3,7 @@ import SwiftData
 
 @main
 struct SnapwellApp: App {
+    @AppStorage(AppearanceMode.storageKey) private var appearanceMode = AppearanceMode.system.rawValue
     @StateObject private var fileSystem = FileSystemManager()
     @StateObject private var keySyncService = KeySyncService.shared
     let container: ModelContainer
@@ -60,12 +61,16 @@ struct SnapwellApp: App {
         }
     }
 
+    private var appearanceColorScheme: ColorScheme? {
+        AppearanceMode.colorScheme(for: appearanceMode)
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(fileSystem)
                 .environmentObject(keySyncService)
-                .preferredColorScheme(.dark)
+                .preferredColorScheme(appearanceColorScheme)
                 .onAppear {
                     FileSystemManager.shared = fileSystem
                 }

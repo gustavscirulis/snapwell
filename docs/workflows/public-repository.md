@@ -32,8 +32,10 @@ already exists. Integrate both hooks if preserving a custom setup:
   on that remote when pushing a new branch. It checks commit messages without treating existing author emails as leaked credentials.
 
 All testing and privacy checks run locally; there are no GitHub validation workflows.
-Run `./dev.sh test --platform changed --suite all` before opening a native PR, following
-the verification gate in `CLAUDE.md`. A skipped or unavailable native service is not a pass.
+Choose risk-based validation before opening a native PR, following `CLAUDE.md`. Reserve
+`./dev.sh test --platform changed --suite all` for changes that warrant the complete native
+gate. A skipped or unavailable service is not a pass when that service is part of the
+required validation.
 GitHub review requirements and CODEOWNERS still apply; local test results are not a
 GitHub status check.
 

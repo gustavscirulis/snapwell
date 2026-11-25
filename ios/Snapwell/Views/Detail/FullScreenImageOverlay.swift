@@ -634,7 +634,7 @@ struct FullScreenImageOverlay: View {
                         .clipped()
                 } else {
                     Rectangle()
-                        .fill(Color.snapDarkMuted)
+                        .fill(Color.snapMediaPlaceholder)
                         .frame(width: size.width, height: size.height)
                 }
             }
@@ -673,7 +673,7 @@ struct FullScreenImageOverlay: View {
                                 .drawingGroup(opaque: false)
                         } else {
                             Rectangle()
-                                .fill(Color.snapDarkMuted)
+                                .fill(Color.snapMediaPlaceholder)
                                 .frame(width: finalFrame.width, height: finalFrame.height)
                                 .overlay {
                                     ProgressView()
@@ -775,7 +775,7 @@ struct FullScreenImageOverlay: View {
                 .position(x: frame.midX, y: frame.midY)
         } else {
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color.snapDarkMuted)
+                .fill(Color.snapMediaPlaceholder)
                 .frame(width: frame.width, height: frame.height)
                 .position(x: frame.midX, y: frame.midY)
         }

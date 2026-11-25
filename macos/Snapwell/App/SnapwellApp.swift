@@ -3,14 +3,14 @@ import SwiftData
 
 @main
 struct SnapwellApp: App {
-    @AppStorage("appearanceMode") private var appearanceMode: String = AppearanceMode.dark.rawValue
+    @AppStorage(AppearanceMode.storageKey) private var appearanceMode = AppearanceMode.system.rawValue
     @State private var gridColumns: GridColumnPreferences
     @State private var libraryShuffle: LibraryShufflePreferences
     let container: ModelContainer
     private static let multiSpaceStoreResetKey = "multiSpaceStoreReset_v1"
 
     private var appearanceColorScheme: ColorScheme? {
-        (AppearanceMode(rawValue: appearanceMode) ?? .dark).colorScheme
+        AppearanceMode.colorScheme(for: appearanceMode)
     }
 
     init() {

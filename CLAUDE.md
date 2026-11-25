@@ -31,24 +31,31 @@ same task when its behavior changes. User instructions always take precedence.
 ## Completion
 
 Testing and privacy checks run locally; there are no GitHub validation workflows.
-Run `./dev.sh test --platform changed --suite all` before handing off native work.
+Choose validation in proportion to the change. Do not automatically run full native or UI
+suites before every handoff. Use the narrowest check that can catch a realistic regression,
+and skip automated tests for trivial copy, icon, spacing or other visual-only edits when code
+inspection or a direct preview is sufficient. Run full affected-platform suites for broad or
+cross-cutting changes, release work, explicit user requests, or when narrower evidence cannot
+establish confidence.
 Headless checks reuse passing results for unchanged inputs by default; use `--fresh` only
 when a fresh rerun is needed. The core suite is included in logic/all, even when native
 services are blocked. Do not rerun it separately if that run already passed core.
 Swift Testing is required for logic/integration tests; XCTest is allowed in native UI-test
 targets only. Add regression tests for sync, import, sidecars, trash, spaces and model changes.
-For view-only work, exercise relevant UI tests and inspect captured images; do not create
-unit tests that merely mirror layout constants.
+For view-only work, prefer direct inspection or a focused preview. Exercise UI automation only
+when the change affects interaction, accessibility, navigation, persistence or a user flow;
+do not create unit tests that merely mirror layout constants.
 
-Before creating a PR (including a draft) for native changes, require passing results for
-the affected platforms and suites against the latest relevant code. Run the checks
-yourself whenever possible. If the agent environment blocks native testing, explain the
-specific blocker and ask the user to run `./dev.sh test --platform changed --suite all`
-from a normal Terminal. Wait for the results, inspect the logs, and resolve failures before
-creating the PR. A successful build, skipped tests or an unavailable test service does not
-count as a passing test run. Reuse passing results when the code they cover has not changed.
+Before creating a PR (including a draft), perform the risk-based checks relevant to the
+change and report what was intentionally not run. Full native suites are required only when
+the scope or risk calls for them, not merely because native files changed. If a required
+native check is blocked by the agent environment, explain the specific blocker and ask the
+user to run that same focused command from a normal Terminal. A successful build, skipped
+tests or an unavailable test service does not count as a passing required check. Reuse
+passing results when the code they cover has not changed.
 Pre-commit runs headless tooling/core checks and reuses unchanged passing results; it does
-not repeat hosted native or UI tests. Keep the full native PR gate separate from committing.
+not repeat hosted native or UI tests. Keep any risk-based native PR validation separate from
+committing.
 
 Every user-visible change adds an entry to `CHANGELOG.md` in the same PR; otherwise state
 that it has no user-visible change. Report what passed, what failed, and what could not run.
